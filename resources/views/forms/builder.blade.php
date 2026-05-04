@@ -106,11 +106,7 @@ body {
   font-weight: 700; font-size: 14px; color: var(--text-primary);
   text-decoration: none; white-space: nowrap;
 }
-.topbar-logo span {
-  width: 30px; height: 30px; background: var(--accent);
-  border-radius: 7px; display: flex; align-items: center; justify-content: center;
-  font-size: 13px; font-weight: 800; color: #fff; flex-shrink: 0;
-}
+.topbar-logo span { width: 38px; height: 38px; background: #C8102E; border-radius: 10px; display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 700; font-size: 18px; flex-shrink: 0; }
 .topbar-divider { width: 1px; height: 22px; background: var(--border); flex-shrink: 0; }
 .back-btn {
   display: flex; align-items: center; gap: 5px;

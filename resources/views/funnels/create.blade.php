@@ -12,7 +12,7 @@ html, body { height: 100%; font-family: -apple-system, BlinkMacSystemFont, 'Inte
 /* Top Bar */
 .topbar { height: 56px; background: #fff; border-bottom: 1px solid #e5e7eb; display: flex; align-items: center; padding: 0 20px; gap: 16px; position: fixed; top: 0; left: 0; right: 0; z-index: 100; box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
 .topbar-logo { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 14px; color: #111827; text-decoration: none; }
-.topbar-logo span { width: 30px; height: 30px; background: #6366f1; border-radius: 7px; display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 800; font-size: 13px; }
+.topbar-logo span { width: 38px; height: 38px; background: #C8102E; border-radius: 10px; display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 700; font-size: 18px; flex-shrink: 0; }
 .topbar-divider { width: 1px; height: 22px; background: #e5e7eb; }
 .topbar-breadcrumb { display: flex; align-items: center; gap: 6px; font-size: 13px; color: #6b7280; }
 .topbar-breadcrumb a { color: #6b7280; text-decoration: none; } .topbar-breadcrumb a:hover { color: #6366f1; }
