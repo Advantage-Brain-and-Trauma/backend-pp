@@ -222,7 +222,7 @@ class ClinicalController extends Controller
     public function downloadPatientSubmitedFormPdf(Request $request)
     {
         try {
-            // ✅ Validate filenames (NOT URLs now)
+            // ✅ Validate filenames
             $request->validate([
                 'pdfUrls' => 'required|array',
                 'pdfUrls.*' => 'required|string'
@@ -230,28 +230,19 @@ class ClinicalController extends Controller
 
             $pdfFiles = $request->pdfUrls;
 
-            // ✅ Base URL (internal server)
+            // ✅ Base URL
             $baseUrl = "http://10.0.0.24/medhiwa/internal/assets/images/activecollab/pdf/";
-
-            // ✅ Save directory (same server path)
-            $saveDir = "/var/www/html/www/apache24/data/medhiwa/internal/assets/images/activecollab/pdf/";
-
-            if (!File::exists($saveDir)) {
-                File::makeDirectory($saveDir, 0777, true, true);
-            }
 
             $results = [];
 
-            // ⚡ Parallel download
+            // ⚡ Parallel request (only check, no save)
             $responses = Http::pool(function ($pool) use ($pdfFiles, $baseUrl) {
                 $requests = [];
 
                 foreach ($pdfFiles as $index => $fileName) {
-                    $fullUrl = $baseUrl . $fileName;
-
                     $requests[$index] = $pool->timeout(20)
                         ->retry(2, 500)
-                        ->get($fullUrl);
+                        ->get($baseUrl . $fileName);
                 }
 
                 return $requests;
@@ -259,63 +250,72 @@ class ClinicalController extends Controller
 
             foreach ($pdfFiles as $index => $fileName) {
 
-                try {
+                    try {
+                        $response = $responses[$index];
 
-                    // ✅ Unique filename
-                    $uniqueName = time() . '_' . $fileName;
+                        if (!$response) {
+                            $results[] = [
+                                'file' => $fileName,
+                                'success' => false,
+                                'message' => 'File not found'
+                            ];
+                            continue;
+                        }
 
-                    $savePath = $saveDir . $uniqueName;
+                        if ($response->status() === 404) {
+                            $results[] = [
+                                'file' => $fileName,
+                                'success' => false,
+                                'message' => 'File not found'
+                            ];
+                            continue;
+                        }
 
-                    // ✅ Skip if exists
-                    if (File::exists($savePath)) {
+                        if (!$response->successful()) {
+                            $results[] = [
+                                'file' => $fileName,
+                                'success' => false,
+                                'message' => 'File inaccessible'
+                            ];
+                            continue;
+                        }
+
+                        $contentType = $response->header('Content-Type');
+
+                        if (!str_contains($contentType, 'application/pdf')) {
+                            $results[] = [
+                                'file' => $fileName,
+                                'success' => false,
+                                'message' => 'File not found'
+                            ];
+                            continue;
+                        }
+
                         $results[] = [
                             'file' => $fileName,
                             'success' => true,
-                            'message' => 'Already exists',
-                            'savedUrl' => $baseUrl . $uniqueName
+                            'url' => $baseUrl . $fileName
                         ];
-                        continue;
-                    }
 
-                    $response = $responses[$index];
-
-                    if (!$response || !$response->successful()) {
+                    } catch (\Exception $e) {
                         $results[] = [
                             'file' => $fileName,
                             'success' => false,
-                            'error' => 'Download failed'
+                            'message' => 'Error checking file'
                         ];
-                        continue;
                     }
-
-                    // ✅ Save file
-                    File::put($savePath, $response->body());
-
-                    $results[] = [
-                        'file' => $fileName,
-                        'success' => true,
-                        'savedUrl' => $baseUrl . $uniqueName
-                    ];
-
-                } catch (\Exception $e) {
-                    $results[] = [
-                        'file' => $fileName,
-                        'success' => false,
-                        'error' => $e->getMessage()
-                    ];
-                }
             }
 
             return response()->json([
                 'success' => true,
-                'message' => 'PDF processing completed',
+                'message' => 'Pdf processing completed',
                 'data' => $results
             ]);
 
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'error' => $e->getMessage()
+                'message' => 'Error processing PDF files',
             ], 500);
         }
     }
