@@ -85,12 +85,14 @@
                 <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
               </a>
               {{-- Delete --}}
-              <form method="POST" action="{{ route('funnels.destroy', $funnel) }}" onsubmit="return confirm('Delete this funnel? This cannot be undone.')" style="display:inline;">
+              <button type="button" title="Delete Funnel"
+                onclick="openDeleteModal({{ $funnel->id }}, '{{ addslashes($funnel->name) }}')"
+                style="display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:7px;background:#ef4444;color:#fff;border:none;cursor:pointer;">
+                <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+              </button>
+              {{-- Hidden delete form --}}
+              <form id="delete-form-{{ $funnel->id }}" method="POST" action="{{ route('funnels.destroy', $funnel) }}" style="display:none;">
                 @csrf @method('DELETE')
-                <button type="submit" title="Delete Funnel"
-                  style="display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:7px;background:#ef4444;color:#fff;border:none;cursor:pointer;">
-                  <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
-                </button>
               </form>
             </div>
           </td>
@@ -141,7 +143,57 @@
   ✅ Funnel URL copied to clipboard!
 </div>
 
+<!-- Delete Confirmation Modal -->
+<div id="deleteFunnelModal" style="display:none;position:fixed;inset:0;z-index:9000;align-items:center;justify-content:center;">
+  <!-- Backdrop -->
+  <div onclick="closeDeleteModal()" style="position:absolute;inset:0;background:rgba(0,0,0,0.45);backdrop-filter:blur(2px);"></div>
+  <!-- Dialog -->
+  <div style="position:relative;background:#fff;border-radius:16px;box-shadow:0 20px 60px rgba(0,0,0,0.18);padding:32px 28px;width:100%;max-width:420px;margin:0 16px;z-index:1;">
+    <!-- Icon -->
+    <div style="width:52px;height:52px;border-radius:50%;background:#fef2f2;display:flex;align-items:center;justify-content:center;margin:0 auto 18px;">
+      <svg width="24" height="24" fill="none" stroke="#ef4444" stroke-width="2.5" viewBox="0 0 24 24">
+        <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/>
+      </svg>
+    </div>
+    <!-- Title -->
+    <h3 style="text-align:center;font-size:18px;font-weight:700;color:#111827;margin:0 0 8px;">Delete Funnel</h3>
+    <!-- Message -->
+    <p style="text-align:center;font-size:14px;color:#6b7280;margin:0 0 6px;">Are you sure you want to delete</p>
+    <p id="deleteFunnelName" style="text-align:center;font-size:14px;font-weight:600;color:#111827;margin:0 0 24px;word-break:break-word;"></p>
+    <p style="text-align:center;font-size:13px;color:#9ca3af;margin:-16px 0 24px;">This action cannot be undone.</p>
+    <!-- Buttons -->
+    <div style="display:flex;gap:10px;">
+      <button onclick="closeDeleteModal()" style="flex:1;padding:10px 0;border-radius:9px;border:1px solid #e5e7eb;background:#fff;color:#374151;font-size:14px;font-weight:500;cursor:pointer;">
+        Cancel
+      </button>
+      <button onclick="confirmDeleteFunnel()" style="flex:1;padding:10px 0;border-radius:9px;border:none;background:#ef4444;color:#fff;font-size:14px;font-weight:600;cursor:pointer;">
+        Delete
+      </button>
+    </div>
+  </div>
+</div>
+
 <script>
+var _deleteFunnelId = null;
+
+function openDeleteModal(id, name) {
+  _deleteFunnelId = id;
+  document.getElementById('deleteFunnelName').textContent = '"' + name + '"';
+  var modal = document.getElementById('deleteFunnelModal');
+  modal.style.display = 'flex';
+}
+
+function closeDeleteModal() {
+  _deleteFunnelId = null;
+  document.getElementById('deleteFunnelModal').style.display = 'none';
+}
+
+function confirmDeleteFunnel() {
+  if (_deleteFunnelId) {
+    document.getElementById('delete-form-' + _deleteFunnelId).submit();
+  }
+}
+
 function copyFunnelUrl(url) {
   navigator.clipboard.writeText(url).then(() => {
     const toast = document.getElementById('copyToast');
