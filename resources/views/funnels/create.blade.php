@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="csrf-token" content="{{ csrf_token() }}">
 <title>Create Funnel — AdvantageHCS Admin</title>
+<link rel="icon" type="image/x-icon" href="{{ asset('favicon.ico') }}">
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 html, body { height: 100%; font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', system-ui, sans-serif; background: #f0f2f5; color: #111827; overflow: hidden; }

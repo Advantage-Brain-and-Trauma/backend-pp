@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="csrf-token" content="{{ csrf_token() }}">
 <title>Form Builder — {{ $form->name ?? 'New Form' }} — AdvantageHCS Admin</title>
+<link rel="icon" type="image/x-icon" href="{{ asset('favicon.ico') }}">
 <style>
 /* ===================== THEME VARIABLES ===================== */
 :root, [data-theme="light"] {
