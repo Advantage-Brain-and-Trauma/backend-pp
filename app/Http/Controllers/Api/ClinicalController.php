@@ -29,7 +29,7 @@ class ClinicalController extends Controller
 
                 // ❌ Remove json key
                 unset($item['json']);
-                
+
                 if (!empty($item['pdf_url'])) {
                     $item['downloadPdf'] = "https://ptp.advantagehcs.com/storage/pdfDownload/" . $item['pdf_url'];
                 } else {
@@ -98,8 +98,8 @@ class ClinicalController extends Controller
             $pdfFiles = $request->pdfUrls;
 
             // ✅ Base URL
-            $baseUrl = "http://10.0.0.24/medhiwa/internal/assets/images/activecollab/pdf/";
-
+            $baseUrl = "https://ptp.advantagehcs.com/storage/pdfDownload/";
+    
             $results = [];
 
             // ⚡ Parallel request (only check, no save)
