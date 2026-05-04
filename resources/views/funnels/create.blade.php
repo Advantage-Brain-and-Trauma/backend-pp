@@ -131,12 +131,12 @@ html, body { height: 100%; font-family: -apple-system, BlinkMacSystemFont, 'Inte
       <div style="display:flex;gap:12px;">
         <div class="form-group" style="flex:1;">
           <label class="form-label">Funnel Name <span style="color:#ef4444;">*</span></label>
-          <input type="text" class="form-input" id="funnelName" placeholder="e.g. Patient Intake Funnel" required>
+          <input type="text" class="form-input" id="funnelName" placeholder="Enter funnel name..." required>
         </div>
       </div>
       <div class="form-group">
         <label class="form-label">Description</label>
-        <textarea class="form-input form-textarea" id="funnelDesc" placeholder="Optional description..."></textarea>
+        <textarea class="form-input form-textarea" id="funnelDesc" placeholder="Enter funnel description..."></textarea>
       </div>
     </div>
 
