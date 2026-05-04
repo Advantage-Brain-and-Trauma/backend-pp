@@ -3,11 +3,11 @@
 @section('page-title', 'Users')
 @section('page-subtitle', 'Manage and view all user accounts')
 
-@section('header-actions')
+{{-- @section('header-actions')
     <button type="button" onclick="openCreateModal()" class="btn btn-primary">
         <i class="fas fa-plus"></i> Create User
     </button>
-@endsection
+@endsection --}}
 
 @section('content')
 <style>
