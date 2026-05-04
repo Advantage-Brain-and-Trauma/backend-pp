@@ -560,12 +560,6 @@
             <i class="fas fa-users-cog"></i> Users
         </a>
 
-        <a href="{{ route('appointments.index') }}" class="nav-item {{ request()->routeIs('appointments.*') ? 'active' : '' }}">
-            <i class="fas fa-calendar-check"></i> Appointments
-        </a>
-        <a href="{{ route('billing.index') }}" class="nav-item {{ request()->routeIs('billing.*') ? 'active' : '' }}">
-            <i class="fas fa-file-invoice-dollar"></i> Billing
-        </a>
         <a href="{{ route('messages.index') }}" class="nav-item {{ request()->routeIs('messages.*') ? 'active' : '' }}">
             <i class="fas fa-envelope"></i> Messages
             @php $unread = \App\Models\Message::where('is_read', false)->count(); @endphp
