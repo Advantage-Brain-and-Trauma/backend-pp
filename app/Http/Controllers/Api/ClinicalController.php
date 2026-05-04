@@ -222,70 +222,88 @@ class ClinicalController extends Controller
     public function downloadPatientSubmitedFormPdf(Request $request)
     {
         try {
-            // ✅ Validate filenames
-            $validator = Validator::make($request->all(), [
+            // ✅ Validate filenames (NOT URLs now)
+            $request->validate([
                 'pdfUrls' => 'required|array',
                 'pdfUrls.*' => 'required|string'
             ]);
 
-            if ($validator->fails()) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Invalid filenames provided',
-                    'errors' => $validator->errors()
-                ], 422);
-            }
-
             $pdfFiles = $request->pdfUrls;
 
-            // ✅ Source base URL (where files currently exist)
+            // ✅ Base URL (internal server)
             $baseUrl = "http://10.0.0.24/medhiwa/internal/assets/images/activecollab/pdf/";
 
-            // ✅ Upload API URL
-            $uploadApi = "http://10.0.0.24/api/upload-pdf";
+            // ✅ Save directory (same server path)
+            $saveDir = "/var/www/html/www/apache24/data/medhiwa/internal/assets/images/activecollab/pdf/";
+
+            if (!File::exists($saveDir)) {
+                File::makeDirectory($saveDir, 0777, true, true);
+            }
 
             $results = [];
 
-            foreach ($pdfFiles as $fileName) {
+            // ⚡ Parallel download
+            $responses = Http::pool(function ($pool) use ($pdfFiles, $baseUrl) {
+                $requests = [];
+
+                foreach ($pdfFiles as $index => $fileName) {
+                    $fullUrl = $baseUrl . $fileName;
+
+                    $requests[$index] = $pool->timeout(20)
+                        ->retry(2, 500)
+                        ->get($fullUrl);
+                }
+
+                return $requests;
+            });
+
+            foreach ($pdfFiles as $index => $fileName) {
 
                 try {
-                    // 🔹 Step 1: Build full source URL
-                    $sourceUrl = $baseUrl . $fileName;
-
-                    // 🔹 Step 2: Download file
-                    $response = Http::timeout(20)
-                        ->retry(2, 500)
-                        ->get($sourceUrl);
-
-                    if (!$response->successful()) {
+                    // ✅ Validate extension
+                    if (pathinfo($fileName, PATHINFO_EXTENSION) !== 'pdf') {
                         $results[] = [
                             'file' => $fileName,
                             'success' => false,
-                            'error' => 'Download failed'
+                            'error' => 'Only PDF allowed'
                         ];
                         continue;
                     }
 
-                    // 🔹 Step 3: Upload file to 10.0.0.24
-                    $uploadResponse = Http::timeout(20)
-                        ->attach('file', $response->body(), $fileName)
-                        ->post($uploadApi);
+                    // ✅ Unique filename
+                    $uniqueName = time() . '_' . $fileName;
 
-                    if (!$uploadResponse->successful()) {
+                    $savePath = $saveDir . $uniqueName;
+
+                    // ✅ Skip if exists
+                    if (File::exists($savePath)) {
                         $results[] = [
                             'file' => $fileName,
-                            'success' => false,
-                            'error' => 'Upload failed'
+                            'success' => true,
+                            'message' => 'Already exists',
+                            'savedUrl' => $baseUrl . $uniqueName
                         ];
                         continue;
                     }
 
-                    $uploadData = $uploadResponse->json();
+                    $response = $responses[$index];
+
+                    if (!$response || !$response->successful()) {
+                        $results[] = [
+                            'file' => $fileName,
+                            'success' => false,
+                            'error' => 'Download failed from 10.0.0.24'
+                        ];
+                        continue;
+                    }
+
+                    // ✅ Save file
+                    File::put($savePath, $response->body());
 
                     $results[] = [
                         'file' => $fileName,
                         'success' => true,
-                        'uploadedUrl' => $uploadData['url'] ?? null
+                        'savedUrl' => $baseUrl . $uniqueName
                     ];
 
                 } catch (\Exception $e) {
@@ -299,7 +317,7 @@ class ClinicalController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => 'Process completed',
+                'message' => 'Bulk PDF processing completed',
                 'data' => $results
             ]);
 
