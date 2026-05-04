@@ -624,7 +624,6 @@ body {
   <div class="topbar-right">
     <button class="theme-toggle" id="themeToggle" onclick="toggleTheme()" title="Toggle light/dark theme">🌙</button>
     <button class="btn btn-ghost" onclick="clearCanvas()">🗑 Clear</button>
-    <button class="btn btn-ghost" onclick="exportJSON()">⬇ Export</button>
     <button class="btn btn-primary" onclick="saveForm()">💾 Save</button>
   </div>
 </div>
