@@ -27,92 +27,6 @@ use Illuminate\Database\Eloquent\ModelNotFoundException;
 
 class PatientAppointmentController extends Controller
 {
-    // public function getPatientAppointments(): JsonResponse
-    // {
-    //     try {
-            
-    //         $userDetails = auth()->user();
-    //         $patientId = $userDetails->patient_id;
-    //         $caseId = $userDetails->case_id ?? 10004802;
-
-    //         if (!$patientId || !$caseId) {
-    //             throw new \Exception("Patient ID and Case ID are required", 400);
-    //         }
-
-    //         // ✅ Check patient exists
-    //         AhcsPatient::findOrFail($patientId);
-
-    //         // ✅ Check case belongs to patient
-    //         $caseExists = AhcsCase::where('id', $caseId)
-    //             ->where('patient_id', $patientId)
-    //             ->exists();
-
-    //         if (!$caseExists) {
-    //             throw new \Exception("Case not found for the given patient", 404);
-    //         }
-
-    //         // ✅ Get MedAuth IDs directly (no need to store collection if empty check not critical)
-    //         $medAuthIds = AhcsMedAuth::where('case_id', $caseId)->pluck('id');
-
-    //         if ($medAuthIds->isEmpty()) {
-    //             throw new \Exception("No MedAuth records found for the given case", 404);
-    //         }
-
-    //         // ✅ Fetch appointments
-    //         $appointments = AhcsAttendance::whereIn('ma_id', $medAuthIds)
-    //             ->whereNotIn('attend_status', ['DL', 'Block','RS'])
-    //             ->get(['id','ma_id','department','service','attend_type','provider_id','provider_name','attend_date','time','end_time','length','attend_status','attend_notes']);
-
-    //         $specialities = MedhiwaSpeciality::pluck('name', 'short_name');
-    //         $attendTypes = MedhiwaCareNewOrderType::pluck('name', 'code');
-
-    //         // ✅ Map without DB hit
-    //         $appointments->transform(function ($appointment) use ($specialities, $attendTypes) {
-
-    //             $appointment->service_full_name = $specialities[$appointment->service] ?? null;
-    //             $appointment->attend_type_full_name = $attendTypes[$appointment->attend_type] ?? null;
-
-    //             return $appointment;
-    //         });
-
-    //         // ✅ Split into upcoming & past
-    //         $today = now()->startOfDay();
-            
-    //         $upcoming = [];
-    //         $past = [];
-
-    //         foreach ($appointments as $appointment) {
-    //             if ($appointment->attend_date >= $today) {
-    //                 $upcoming[] = $appointment;
-    //             } else {
-    //                 $past[] = $appointment;
-    //             }
-    //         }
-
-    //         return response()->json([
-    //             'success' => true,
-    //             'upcoming_count' => count($upcoming),
-    //             'past_count' => count($past),
-    //             'upcoming_appointments' => $upcoming,
-    //             'past_appointments' => $past
-    //         ], 200);
-
-    //     } catch (ModelNotFoundException $e) {
-    //         return response()->json([
-    //             'success' => false,
-    //             'message' => 'Patient not found'
-    //         ], 404);
-
-    //     } catch (\Throwable $e) {
-    //         Log::error("Error fetching patient appointments: " . $e->getMessage());
-
-    //         return response()->json([
-    //             'success' => false,
-    //             'message' => 'Something went wrong'
-    //         ],500);
-    //     }
-    // }
-
     public function getPatientAppointments(): JsonResponse
     {
         try {
@@ -189,10 +103,22 @@ class PatientAppointmentController extends Controller
             });
 
             // ✅ Split upcoming & past
-            $today = now()->startOfDay();
+            $now = now();
 
-            $upcoming = $appointments->where('attend_date', '>=', $today)->values();
-            $past = $appointments->where('attend_date', '<', $today)->values();
+            $upcoming = collect();
+            $past = collect();
+
+            foreach ($appointments as $appointment) {
+                $appointmentDateTime = Carbon::parse(
+                    $appointment->attend_date . ' ' . $appointment->time
+                );
+
+                if ($appointmentDateTime->gte($now)) {
+                    $upcoming->push($appointment);
+                } else {
+                    $past->push($appointment);
+                }
+            }
             Log::channel('appointment')->info('Appointments split into upcoming and past', ['patient_id' => $patientId, 'upcoming_count' => $upcoming->count(), 'past_count' => $past->count()]);
 
             return response()->json([
