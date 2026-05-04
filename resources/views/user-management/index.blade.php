@@ -271,26 +271,27 @@ var COUNTRY_CODES = [
             @method('PUT')
             <div class="form-group">
                 <label class="form-label">Name</label>
-                <input type="text" name="name" id="editName" required class="form-control">
+                <input type="text" name="name" id="editName" required class="form-control" disabled style="background:#f3f4f6; color:#6b7280; cursor:not-allowed;">
             </div>
             <div class="form-group">
                 <label class="form-label">Email</label>
-                <input type="email" name="email" id="editEmail" required class="form-control">
+                <input type="email" name="email" id="editEmail" required class="form-control" disabled style="background:#f3f4f6; color:#6b7280; cursor:not-allowed;">
             </div>
-            <div class="form-group">
+            {{-- Password fields hidden --}}
+            <div class="form-group" style="display:none;">
                 <label class="form-label">Password</label>
                 <input type="password" name="password" id="editPassword" placeholder="Leave blank to keep current" class="form-control" style="background:#f9fafb;">
                 <p style="font-size:12px; color:#6b7280; margin:6px 0 0;">Must be 8+ characters with uppercase, lowercase, number and special character.</p>
             </div>
-            <div class="form-group">
+            <div class="form-group" style="display:none;">
                 <label class="form-label">Confirm Password</label>
                 <input type="password" name="password_confirmation" id="editPasswordConfirm" placeholder="Confirm password" class="form-control">
             </div>
             <div class="form-group">
                 <label class="form-label">Country Code</label>
                 <input type="hidden" name="country_code" id="editCountryCodeVal">
-                <div class="cs-wrap" id="editCsWrap">
-                    <div class="cs-display" id="editCsDisplay" onclick="toggleCs('edit')">Select country code</div>
+                <div class="cs-wrap" id="editCsWrap" style="pointer-events:none; opacity:0.6;">
+                    <div class="cs-display" id="editCsDisplay">Select country code</div>
                     <div class="cs-dropdown" id="editCsDropdown">
                         <div class="cs-search"><input type="text" placeholder="Search country..." oninput="filterCs('edit', this.value)" id="editCsSearch"></div>
                         <div class="cs-list" id="editCsList"></div>
@@ -299,11 +300,11 @@ var COUNTRY_CODES = [
             </div>
             <div class="form-group">
                 <label class="form-label">Phone Number</label>
-                <input type="text" name="phone" id="editPhone" placeholder="Enter phone number" class="form-control">
+                <input type="text" name="phone" id="editPhone" placeholder="Enter phone number" class="form-control" disabled style="background:#f3f4f6; color:#6b7280; cursor:not-allowed;">
             </div>
             <div class="form-group">
                 <label class="form-label">Role</label>
-                <select name="role" id="editRole" onchange="toggleEditPatientId(this.value)" class="form-control">
+                <select name="role" id="editRole" onchange="toggleEditPatientId(this.value)" class="form-control" disabled style="background:#f3f4f6; color:#6b7280; cursor:not-allowed;">
                     <option value="admin">Admin</option>
                     <option value="user">User (Patient)</option>
                     <option value="super_admin">Super Admin</option>
