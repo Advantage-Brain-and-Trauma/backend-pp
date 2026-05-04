@@ -222,7 +222,7 @@ class ClinicalController extends Controller
     public function downloadPatientSubmitedFormPdf(Request $request)
     {
         try {
-            // ✅ Validate (now filenames, not URLs)
+            // ✅ Validate filenames
             $validator = Validator::make($request->all(), [
                 'pdfUrls' => 'required|array',
                 'pdfUrls.*' => 'required|string'
@@ -238,32 +238,24 @@ class ClinicalController extends Controller
 
             $pdfFiles = $request->pdfUrls;
 
-            // ✅ Your internal base path
+            // ✅ Source base URL (where files currently exist)
             $baseUrl = "http://10.0.0.24/medhiwa/internal/assets/images/activecollab/pdf/";
 
-            $saveDir = public_path('assets/images/activecollab/pdf');
-
-            if (!File::exists($saveDir)) {
-                File::makeDirectory($saveDir, 0777, true, true);
-            }
+            // ✅ Upload API URL
+            $uploadApi = "http://10.0.0.24/api/upload-pdf";
 
             $results = [];
 
             foreach ($pdfFiles as $fileName) {
 
                 try {
-                    // ✅ Build full URL
-                    $fullUrl = $baseUrl . $fileName;
+                    // 🔹 Step 1: Build full source URL
+                    $sourceUrl = $baseUrl . $fileName;
 
-                    // Prevent duplicate filename
-                    $newFileName = time() . '_' . $fileName;
-
-                    $savePath = $saveDir . '/' . $newFileName;
-
-                    // ✅ Download from internal server
+                    // 🔹 Step 2: Download file
                     $response = Http::timeout(20)
                         ->retry(2, 500)
-                        ->get($fullUrl);
+                        ->get($sourceUrl);
 
                     if (!$response->successful()) {
                         $results[] = [
@@ -274,13 +266,26 @@ class ClinicalController extends Controller
                         continue;
                     }
 
-                    // ✅ Save locally
-                    File::put($savePath, $response->body());
+                    // 🔹 Step 3: Upload file to 10.0.0.24
+                    $uploadResponse = Http::timeout(20)
+                        ->attach('file', $response->body(), $fileName)
+                        ->post($uploadApi);
+
+                    if (!$uploadResponse->successful()) {
+                        $results[] = [
+                            'file' => $fileName,
+                            'success' => false,
+                            'error' => 'Upload failed'
+                        ];
+                        continue;
+                    }
+
+                    $uploadData = $uploadResponse->json();
 
                     $results[] = [
                         'file' => $fileName,
                         'success' => true,
-                        'savedUrl' => asset('assets/images/activecollab/pdf/' . $newFileName)
+                        'uploadedUrl' => $uploadData['url'] ?? null
                     ];
 
                 } catch (\Exception $e) {
@@ -294,7 +299,7 @@ class ClinicalController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => 'PDF processing completed',
+                'message' => 'Process completed',
                 'data' => $results
             ]);
 
