@@ -150,8 +150,8 @@
                                 data-country="{{ $user->country_code }}"
                                 data-patient="{{ $user->patient_id }}"
                                 onclick="openEditModalFromBtn(this)"
-                                class="btn btn-secondary btn-sm" title="Edit">
-                                <i class="fas fa-edit"></i>
+                                class="btn btn-secondary btn-sm" title="View User">
+                                <i class="fas fa-eye"></i>
                             </button>
                             @if($user->id !== auth()->id())
                             <button type="button" onclick="deleteUser({{ $user->id }})"
@@ -263,7 +263,7 @@ var COUNTRY_CODES = [
 <div id="editModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.45); z-index:10000; align-items:center; justify-content:center;">
     <div style="background:#fff; border-radius:12px; width:100%; max-width:500px; max-height:90vh; overflow-y:auto; padding:28px; box-shadow:0 8px 32px rgba(0,0,0,0.18); margin:20px;">
         <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:20px;">
-            <h2 style="margin:0; font-size:18px; font-weight:700; color:#111827;">Edit User</h2>
+            <h2 style="margin:0; font-size:18px; font-weight:700; color:#111827;">View User</h2>
             <button type="button" onclick="closeEditModal()" style="background:none; border:none; cursor:pointer; color:#6b7280; font-size:24px; line-height:1; padding:0;">×</button>
         </div>
         <form method="POST" id="editForm" action="">
@@ -318,8 +318,7 @@ var COUNTRY_CODES = [
                 <p style="font-size:12px; color:#9ca3af; margin:4px 0 0;">Patient ID is read-only. It can only be set when creating a new user.</p>
             </div>
             <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:8px;">
-                <button type="button" onclick="closeEditModal()" class="btn btn-secondary">Cancel</button>
-                <button type="submit" class="btn btn-primary">Save</button>
+                <button type="button" onclick="closeEditModal()" class="btn btn-secondary">Close</button>
             </div>
         </form>
     </div>
