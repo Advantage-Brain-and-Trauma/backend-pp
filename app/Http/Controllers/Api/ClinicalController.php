@@ -25,9 +25,29 @@ class ClinicalController extends Controller
 
             $data = $response->json();
 
+            $data = $response->json();
+
             foreach ($data as &$item) {
+
+                // ❌ Remove json key
+                unset($item['json']);
+
+                // ✅ Fix nested array (already done by you)
                 if (isset($item['decoded_json'][0]) && is_array($item['decoded_json'][0])) {
                     $item['decoded_json'] = $item['decoded_json'][0];
+                }
+
+                // ✅ Remove unwanted keys from decoded_json
+                if (isset($item['decoded_json']) && is_array($item['decoded_json'])) {
+                    foreach ($item['decoded_json'] as &$field) {
+                        unset(
+                            $field['className'],
+                            $field['name'],
+                            $field['subtype'],
+                            $field['column'],
+                            $field['is_client_email']
+                        );
+                    }
                 }
             }
 
