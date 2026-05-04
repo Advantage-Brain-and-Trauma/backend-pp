@@ -31,9 +31,7 @@
         <span style="font-size:13px;color:#6b7280;">Entries Per Page</span>
         @if(request('search')) <input type="hidden" name="search" value="{{ request('search') }}"> @endif
       </form>
-      <a href="{{ route('funnels.create') }}" style="display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:8px;background:#6366f1;color:#fff;font-size:13px;font-weight:600;text-decoration:none;">
-        + Create
-      </a>
+
     </div>
     <form method="GET" action="{{ route('funnels.index') }}" style="display:flex;gap:8px;align-items:center;">
       @if(request('per_page')) <input type="hidden" name="per_page" value="{{ request('per_page') }}"> @endif
@@ -103,9 +101,7 @@
             <div style="font-size:40px;margin-bottom:12px;">🔗</div>
             <div style="font-size:16px;font-weight:600;color:#374151;margin-bottom:6px;">No funnels yet</div>
             <div style="font-size:13px;margin-bottom:16px;">Create your first funnel to group forms and share with patients.</div>
-            <a href="{{ route('funnels.create') }}" style="display:inline-flex;align-items:center;gap:6px;padding:10px 20px;border-radius:8px;background:#6366f1;color:#fff;text-decoration:none;font-size:13px;font-weight:600;">
-              + Create Funnel
-            </a>
+
           </td>
         </tr>
         @endforelse
