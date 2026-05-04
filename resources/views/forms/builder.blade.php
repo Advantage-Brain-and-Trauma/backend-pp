@@ -609,6 +609,7 @@ body {
   <div class="topbar-left">
     <a href="{{ route('dashboard') }}" class="topbar-logo">
       <span>A</span> AdvantageHCS
+      <span style="font-size:10px; font-weight:600; background:#f3f4f6; color:#6b7280; border-radius:4px; padding:2px 7px; margin-left:2px;">Admin</span>
     </a>
     <div class="topbar-divider"></div>
     <a href="{{ route('forms.index') }}" class="back-btn">← Forms</a>
