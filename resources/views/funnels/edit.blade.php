@@ -294,13 +294,52 @@ function filterLibrary(query) {
 
 function saveFunnel(status) {
   const name = document.getElementById('funnelName').value.trim();
-  if (!name) { document.getElementById('funnelName').focus(); document.getElementById('funnelName').style.borderColor = '#ef4444'; setTimeout(() => document.getElementById('funnelName').style.borderColor = '', 2000); alert('Please enter a funnel name.'); return; }
-  if (funnelSteps.length === 0) { alert('Please add at least one form to the funnel before saving.'); return; }
-  document.getElementById('hiddenName').value = name;
-  document.getElementById('hiddenDesc').value = document.getElementById('funnelDesc').value;
-  document.getElementById('hiddenStatus').value = status;
-  document.getElementById('hiddenFormIds').value = JSON.stringify(funnelSteps.map(s => s.id));
-  document.getElementById('funnelForm').submit();
+  if (!name) {
+    document.getElementById('funnelName').focus();
+    document.getElementById('funnelName').style.borderColor = '#ef4444';
+    setTimeout(() => document.getElementById('funnelName').style.borderColor = '', 2000);
+    showGlobalToast('Please enter a funnel name.', 'error');
+    return;
+  }
+  if (funnelSteps.length === 0) {
+    showGlobalToast('Please add at least one form to the funnel before saving.', 'error');
+    return;
+  }
+
+  const btn = document.querySelector('[onclick="saveFunnel(\'active\')"]');
+  if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+
+  const payload = {
+    name:        name,
+    description: document.getElementById('funnelDesc').value,
+    status:      status,
+    form_ids:    JSON.stringify(funnelSteps.map(s => s.id)),
+    _method:     'PUT',
+  };
+
+  fetch('{{ route("funnels.update", $funnel) }}', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRF-TOKEN': '{{ csrf_token() }}',
+      'Accept': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  })
+  .then(r => {
+    if (!r.ok) return r.json().then(d => { throw d; });
+    return r.json().catch(() => ({ status: 'success' }));
+  })
+  .then(res => {
+    if (btn) { btn.disabled = false; btn.textContent = '🚀 Publish'; }
+    showGlobalToast(status === 'active' ? 'Funnel published successfully!' : 'Funnel updated successfully!', 'success');
+    setTimeout(() => window.location.href = '/funnels', 1200);
+  })
+  .catch(err => {
+    if (btn) { btn.disabled = false; btn.textContent = '🚀 Publish'; }
+    showGlobalToast('Save failed. Please try again.', 'error');
+    console.error('Funnel save error:', err);
+  });
 }
 
 function copyUrl() {

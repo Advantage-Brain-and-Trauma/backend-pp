@@ -313,11 +313,11 @@ function saveFunnel(status) {
     document.getElementById('funnelName').focus();
     document.getElementById('funnelName').style.borderColor = '#ef4444';
     setTimeout(() => document.getElementById('funnelName').style.borderColor = '', 2000);
-    alert('Please enter a funnel name.');
+    showGlobalToast('Please enter a funnel name.', 'error');
     return;
   }
   if (funnelSteps.length === 0) {
-    alert('Please add at least one form to the funnel before saving.');
+    showGlobalToast('Please add at least one form to the funnel before saving.', 'error');
     return;
   }
   document.getElementById('hiddenName').value = name;
@@ -346,33 +346,22 @@ function saveFunnel(status) {
   })
   .then(r => r.json())
   .then(res => {
-    if (btn) { btn.disabled = false; btn.textContent = status === 'active' ? '🚀 Publish' : '💾 Save Draft'; }
+    if (btn) { btn.disabled = false; btn.textContent = '🚀 Publish'; }
     if (res.status === 'success' || res.id) {
-      showFunnelToast(status === 'active' ? '✅ Funnel published!' : '✅ Draft saved!', 'success');
-      if (res.id) {
-        setTimeout(() => window.location.href = `/funnels/${res.id}/edit`, 1500);
-      }
+      showGlobalToast(status === 'active' ? 'Funnel published successfully!' : 'Funnel saved successfully!', 'success');
+      setTimeout(() => window.location.href = '/funnels', 1200);
     } else {
-      showFunnelToast('❌ Save failed: ' + (res.message || 'Unknown error'), 'error');
+      showGlobalToast('Save failed: ' + (res.message || 'Unknown error'), 'error');
     }
   })
   .catch(err => {
-    if (btn) { btn.disabled = false; btn.textContent = status === 'active' ? '🚀 Publish' : '💾 Save Draft'; }
-    showFunnelToast('❌ Save failed. Please try again.', 'error');
+    if (btn) { btn.disabled = false; btn.textContent = '🚀 Publish'; }
+    showGlobalToast('Save failed. Please try again.', 'error');
     console.error('Funnel save error:', err);
   });
 }
 
-function showFunnelToast(message, type = 'success') {
-  const existing = document.getElementById('funnelToast');
-  if (existing) existing.remove();
-  const el = document.createElement('div');
-  el.id = 'funnelToast';
-  el.style.cssText = `position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:${type==='success'?'#1e293b':'#ef4444'};color:#fff;padding:12px 24px;border-radius:10px;font-size:14px;font-weight:500;z-index:9999;box-shadow:0 4px 20px rgba(0,0,0,.2);`;
-  el.textContent = message;
-  document.body.appendChild(el);
-  setTimeout(() => el.remove(), 3000);
-}
+/* showFunnelToast removed — using global showGlobalToast from app layout */
 
 function escHtml(str) { const d = document.createElement('div'); d.textContent = str; return d.innerHTML; }
 </script>

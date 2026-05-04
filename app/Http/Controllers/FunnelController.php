@@ -67,7 +67,7 @@ class FunnelController extends Controller
         }
 
         return redirect()->route('funnels.index')
-            ->with('success', 'Funnel "' . $funnel->name . '" created successfully.');
+            ->with('toast_success', 'Funnel "' . $funnel->name . '" created successfully.');
     }
 
     public function show(Funnel $funnel)
@@ -105,15 +105,22 @@ class FunnelController extends Controller
             'steps'       => $steps,
         ]);
 
+        if ($request->expectsJson()) {
+            return response()->json([
+                'status'  => 'success',
+                'message' => 'Funnel updated successfully.',
+            ]);
+        }
+
         return redirect()->route('funnels.index')
-            ->with('success', 'Funnel updated successfully.');
+            ->with('toast_success', 'Funnel updated successfully.');
     }
 
     public function destroy(Funnel $funnel)
     {
         $funnel->delete();
         return redirect()->route('funnels.index')
-            ->with('success', 'Funnel deleted successfully.');
+            ->with('toast_success', 'Funnel deleted successfully.');
     }
 
     /**

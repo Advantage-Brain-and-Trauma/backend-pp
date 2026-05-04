@@ -13,9 +13,7 @@
 
 @section('content')
 
-@if(session('success'))
-<div class="alert alert-success" style="margin-bottom:16px;">{{ session('success') }}</div>
-@endif
+{{-- session toasts handled by global toast in app.blade.php --}}
 
 <div class="card" style="padding:0;overflow:hidden;">
 

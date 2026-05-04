@@ -631,8 +631,14 @@
 @if(session('success'))
 <span id="g-flash-success" data-msg="{{ session('success') }}" style="display:none;"></span>
 @endif
+@if(session('toast_success'))
+<span id="g-flash-toast-success" data-msg="{{ session('toast_success') }}" style="display:none;"></span>
+@endif
 @if(session('error'))
 <span id="g-flash-error" data-msg="{{ session('error') }}" style="display:none;"></span>
+@endif
+@if(session('toast_error'))
+<span id="g-flash-toast-error" data-msg="{{ session('toast_error') }}" style="display:none;"></span>
 @endif
 @if($errors->any())
 <span id="g-flash-validation" data-msg="{{ implode(' | ', $errors->all()) }}" style="display:none;"></span>
@@ -653,12 +659,16 @@ function showGlobalToast(message, type) {
     }, 4500);
 }
 document.addEventListener('DOMContentLoaded', function() {
-    var s = document.getElementById('g-flash-success');
-    var e = document.getElementById('g-flash-error');
-    var v = document.getElementById('g-flash-validation');
-    if (s) showGlobalToast(s.getAttribute('data-msg'), 'success');
-    if (e) showGlobalToast(e.getAttribute('data-msg'), 'error');
-    if (v) showGlobalToast(v.getAttribute('data-msg'), 'error');
+    var s  = document.getElementById('g-flash-success');
+    var ts = document.getElementById('g-flash-toast-success');
+    var e  = document.getElementById('g-flash-error');
+    var te = document.getElementById('g-flash-toast-error');
+    var v  = document.getElementById('g-flash-validation');
+    if (s)  showGlobalToast(s.getAttribute('data-msg'),  'success');
+    if (ts) showGlobalToast(ts.getAttribute('data-msg'), 'success');
+    if (e)  showGlobalToast(e.getAttribute('data-msg'),  'error');
+    if (te) showGlobalToast(te.getAttribute('data-msg'), 'error');
+    if (v)  showGlobalToast(v.getAttribute('data-msg'),  'error');
 });
 </script>
 
