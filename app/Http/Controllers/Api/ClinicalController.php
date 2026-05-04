@@ -31,7 +31,8 @@ class ClinicalController extends Controller
                 unset($item['json']);
 
                 if (!empty($item['pdf_url'])) {
-                    $item['downloadPdf'] = "https://ptp.advantagehcs.com/storage/pdfDownload/" . $item['pdf_url'];
+                    // $item['downloadPdf'] = "https://ptp.advantagehcs.com/storage/pdfDownload/" . $item['pdf_url'];
+                    $item['downloadPdf'] = url('/api/download-pdf/' . $item['pdf_url']);
                 } else {
                     $item['downloadPdf'] = null;
                 }
