@@ -260,15 +260,6 @@ class ClinicalController extends Controller
             foreach ($pdfFiles as $index => $fileName) {
 
                 try {
-                    // ✅ Validate extension
-                    if (pathinfo($fileName, PATHINFO_EXTENSION) !== 'pdf') {
-                        $results[] = [
-                            'file' => $fileName,
-                            'success' => false,
-                            'error' => 'Only PDF allowed'
-                        ];
-                        continue;
-                    }
 
                     // ✅ Unique filename
                     $uniqueName = time() . '_' . $fileName;
@@ -292,7 +283,7 @@ class ClinicalController extends Controller
                         $results[] = [
                             'file' => $fileName,
                             'success' => false,
-                            'error' => 'Download failed from 10.0.0.24'
+                            'error' => 'Download failed'
                         ];
                         continue;
                     }
@@ -317,7 +308,7 @@ class ClinicalController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => 'Bulk PDF processing completed',
+                'message' => 'PDF processing completed',
                 'data' => $results
             ]);
 
