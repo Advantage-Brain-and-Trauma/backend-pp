@@ -95,10 +95,6 @@ html, body { height: 100%; font-family: -apple-system, BlinkMacSystemFont, 'Inte
   </div>
   <div class="topbar-actions">
     <a href="{{ route('funnels.index') }}" class="btn btn-ghost">Cancel</a>
-    <button class="btn btn-primary" onclick="saveFunnel('draft')">
-      <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
-      Save Draft
-    </button>
     <button class="btn btn-success" onclick="saveFunnel('active')">
       <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
       Publish
