@@ -90,9 +90,21 @@ html, body { height: 100%; font-family: -apple-system, BlinkMacSystemFont, 'Inte
 .library-form-added-badge { background: #dcfce7; color: #16a34a; font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 4px; pointer-events: none; }
 
 ::-webkit-scrollbar { width: 6px; } ::-webkit-scrollbar-track { background: transparent; } ::-webkit-scrollbar-thumb { background: #e5e7eb; border-radius: 3px; }
+
+/* Toast */
+#funnel-toast-container { position:fixed; top:56px; right:0; z-index:99999; display:flex; flex-direction:column; gap:0; pointer-events:none; }
+.f-toast { display:flex; align-items:center; gap:10px; padding:16px 24px; font-size:14px; font-weight:600; color:#fff; min-width:300px; max-width:460px; box-shadow:0 4px 16px rgba(0,0,0,0.18); pointer-events:all; animation:fToastIn .3s ease; border-radius:0 0 0 8px; }
+.f-toast.success { background:#16a34a; }
+.f-toast.error   { background:#dc2626; }
+@keyframes fToastIn  { from { transform:translateY(-100%); opacity:0; } to { transform:translateY(0); opacity:1; } }
+@keyframes fToastOut { from { transform:translateY(0); opacity:1; } to { transform:translateY(-100%); opacity:0; } }
+.f-toast.hide { animation:fToastOut .3s ease forwards; }
 </style>
 </head>
 <body>
+
+<!-- Toast Container -->
+<div id="funnel-toast-container"></div>
 
 <!-- Top Bar -->
 <div class="topbar">
@@ -313,19 +325,17 @@ function saveFunnel(status) {
     document.getElementById('funnelName').focus();
     document.getElementById('funnelName').style.borderColor = '#ef4444';
     setTimeout(() => document.getElementById('funnelName').style.borderColor = '', 2000);
-    showGlobalToast('Please enter a funnel name.', 'error');
+    showFunnelToast('The funnel name field is required.', 'error');
     return;
   }
   if (funnelSteps.length === 0) {
-    showGlobalToast('Please add at least one form to the funnel before saving.', 'error');
+    showFunnelToast('Please add at least one form to the funnel before saving.', 'error');
     return;
   }
   document.getElementById('hiddenName').value = name;
   document.getElementById('hiddenDesc').value = document.getElementById('funnelDesc').value;
   document.getElementById('hiddenStatus').value = status;
-  const btn = status === 'active'
-    ? document.querySelector('[onclick="saveFunnel(\'active\')"]')
-    : document.querySelector('[onclick="saveFunnel(\'draft\')"]');
+  const btn = document.querySelector('[onclick="saveFunnel(\'active\')"]');
   if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
 
   const payload = {
@@ -344,24 +354,49 @@ function saveFunnel(status) {
     },
     body: JSON.stringify(payload),
   })
-  .then(r => r.json())
+  .then(r => {
+    if (r.status === 422) {
+      return r.json().then(data => {
+        if (btn) { btn.disabled = false; btn.textContent = '🚀 Publish'; }
+        const msgs = data.errors ? Object.values(data.errors).flat() : [data.message || 'Validation failed.'];
+        msgs.forEach(m => showFunnelToast(m, 'error'));
+        throw null;
+      });
+    }
+    if (!r.ok) throw new Error('Server error ' + r.status);
+    return r.json();
+  })
   .then(res => {
+    if (!res) return;
     if (btn) { btn.disabled = false; btn.textContent = '🚀 Publish'; }
     if (res.status === 'success' || res.id) {
-      showGlobalToast(status === 'active' ? 'Funnel published successfully!' : 'Funnel saved successfully!', 'success');
+      showFunnelToast(status === 'active' ? 'Funnel published successfully!' : 'Funnel saved successfully!', 'success');
       setTimeout(() => window.location.href = '/funnels', 1200);
     } else {
-      showGlobalToast('Save failed: ' + (res.message || 'Unknown error'), 'error');
+      showFunnelToast('Save failed: ' + (res.message || 'Unknown error'), 'error');
     }
   })
   .catch(err => {
+    if (!err) return;
     if (btn) { btn.disabled = false; btn.textContent = '🚀 Publish'; }
-    showGlobalToast('Save failed. Please try again.', 'error');
+    showFunnelToast('Save failed. Please try again.', 'error');
     console.error('Funnel save error:', err);
   });
 }
 
-/* showFunnelToast removed — using global showGlobalToast from app layout */
+function showFunnelToast(message, type) {
+  type = type || 'success';
+  const container = document.getElementById('funnel-toast-container');
+  const el = document.createElement('div');
+  el.className = 'f-toast ' + type;
+  const icon = type === 'success' ? '✓' : '✕';
+  el.innerHTML = '<span style="font-size:16px;">' + icon + '</span> ' + message;
+  container.appendChild(el);
+  setTimeout(() => {
+    el.classList.add('hide');
+    setTimeout(() => { if (el.parentNode) el.parentNode.removeChild(el); }, 350);
+  }, 4500);
+}
 
 function escHtml(str) { const d = document.createElement('div'); d.textContent = str; return d.innerHTML; }
 </script>
