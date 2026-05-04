@@ -25,8 +25,6 @@ class ClinicalController extends Controller
 
             $data = $response->json();
 
-            $data = $response->json();
-
             foreach ($data as &$item) {
 
                 // ❌ Remove json key
@@ -45,7 +43,11 @@ class ClinicalController extends Controller
                             $field['name'],
                             $field['subtype'],
                             $field['column'],
-                            $field['is_client_email']
+                            $field['is_client_email'],
+                            $field['inline'],
+                            $field['other'],
+                            $field['is_enable_chart'],
+                            $field['chart_type']
                         );
                     }
                 }
@@ -135,24 +137,109 @@ class ClinicalController extends Controller
     //     }
     // }
 
+    // public function downloadPatientSubmitedFormPdf(Request $request)
+    // {
+    //     try {
+    //         // ✅ Validate input (array of URLs)
+    //         $validator = Validator::make($request->all(), [
+    //             'pdfUrls' => 'required|array',
+    //             'pdfUrls.*' => 'required|url'
+    //         ]);
+
+    //         if ($validator->fails()) {
+    //             return response()->json([
+    //                 'success' => false,
+    //                 'message' => 'Invalid URLs provided',
+    //                 'errors' => $validator->errors()
+    //             ], 422);
+    //         }
+
+    //         $pdfUrls = $request->pdfUrls;
+
+    //         $saveDir = public_path('assets/images/activecollab/pdf');
+
+    //         if (!File::exists($saveDir)) {
+    //             File::makeDirectory($saveDir, 0777, true, true);
+    //         }
+
+    //         $results = [];
+
+    //         foreach ($pdfUrls as $pdfUrl) {
+
+    //             try {
+    //                 // ✅ Get filename
+    //                 $filename = basename(parse_url($pdfUrl, PHP_URL_PATH));
+
+    //                 // Optional: avoid duplicate names
+    //                 $filename = time() . '_' . $filename;
+
+    //                 $savePath = $saveDir . '/' . $filename;
+
+    //                 // ✅ Download
+    //                 $response = Http::get($pdfUrl);
+
+    //                 if (!$response->successful()) {
+    //                     $results[] = [
+    //                         'url' => $pdfUrl,
+    //                         'success' => false,
+    //                         'error' => 'Download failed'
+    //                     ];
+    //                     continue;
+    //                 }
+
+    //                 // ✅ Save file
+    //                 File::put($savePath, $response->body());
+
+    //                 $results[] = [
+    //                     'url' => $pdfUrl,
+    //                     'success' => true,
+    //                     'savedUrl' => asset('assets/images/activecollab/pdf/' . $filename)
+    //                 ];
+
+    //             } catch (\Exception $e) {
+    //                 $results[] = [
+    //                     'url' => $pdfUrl,
+    //                     'success' => false,
+    //                     'error' => $e->getMessage()
+    //                 ];
+    //             }
+    //         }
+
+    //         return response()->json([
+    //             'success' => true,
+    //             'message' => 'PDF processing completed',
+    //             'data' => $results
+    //         ]);
+
+    //     } catch (\Exception $e) {
+    //         return response()->json([
+    //             'success' => false,
+    //             'error' => $e->getMessage()
+    //         ], 500);
+    //     }
+    // }
+
     public function downloadPatientSubmitedFormPdf(Request $request)
     {
         try {
-            // ✅ Validate input (array of URLs)
+            // ✅ Validate (now filenames, not URLs)
             $validator = Validator::make($request->all(), [
                 'pdfUrls' => 'required|array',
-                'pdfUrls.*' => 'required|url'
+                'pdfUrls.*' => 'required|string'
             ]);
 
             if ($validator->fails()) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Invalid URLs provided',
+                    'message' => 'Invalid filenames provided',
                     'errors' => $validator->errors()
                 ], 422);
             }
 
-            $pdfUrls = $request->pdfUrls;
+            $pdfFiles = $request->pdfUrls;
+
+            // ✅ Your internal base path
+            $baseUrl = "http://10.0.0.24/medhiwa/internal/assets/images/activecollab/pdf/";
 
             $saveDir = public_path('assets/images/activecollab/pdf');
 
@@ -162,41 +249,43 @@ class ClinicalController extends Controller
 
             $results = [];
 
-            foreach ($pdfUrls as $pdfUrl) {
+            foreach ($pdfFiles as $fileName) {
 
                 try {
-                    // ✅ Get filename
-                    $filename = basename(parse_url($pdfUrl, PHP_URL_PATH));
+                    // ✅ Build full URL
+                    $fullUrl = $baseUrl . $fileName;
 
-                    // Optional: avoid duplicate names
-                    $filename = time() . '_' . $filename;
+                    // Prevent duplicate filename
+                    $newFileName = time() . '_' . $fileName;
 
-                    $savePath = $saveDir . '/' . $filename;
+                    $savePath = $saveDir . '/' . $newFileName;
 
-                    // ✅ Download
-                    $response = Http::get($pdfUrl);
+                    // ✅ Download from internal server
+                    $response = Http::timeout(20)
+                        ->retry(2, 500)
+                        ->get($fullUrl);
 
                     if (!$response->successful()) {
                         $results[] = [
-                            'url' => $pdfUrl,
+                            'file' => $fileName,
                             'success' => false,
                             'error' => 'Download failed'
                         ];
                         continue;
                     }
 
-                    // ✅ Save file
+                    // ✅ Save locally
                     File::put($savePath, $response->body());
 
                     $results[] = [
-                        'url' => $pdfUrl,
+                        'file' => $fileName,
                         'success' => true,
-                        'savedUrl' => asset('assets/images/activecollab/pdf/' . $filename)
+                        'savedUrl' => asset('assets/images/activecollab/pdf/' . $newFileName)
                     ];
 
                 } catch (\Exception $e) {
                     $results[] = [
-                        'url' => $pdfUrl,
+                        'file' => $fileName,
                         'success' => false,
                         'error' => $e->getMessage()
                     ];
