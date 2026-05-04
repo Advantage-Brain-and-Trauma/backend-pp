@@ -626,7 +626,6 @@ body {
     <button class="btn btn-ghost" onclick="clearCanvas()">🗑 Clear</button>
     <button class="btn btn-ghost" onclick="exportJSON()">⬇ Export</button>
     <button class="btn btn-primary" onclick="saveForm()">💾 Save</button>
-    <button class="btn btn-success" onclick="publishForm()">🚀 Publish</button>
   </div>
 </div>
 
