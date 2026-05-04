@@ -110,14 +110,14 @@
                 <div class="form-group">
                     <label class="form-label">Form Name <span style="color:#ef4444;">*</span></label>
                     <input type="text" name="name" class="form-control" value="{{ old('name') }}"
-                           placeholder="e.g. Patient Intake Form" required>
+                           placeholder="Enter form name..." required>
                 </div>
 
                 {{-- Description --}}
                 <div class="form-group">
                     <label class="form-label">Description</label>
                     <textarea name="description" class="form-control" rows="3"
-                              placeholder="Describe what this form is for...">{{ old('description') }}</textarea>
+                              placeholder="Enter form description...">{{ old('description') }}</textarea>
                 </div>
 
                 {{-- Success Message --}}
