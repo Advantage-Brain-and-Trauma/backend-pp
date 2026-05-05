@@ -229,7 +229,7 @@ body {
 
 /* ===================== CENTER CANVAS ===================== */
 .canvas-wrap {
-  flex: 1; background: var(--canvas-bg); overflow-y: auto;
+  flex: 1; min-height: 0; background: var(--canvas-bg); overflow-y: auto;
   display: flex; flex-direction: column; align-items: center;
   padding: 20px 20px 80px; position: relative;
 }
