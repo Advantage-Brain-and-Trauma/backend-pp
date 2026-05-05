@@ -290,7 +290,10 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', syst
       <div style="display:flex;align-items:center;gap:12px;">
         <span style="font-size:12px;color:#9ca3af;">{{ $i + 1 }} / {{ $orderedForms->count() }}</span>
         @if($i < $orderedForms->count() - 1)
-        <button type="button" class="btn btn-next" id="nextBtn_{{ $i }}" onclick="submitStep({{ $i }}, {{ $form->id }}, {{ $i + 1 }})">Next →</button>
+        <button type="button" class="btn btn-next" id="nextBtn_{{ $i }}" onclick="submitStep({{ $i }}, {{ $form->id }}, {{ $i + 1 }})">
+          <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+          Submit
+        </button>
         @else
         <button type="button" class="btn btn-submit" id="submitBtn_{{ $i }}" onclick="submitStep({{ $i }}, {{ $form->id }}, null)">
           <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
