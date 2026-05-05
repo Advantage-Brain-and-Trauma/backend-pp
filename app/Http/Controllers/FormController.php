@@ -258,13 +258,18 @@ class FormController extends Controller
             }
         }
 
+        // Determine status: 'completed' if at least one field has a non-null/non-empty value,
+        // 'draft' if all fields are empty/null (partial or blank submission)
+        $hasData = collect($submittedData)->filter(fn($v) => $v !== null && $v !== '')->isNotEmpty();
+        $submissionStatus = $hasData ? 'completed' : 'draft';
+
         FormSubmission::create([
             'user_id'    => auth()->id(),
             'form_id'    => $form->id,
-            'patient_id' => null,
             'data'       => $submittedData,
             'ip_address' => $request->ip(),
             'user_agent' => $request->userAgent(),
+            'status'     => $submissionStatus,
         ]);
 
         $form->increment('submission_count');

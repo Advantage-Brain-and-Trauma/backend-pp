@@ -233,6 +233,8 @@ class FunnelController extends Controller
         foreach ($formIds as $formId) {
             $formData = $request->input('form_' . $formId, []);
             if (!empty($formData)) {
+                // 'completed' if at least one field has a real value, 'draft' if all blank
+                $hasData = collect($formData)->filter(fn($v) => $v !== null && $v !== '')->isNotEmpty();
                 FormSubmission::create([
                     'user_id'    => auth()->id(),
                     'form_id'    => $formId,
@@ -240,6 +242,7 @@ class FunnelController extends Controller
                     'data'       => $formData,
                     'ip_address' => $request->ip(),
                     'user_agent' => $request->userAgent(),
+                    'status'     => $hasData ? 'completed' : 'draft',
                 ]);
             }
         }
