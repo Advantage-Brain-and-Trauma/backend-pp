@@ -8,6 +8,8 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\File;
 use App\Models\FormSubmission;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\Storage;
+use ZipArchive;
 
 class ClinicalController extends Controller
 {
@@ -86,103 +88,179 @@ class ClinicalController extends Controller
         }
     }
 
+    // public function downloadPatientSubmitedFormPdf(Request $request)
+    // {
+    //     try {
+    //         // ✅ Validate filenames
+    //         $request->validate([
+    //             'pdfUrls' => 'required|array',
+    //             'pdfUrls.*' => 'required|string'
+    //         ]);
+
+    //         $pdfFiles = $request->pdfUrls;
+
+    //         // ✅ Base URL
+    //         $baseUrl = "https://ptp.advantagehcs.com/storage/pdfDownload/";
+    
+    //         $results = [];
+
+    //         // ⚡ Parallel request (only check, no save)
+    //         $responses = Http::pool(function ($pool) use ($pdfFiles, $baseUrl) {
+    //             $requests = [];
+
+    //             foreach ($pdfFiles as $index => $fileName) {
+    //                 $requests[$index] = $pool->timeout(20)
+    //                     ->retry(2, 500)
+    //                     ->get($baseUrl . $fileName);
+    //             }
+
+    //             return $requests;
+    //         });
+
+    //         foreach ($pdfFiles as $index => $fileName) {
+
+    //                 try {
+    //                     $response = $responses[$index];
+
+    //                     if (!$response) {
+    //                         $results[] = [
+    //                             'file' => $fileName,
+    //                             'success' => false,
+    //                             'message' => 'File not found'
+    //                         ];
+    //                         continue;
+    //                     }
+
+    //                     if ($response->status() === 404) {
+    //                         $results[] = [
+    //                             'file' => $fileName,
+    //                             'success' => false,
+    //                             'message' => 'File not found'
+    //                         ];
+    //                         continue;
+    //                     }
+
+    //                     if (!$response->successful()) {
+    //                         $results[] = [
+    //                             'file' => $fileName,
+    //                             'success' => false,
+    //                             'message' => 'File inaccessible'
+    //                         ];
+    //                         continue;
+    //                     }
+
+    //                     $contentType = $response->header('Content-Type');
+
+    //                     if (!str_contains($contentType, 'application/pdf')) {
+    //                         $results[] = [
+    //                             'file' => $fileName,
+    //                             'success' => false,
+    //                             'message' => 'File not found'
+    //                         ];
+    //                         continue;
+    //                     }
+
+    //                     $results[] = [
+    //                         'file' => $fileName,
+    //                         'success' => true,
+    //                         'url' => $baseUrl . $fileName
+    //                     ];
+
+    //                 } catch (\Exception $e) {
+    //                     $results[] = [
+    //                         'file' => $fileName,
+    //                         'success' => false,
+    //                         'message' => 'Error checking file'
+    //                     ];
+    //                 }
+    //         }
+
+    //         return response()->json([
+    //             'success' => true,
+    //             'message' => 'Pdf processing completed',
+    //             'data' => $results
+    //         ]);
+
+    //     } catch (\Exception $e) {
+    //         return response()->json([
+    //             'success' => false,
+    //             'message' => 'Error processing PDF files',
+    //         ], 500);
+    //     }
+    // }
+
     public function downloadPatientSubmitedFormPdf(Request $request)
     {
         try {
-            // ✅ Validate filenames
             $request->validate([
                 'pdfUrls' => 'required|array',
                 'pdfUrls.*' => 'required|string'
             ]);
 
             $pdfFiles = $request->pdfUrls;
-
-            // ✅ Base URL
             $baseUrl = "https://ptp.advantagehcs.com/storage/pdfDownload/";
-    
-            $results = [];
 
-            // ⚡ Parallel request (only check, no save)
+            $tempDir = storage_path('app/temp_pdfs');
+            if (!file_exists($tempDir)) {
+                mkdir($tempDir, 0777, true);
+            }
+
+            $zipFileName = 'patient_pdfs_' . time() . '.zip';
+            $zipPath = storage_path("app/" . $zipFileName);
+
+            $zip = new ZipArchive();
+
+            if ($zip->open($zipPath, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== TRUE) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Could not create ZIP file'
+                ], 500);
+            }
+
+            // ⚡ Parallel requests
             $responses = Http::pool(function ($pool) use ($pdfFiles, $baseUrl) {
                 $requests = [];
-
                 foreach ($pdfFiles as $index => $fileName) {
                     $requests[$index] = $pool->timeout(20)
                         ->retry(2, 500)
                         ->get($baseUrl . $fileName);
                 }
-
                 return $requests;
             });
 
             foreach ($pdfFiles as $index => $fileName) {
+                try {
+                    $response = $responses[$index];
 
-                    try {
-                        $response = $responses[$index];
-
-                        if (!$response) {
-                            $results[] = [
-                                'file' => $fileName,
-                                'success' => false,
-                                'message' => 'File not found'
-                            ];
-                            continue;
-                        }
-
-                        if ($response->status() === 404) {
-                            $results[] = [
-                                'file' => $fileName,
-                                'success' => false,
-                                'message' => 'File not found'
-                            ];
-                            continue;
-                        }
-
-                        if (!$response->successful()) {
-                            $results[] = [
-                                'file' => $fileName,
-                                'success' => false,
-                                'message' => 'File inaccessible'
-                            ];
-                            continue;
-                        }
-
-                        $contentType = $response->header('Content-Type');
-
-                        if (!str_contains($contentType, 'application/pdf')) {
-                            $results[] = [
-                                'file' => $fileName,
-                                'success' => false,
-                                'message' => 'File not found'
-                            ];
-                            continue;
-                        }
-
-                        $results[] = [
-                            'file' => $fileName,
-                            'success' => true,
-                            'url' => $baseUrl . $fileName
-                        ];
-
-                    } catch (\Exception $e) {
-                        $results[] = [
-                            'file' => $fileName,
-                            'success' => false,
-                            'message' => 'Error checking file'
-                        ];
+                    if (!$response || !$response->successful()) {
+                        continue;
                     }
+
+                    if (!str_contains($response->header('Content-Type'), 'application/pdf')) {
+                        continue;
+                    }
+
+                    // ✅ Save file temporarily
+                    $filePath = $tempDir . '/' . $fileName;
+                    file_put_contents($filePath, $response->body());
+
+                    // ✅ Add to ZIP
+                    $zip->addFile($filePath, $fileName);
+
+                } catch (\Exception $e) {
+                    continue;
+                }
             }
 
-            return response()->json([
-                'success' => true,
-                'message' => 'Pdf processing completed',
-                'data' => $results
-            ]);
+            $zip->close();
+
+            // 🧹 Clean temp files after response
+            return response()->download($zipPath)->deleteFileAfterSend(true);
 
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Error processing PDF files',
+                'message' => 'Error creating ZIP file'
             ], 500);
         }
     }
