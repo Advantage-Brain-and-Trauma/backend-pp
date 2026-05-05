@@ -352,6 +352,21 @@ function validateStep(stepIndex) {
   card.querySelectorAll('.field-error').forEach(el => { el.style.display = 'none'; el.textContent = ''; });
   card.querySelectorAll('.choice-group.error').forEach(el => el.classList.remove('error'));
 
+  // Helper: get the label text for a field input
+  function getFieldLabel(input) {
+    const fieldGroup = input.closest('.field-group');
+    if (fieldGroup) {
+      const labelEl = fieldGroup.querySelector('.field-label');
+      if (labelEl) {
+        // Clone to remove the * span and get clean text
+        const clone = labelEl.cloneNode(true);
+        clone.querySelectorAll('.required').forEach(s => s.remove());
+        return clone.textContent.trim();
+      }
+    }
+    return null;
+  }
+
   // Check each required field
   card.querySelectorAll('[required]').forEach(input => {
     if (input.type === 'radio') return; // handled separately per group
@@ -368,14 +383,15 @@ function validateStep(stepIndex) {
     if (empty) {
       valid = false;
       input.classList.add('error');
-      // Show inline error message
+      // Show inline error message with field name
+      const label = getFieldLabel(input);
       let errEl = input.parentElement.querySelector('.field-error');
       if (!errEl) {
         errEl = document.createElement('div');
         errEl.className = 'field-error';
         input.parentElement.appendChild(errEl);
       }
-      errEl.textContent = 'This field is required.';
+      errEl.textContent = label ? label + ' is required.' : 'This field is required.';
       errEl.style.display = 'block';
     }
   });
@@ -394,13 +410,14 @@ function validateStep(stepIndex) {
       if (group) {
         group.style.outline = '2px solid #ef4444';
         group.style.borderRadius = '9px';
+        const label = getFieldLabel(radios[0]);
         let errEl = group.parentElement.querySelector('.field-error');
         if (!errEl) {
           errEl = document.createElement('div');
           errEl.className = 'field-error';
           group.parentElement.appendChild(errEl);
         }
-        errEl.textContent = 'Please select an option.';
+        errEl.textContent = label ? label + ' is required.' : 'Please select an option.';
         errEl.style.display = 'block';
       }
     }
