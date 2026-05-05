@@ -454,20 +454,58 @@ function submitStep(stepIndex, formId, nextStep) {
   });
 
   // Gather inputs only from this card
+  // First pass: collect all checkbox arrays and regular values into a plain object
+  const fieldValues = {};
+
   card.querySelectorAll('[name]').forEach(input => {
     if (!input.name || input.name === '_token') return;
-    if (input.type === 'checkbox' && !input.checked) return;
     if (input.type === 'radio' && !input.checked) return;
     if (input.type === 'file') {
       if (input.files && input.files[0]) formData.append('fields[' + input.id + ']', input.files[0]);
       return;
     }
-    // Remap name="form_X[fieldId]" → fields[fieldId]
-    const match = input.name.match(/^form_\d+\[(.+?)\]/);
-    if (match) {
-      formData.append('fields[' + match[1] + ']', input.value);
+
+    // Detect checkbox array: name="form_X[fieldId][]" or name="form_X[fieldId][subkey]"
+    const arrMatch = input.name.match(/^form_\d+\[(.+?)\]\[(.*)\]$/);
+    const singleMatch = input.name.match(/^form_\d+\[(.+?)\]$/);
+
+    if (arrMatch) {
+      // Checkbox array or nested field (fullname, address)
+      const fieldId = arrMatch[1];
+      const subKey = arrMatch[2]; // empty string for checkbox[], or 'first'/'last' etc.
+      if (input.type === 'checkbox') {
+        if (!input.checked) return;
+        if (!fieldValues[fieldId]) fieldValues[fieldId] = [];
+        fieldValues[fieldId].push(input.value);
+      } else {
+        if (!fieldValues[fieldId]) fieldValues[fieldId] = {};
+        fieldValues[fieldId][subKey] = input.value;
+      }
+    } else if (singleMatch) {
+      const fieldId = singleMatch[1];
+      if (input.type === 'checkbox') {
+        // Single required checkbox (toggle-style)
+        if (!fieldValues[fieldId]) fieldValues[fieldId] = [];
+        if (input.checked) fieldValues[fieldId].push(input.value);
+      } else {
+        fieldValues[fieldId] = input.value;
+      }
     } else {
+      // Fallback: non-remapped fields
       formData.append(input.name, input.value);
+    }
+  });
+
+  // Second pass: append collected field values to formData
+  Object.entries(fieldValues).forEach(([fieldId, value]) => {
+    if (Array.isArray(value)) {
+      value.forEach(v => formData.append('fields[' + fieldId + '][]', v));
+    } else if (typeof value === 'object' && value !== null) {
+      Object.entries(value).forEach(([subKey, v]) => {
+        formData.append('fields[' + fieldId + '][' + subKey + ']', v);
+      });
+    } else {
+      formData.append('fields[' + fieldId + ']', value);
     }
   });
 
