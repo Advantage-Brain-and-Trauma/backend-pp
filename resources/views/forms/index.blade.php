@@ -137,10 +137,18 @@
                     <td style="font-size:12px; color:#6b7280;">{{ $form->created_at->format('M d, Y') }}</td>
                     <td>
                         <div style="display:flex; gap:8px;">
-                            <a href="{{ route('forms.show', $form) }}" class="btn btn-secondary btn-sm"><i class="fas fa-eye"></i></a>
-                            <a href="{{ route('forms.edit', $form) }}" class="btn btn-secondary btn-sm"><i class="fas fa-edit"></i></a>
+                            <a href="{{ route('forms.show', $form) }}" class="btn btn-secondary btn-sm" title="View"><i class="fas fa-eye"></i></a>
+                            <button type="button" class="btn btn-secondary btn-sm" title="Duplicate"
+                                onclick="openDuplicateModal({{ $form->id }}, '{{ addslashes($form->name) }}')"
+                                style="background:#f59e0b; border-color:#f59e0b; color:#fff;">
+                                <i class="fas fa-copy"></i>
+                            </button>
+                            <a href="{{ route('forms.edit', $form) }}" class="btn btn-secondary btn-sm" title="Edit"><i class="fas fa-edit"></i></a>
                             <form id="delete-form-{{ $form->id }}" method="POST" action="{{ route('forms.destroy', $form) }}" style="display:none;">
                                 @csrf @method('DELETE')
+                            </form>
+                            <form id="duplicate-form-{{ $form->id }}" method="POST" action="{{ route('forms.duplicate', $form) }}" style="display:none;">
+                                @csrf
                             </form>
                             <button type="button"
                                 class="btn btn-danger btn-sm"
@@ -166,6 +174,21 @@
     @endif
 </div>
 
+{{-- Duplicate Confirmation Modal --}}
+<div id="duplicate-modal-overlay" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.45); z-index:99998; align-items:center; justify-content:center;">
+    <div id="duplicate-modal" style="background:#fff; border-radius:14px; padding:32px 28px 24px; width:100%; max-width:420px; box-shadow:0 20px 60px rgba(0,0,0,0.2); text-align:center; animation:modalIn .2s ease;">
+        <div style="width:56px; height:56px; background:#fffbeb; border-radius:50%; display:flex; align-items:center; justify-content:center; margin:0 auto 16px;">
+            <i class="fas fa-copy" style="font-size:24px; color:#f59e0b;"></i>
+        </div>
+        <h3 style="font-size:18px; font-weight:700; color:#111827; margin-bottom:8px;">Duplicate Form</h3>
+        <p id="duplicate-modal-msg" style="font-size:14px; color:#6b7280; margin-bottom:24px; line-height:1.5;"></p>
+        <div style="display:flex; gap:12px; justify-content:center;">
+            <button onclick="closeDuplicateModal()" style="flex:1; padding:10px 20px; border-radius:8px; border:1px solid #e5e7eb; background:#fff; color:#374151; font-size:14px; font-weight:600; cursor:pointer;">Cancel</button>
+            <button onclick="confirmDuplicate()" style="flex:1; padding:10px 20px; border-radius:8px; border:none; background:#f59e0b; color:#fff; font-size:14px; font-weight:600; cursor:pointer;">Duplicate</button>
+        </div>
+    </div>
+</div>
+
 {{-- Delete Confirmation Modal --}}
 <div id="delete-modal-overlay">
     <div id="delete-modal">
@@ -182,6 +205,32 @@
 </div>
 
 <script>
+// ── Duplicate Modal ───────────────────────────────────────────
+var _duplicateFormId = null;
+
+function openDuplicateModal(formId, formName) {
+    _duplicateFormId = formId;
+    document.getElementById('duplicate-modal-msg').textContent =
+        'A copy of "' + formName + '" will be created and placed directly below it.';
+    var overlay = document.getElementById('duplicate-modal-overlay');
+    overlay.style.display = 'flex';
+}
+
+function closeDuplicateModal() {
+    _duplicateFormId = null;
+    document.getElementById('duplicate-modal-overlay').style.display = 'none';
+}
+
+function confirmDuplicate() {
+    if (_duplicateFormId) {
+        document.getElementById('duplicate-form-' + _duplicateFormId).submit();
+    }
+}
+
+document.getElementById('duplicate-modal-overlay').addEventListener('click', function(e) {
+    if (e.target === this) closeDuplicateModal();
+});
+
 // ── Delete Modal ──────────────────────────────────────────────
 var _deleteFormId = null;
 

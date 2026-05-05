@@ -125,7 +125,28 @@ class FormController extends Controller
     {
         $form->delete();
         return redirect()->route('forms.index')
-            ->with('success', 'Form deleted successfully.');
+            ->with('toast_success', 'Form deleted successfully.');
+    }
+
+    /**
+     * Duplicate a form — the copy is inserted directly below the original
+     * by setting created_at to 1 second before the original's created_at.
+     * Route: POST /forms/{form}/duplicate
+     */
+    public function duplicate(Form $form)
+    {
+        $copy = $form->replicate();
+        $copy->name           = $form->name . ' (copy)';
+        $copy->slug           = Str::slug($form->name . '-copy') . '-' . Str::random(6);
+        $copy->submission_count = 0;
+        $copy->created_by     = Auth::id();
+        // Place the copy just below the original in the latest() sort
+        $copy->created_at     = $form->created_at->subSecond();
+        $copy->updated_at     = now();
+        $copy->save();
+
+        return redirect()->route('forms.index')
+            ->with('toast_success', '"' . $form->name . '" duplicated successfully.');
     }
 
     /**
