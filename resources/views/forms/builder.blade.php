@@ -266,6 +266,8 @@ body {
   box-shadow: var(--shadow);
   transform-origin: top center;
   transition: box-shadow var(--transition);
+  /* Ensure the box grows with its content and never clips fields */
+  height: auto; overflow: visible; flex-shrink: 0;
 }
 .canvas-form-header { margin-bottom: 22px; padding-bottom: 18px; border-bottom: 1px solid var(--border); }
 .canvas-form-title { font-size: 22px; font-weight: 700; color: var(--text-primary); margin-bottom: 4px; }
