@@ -140,8 +140,8 @@ class FormController extends Controller
         $copy->slug           = Str::slug($form->name . '-copy') . '-' . Str::random(6);
         $copy->submission_count = 0;
         $copy->created_by     = Auth::id();
-        // Place the copy just below the original in the latest() sort
-        $copy->created_at     = $form->created_at->subSecond();
+        // Use current time so the copy appears at the top of the latest() sorted list
+        $copy->created_at     = now();
         $copy->updated_at     = now();
         $copy->save();
 
