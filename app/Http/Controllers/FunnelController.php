@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Funnel;
 use App\Models\Form;
 use App\Models\FormSubmission;
+use App\Models\UserFunnel;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
@@ -192,14 +193,30 @@ class FunnelController extends Controller
     }
 
     /**
-     * Public funnel page — patients fill forms in sequence (no patient tracking)
+     * Public funnel page — assign funnel to user on access.
+     * - If logged in: assign immediately, then show the funnel.
+     * - If not logged in: store slug in session, redirect to login.
+     *   After login, LoginController will complete the assignment.
      */
     public function publicFunnel(string $slug)
     {
-        $funnel  = Funnel::where('slug', $slug)->where('status', 'active')->firstOrFail();
-        $formIds = $funnel->form_ids ?? [];
-        $forms   = Form::whereIn('id', $formIds)->get()->keyBy('id');
+        $funnel = Funnel::where('slug', $slug)->where('status', 'active')->firstOrFail();
 
+        if (Auth::check()) {
+            // Assign funnel to the logged-in user (ignore if already assigned)
+            UserFunnel::firstOrCreate(
+                ['user_id' => Auth::id(), 'funnel_id' => $funnel->id],
+                ['assigned_via' => 'share_link', 'assigned_at' => now()]
+            );
+        } else {
+            // Store the funnel slug in session so we can assign after login
+            session(['pending_funnel_slug' => $slug]);
+            return redirect()->route('login')
+                ->with('info', 'Please log in to access this funnel.');
+        }
+
+        $formIds      = $funnel->form_ids ?? [];
+        $forms        = Form::whereIn('id', $formIds)->get()->keyBy('id');
         $orderedForms = collect($formIds)->map(fn($id) => $forms->get($id))->filter()->values();
 
         return view('funnels.public', compact('funnel', 'orderedForms'));

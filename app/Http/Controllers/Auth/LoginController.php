@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Models\UserFunnel;
+use App\Models\Funnel;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
@@ -25,6 +27,19 @@ class LoginController extends Controller
 
         if (Auth::attempt($credentials, $request->boolean('remember'))) {
             $request->session()->regenerate();
+
+            // If user clicked a shared funnel link before logging in, assign it now
+            if ($pendingSlug = session()->pull('pending_funnel_slug')) {
+                $funnel = Funnel::where('slug', $pendingSlug)->where('status', 'active')->first();
+                if ($funnel) {
+                    UserFunnel::firstOrCreate(
+                        ['user_id' => Auth::id(), 'funnel_id' => $funnel->id],
+                        ['assigned_via' => 'share_link', 'assigned_at' => now()]
+                    );
+                    return redirect()->to('/funnel/' . $pendingSlug);
+                }
+            }
+
             return redirect()->intended(route('dashboard'));
         }
 
