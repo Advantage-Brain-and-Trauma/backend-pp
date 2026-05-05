@@ -286,19 +286,55 @@ class ClinicalController extends Controller
         }
     }
 
-    public function getPatientFormData(){
-        try{
-            $formSubmission = FormSubmission::with('form')
-                            ->where('patient_id', auth()->user()->patient_id)
-                            // ->where('status', 'active')
-                            ->get();
-            
+    public function getPatientFormData()
+    {
+        try {
+            $formSubmission = FormSubmission::with(['form:id,name,fields', 'funnel:id,name'])
+                ->where('user_id', auth()->id())
+                ->where('status','completed')
+                ->get();
+
+            $data = $formSubmission->map(function ($item) {
+
+                $decoded = [];
+
+                if (!empty($item->form->fields['rows'])) {
+                    foreach ($item->form->fields['rows'] as $row) {
+                        foreach ($row['cols'] as $col) {
+                            foreach ($col['fields'] as $field) {
+
+                                $fieldId = $field['id'];
+
+                                $decoded[] = [
+                                    'type' => $field['type'] ?? null,
+                                    'label' => $field['label'] ?? null,
+                                    'required' => $field['required'] ?? false,
+                                    'value' => $item->data[$fieldId] ?? null,
+                                    'options' => $field['options'] ?? [],
+                                ];
+                            }
+                        }
+                    }
+                }
+
+                return [
+                    'id' => $item->id,
+                    'form_id' => $item->form_id,
+                    'funnel_id' => $item->funnel_id,
+                    'form_name' => $item->form->name ?? null,
+                    'funnel_name' => $item->funnel->name ?? null,
+                    'status' => $item->status,
+                    'created_at' => $item->created_at,
+                    'decoded_json' => $decoded,
+                ];
+            });
+
             return response()->json([
                 'success' => true,
-                'data' => $formSubmission
+                'data' => $data
             ], 200);
 
-        }catch(\Throwable $e){
+        } catch (\Throwable $e) {
             return response()->json([
                 'success' => false,
                 'error' => $e->getMessage(),
