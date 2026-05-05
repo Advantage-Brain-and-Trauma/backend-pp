@@ -282,11 +282,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', syst
       @endif
     </div>
     <div class="form-card-footer">
-      <div>
-        @if($i > 0)
-        <button type="button" class="btn btn-prev" onclick="goToStep({{ $i - 1 }})">← Previous</button>
-        @endif
-      </div>
+      <div></div>
       <div style="display:flex;align-items:center;gap:12px;">
         <span style="font-size:12px;color:#9ca3af;">{{ $i + 1 }} / {{ $orderedForms->count() }}</span>
         @if($i < $orderedForms->count() - 1)
