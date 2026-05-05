@@ -343,7 +343,82 @@ function updateProgress(from, to) {
  * formId:    the DB id of the form being submitted
  * nextStep:  the step to advance to after success (null = last step → show success screen)
  */
+function validateStep(stepIndex) {
+  const card = document.getElementById('formCard_' + stepIndex);
+  let valid = true;
+
+  // Clear previous error states
+  card.querySelectorAll('.field-input.error').forEach(el => el.classList.remove('error'));
+  card.querySelectorAll('.field-error').forEach(el => { el.style.display = 'none'; el.textContent = ''; });
+  card.querySelectorAll('.choice-group.error').forEach(el => el.classList.remove('error'));
+
+  // Check each required field
+  card.querySelectorAll('[required]').forEach(input => {
+    if (input.type === 'radio') return; // handled separately per group
+    if (input.type === 'hidden') return;
+    let empty = false;
+    if (input.type === 'checkbox') {
+      // For required checkbox groups, at least one must be checked
+      const name = input.name;
+      const checked = card.querySelectorAll('[name="' + name + '"]:checked').length;
+      if (checked === 0) empty = true;
+    } else {
+      empty = !input.value || input.value.trim() === '';
+    }
+    if (empty) {
+      valid = false;
+      input.classList.add('error');
+      // Show inline error message
+      let errEl = input.parentElement.querySelector('.field-error');
+      if (!errEl) {
+        errEl = document.createElement('div');
+        errEl.className = 'field-error';
+        input.parentElement.appendChild(errEl);
+      }
+      errEl.textContent = 'This field is required.';
+      errEl.style.display = 'block';
+    }
+  });
+
+  // Check required radio groups
+  const radioGroups = {};
+  card.querySelectorAll('input[type="radio"][required]').forEach(r => {
+    radioGroups[r.name] = radioGroups[r.name] || [];
+    radioGroups[r.name].push(r);
+  });
+  Object.values(radioGroups).forEach(radios => {
+    const checked = radios.some(r => r.checked);
+    if (!checked) {
+      valid = false;
+      const group = radios[0].closest('.choice-group');
+      if (group) {
+        group.style.outline = '2px solid #ef4444';
+        group.style.borderRadius = '9px';
+        let errEl = group.parentElement.querySelector('.field-error');
+        if (!errEl) {
+          errEl = document.createElement('div');
+          errEl.className = 'field-error';
+          group.parentElement.appendChild(errEl);
+        }
+        errEl.textContent = 'Please select an option.';
+        errEl.style.display = 'block';
+      }
+    }
+  });
+
+  // Scroll to first error
+  if (!valid) {
+    const firstError = card.querySelector('.field-input.error, .choice-group[style*="outline"]');
+    if (firstError) firstError.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+
+  return valid;
+}
+
 function submitStep(stepIndex, formId, nextStep) {
+  // Validate required fields before submitting
+  if (!validateStep(stepIndex)) return;
+
   const btnId = nextStep !== null ? 'nextBtn_' + stepIndex : 'submitBtn_' + stepIndex;
   const btn = document.getElementById(btnId);
   if (btn) { btn.disabled = true; btn.style.opacity = '0.7'; }
