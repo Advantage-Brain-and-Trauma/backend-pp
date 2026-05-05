@@ -292,6 +292,7 @@ class ClinicalController extends Controller
             $formSubmission = FormSubmission::with(['form:id,name,fields', 'funnel:id,name'])
                 ->where('user_id', auth()->id())
                 ->where('status','completed')
+                ->orderBy('created_at', 'desc')
                 ->get();
 
             $data = $formSubmission->map(function ($item) {
@@ -305,13 +306,18 @@ class ClinicalController extends Controller
 
                                 $fieldId = $field['id'];
 
-                                $decoded[] = [
+                                $decodedItem = [
                                     'type' => $field['type'] ?? null,
                                     'label' => $field['label'] ?? null,
                                     'required' => $field['required'] ?? false,
                                     'value' => $item->data[$fieldId] ?? null,
-                                    'options' => $field['options'] ?? [],
                                 ];
+
+                                if (!empty($field['options'])) {
+                                    $decodedItem['options'] = $field['options'];
+                                }
+
+                                $decoded[] = $decodedItem;
                             }
                         }
                     }
