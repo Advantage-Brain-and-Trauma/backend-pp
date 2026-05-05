@@ -22,6 +22,7 @@ Route::post('/f/{slug}/submit', [FormController::class, 'submitPublicForm'])->na
 // Public funnel (not assigned to a patient)
 Route::get('/funnel/{slug}', [FunnelController::class, 'publicFunnel'])->name('funnels.public');
 Route::post('/funnel/{slug}/submit', [FunnelController::class, 'submitPublicFunnel'])->name('funnels.submit');
+Route::post('/funnel/{slug}/submit-step/{formId}', [FunnelController::class, 'submitFunnelStep'])->name('funnels.submit_step');
 
 // ============================================================
 // AUTH ROUTES

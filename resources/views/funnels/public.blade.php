@@ -290,11 +290,11 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', syst
       <div style="display:flex;align-items:center;gap:12px;">
         <span style="font-size:12px;color:#9ca3af;">{{ $i + 1 }} / {{ $orderedForms->count() }}</span>
         @if($i < $orderedForms->count() - 1)
-        <button type="button" class="btn btn-next" onclick="goToStep({{ $i + 1 }})">Next →</button>
+        <button type="button" class="btn btn-next" id="nextBtn_{{ $i }}" onclick="submitStep({{ $i }}, {{ $form->id }}, {{ $i + 1 }})">Next →</button>
         @else
-        <button type="button" class="btn btn-submit" onclick="submitFunnel()">
+        <button type="button" class="btn btn-submit" id="submitBtn_{{ $i }}" onclick="submitStep({{ $i }}, {{ $form->id }}, null)">
           <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-          Submit All Forms
+          Submit
         </button>
         @endif
       </div>
@@ -338,58 +338,82 @@ function updateProgress(from, to) {
   }
 }
 
-function submitFunnel() {
-  // Collect all form data
-  const allInputs = document.querySelectorAll('[name]');
+/**
+ * Collect all inputs from a specific form card and submit them to the per-step endpoint.
+ * stepIndex: the 0-based index of the current step (for UI transitions)
+ * formId:    the DB id of the form being submitted
+ * nextStep:  the step to advance to after success (null = last step → show success screen)
+ */
+function submitStep(stepIndex, formId, nextStep) {
+  const btnId = nextStep !== null ? 'nextBtn_' + stepIndex : 'submitBtn_' + stepIndex;
+  const btn = document.getElementById(btnId);
+  if (btn) { btn.disabled = true; btn.style.opacity = '0.7'; }
+
+  const card = document.getElementById('formCard_' + stepIndex);
   const formData = new FormData();
   formData.append('_token', document.querySelector('meta[name="csrf-token"]').content);
 
-  // Collect signature data
-  document.querySelectorAll('.signature-canvas').forEach(canvas => {
+  // Flush signature canvases in this card
+  card.querySelectorAll('.signature-canvas').forEach(canvas => {
     const fieldId = canvas.dataset.field;
     const hiddenInput = document.getElementById('sigData_' + fieldId);
-    if (hiddenInput && !canvas.dataset.empty) {
+    if (hiddenInput && canvas.dataset.empty !== 'true') {
       hiddenInput.value = canvas.toDataURL('image/png');
     }
   });
 
-  // Gather all form inputs
-  allInputs.forEach(input => {
+  // Gather inputs only from this card
+  card.querySelectorAll('[name]').forEach(input => {
     if (!input.name || input.name === '_token') return;
     if (input.type === 'checkbox' && !input.checked) return;
     if (input.type === 'radio' && !input.checked) return;
     if (input.type === 'file') {
-      if (input.files[0]) formData.append(input.name, input.files[0]);
+      if (input.files && input.files[0]) formData.append('fields[' + input.id + ']', input.files[0]);
       return;
     }
-    formData.append(input.name, input.value);
+    // Remap name="form_X[fieldId]" → fields[fieldId]
+    const match = input.name.match(/^form_\d+\[(.+?)\]/);
+    if (match) {
+      formData.append('fields[' + match[1] + ']', input.value);
+    } else {
+      formData.append(input.name, input.value);
+    }
   });
 
-  fetch('/funnel/{{ $funnel->slug }}/submit', {
+  fetch('/funnel/{{ $funnel->slug }}/submit-step/' + formId, {
     method: 'POST',
     body: formData,
     headers: { 'X-Requested-With': 'XMLHttpRequest' }
   })
   .then(r => r.json())
   .then(data => {
-    if (data.success) {
-      // Hide all form cards, show success
-      for (let i = 0; i < totalSteps; i++) {
-        const card = document.getElementById('formCard_' + i);
-        if (card) card.classList.remove('active');
+    if (btn) { btn.disabled = false; btn.style.opacity = '1'; }
+    if (data.status === 'success') {
+      if (nextStep !== null) {
+        goToStep(nextStep);
+      } else {
+        // Last step — show success screen
+        for (let i = 0; i < totalSteps; i++) {
+          const c = document.getElementById('formCard_' + i);
+          if (c) c.classList.remove('active');
+        }
+        document.getElementById('successCard').classList.add('active');
+        for (let i = 0; i < totalSteps; i++) {
+          const dot = document.getElementById('dot_' + i);
+          if (dot) { dot.className = 'progress-step-dot done'; dot.innerHTML = '✓'; }
+          const conn = document.getElementById('conn_' + i);
+          if (conn) conn.className = 'progress-step-connector done';
+        }
+        window.scrollTo({ top: 0, behavior: 'smooth' });
       }
-      document.getElementById('successCard').classList.add('active');
-      // Mark all progress steps done
-      for (let i = 0; i < totalSteps; i++) {
-        const dot = document.getElementById('dot_' + i);
-        if (dot) { dot.className = 'progress-step-dot done'; dot.innerHTML = '✓'; }
-        const conn = document.getElementById('conn_' + i);
-        if (conn) conn.className = 'progress-step-connector done';
-      }
-      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } else {
+      alert(data.message || 'An error occurred. Please try again.');
     }
   })
-  .catch(() => alert('An error occurred. Please try again.'));
+  .catch(() => {
+    if (btn) { btn.disabled = false; btn.style.opacity = '1'; }
+    alert('An error occurred. Please try again.');
+  });
 }
 
 // ─── Signature pads ──────────────────────────────────────────

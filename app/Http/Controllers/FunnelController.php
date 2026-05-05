@@ -223,6 +223,45 @@ class FunnelController extends Controller
     }
 
     /**
+     * Submit a single form step within a funnel (called per-step via AJAX)
+     * Route: POST /funnel/{slug}/submit-step/{formId}
+     */
+    public function submitFunnelStep(Request $request, string $slug, int $formId)
+    {
+        $funnel = Funnel::where('slug', $slug)->where('status', 'active')->firstOrFail();
+        $form   = Form::findOrFail($formId);
+
+        $formData = $request->input('fields', []);
+
+        // Handle file uploads
+        if ($request->hasFile('fields')) {
+            foreach ($request->file('fields') as $fieldId => $file) {
+                if ($file && $file->isValid()) {
+                    $path = $file->store('form-uploads/' . $formId, 'public');
+                    $formData[$fieldId] = $path;
+                }
+            }
+        }
+
+        $hasData = collect($formData)->filter(fn($v) => $v !== null && $v !== '')->isNotEmpty();
+
+        FormSubmission::create([
+            'user_id'    => auth()->id(),
+            'form_id'    => $formId,
+            'funnel_id'  => $funnel->id,
+            'data'       => $formData,
+            'ip_address' => $request->ip(),
+            'user_agent' => $request->userAgent(),
+            'status'     => $hasData ? 'completed' : 'draft',
+        ]);
+
+        return response()->json([
+            'status'  => 'success',
+            'message' => 'Step saved.',
+        ]);
+    }
+
+    /**
      * Submit a public funnel (saves each form submission)
      */
     public function submitPublicFunnel(Request $request, string $slug)
