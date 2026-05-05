@@ -475,17 +475,21 @@ function submitStep(stepIndex, formId, nextStep) {
       const subKey = arrMatch[2]; // empty string for checkbox[], or 'first'/'last' etc.
       if (input.type === 'checkbox') {
         if (!input.checked) return;
-        if (!fieldValues[fieldId]) fieldValues[fieldId] = [];
+        // Ensure it's always an array before pushing
+        if (!Array.isArray(fieldValues[fieldId])) fieldValues[fieldId] = [];
         fieldValues[fieldId].push(input.value);
       } else {
-        if (!fieldValues[fieldId]) fieldValues[fieldId] = {};
+        // Nested object field (fullname[first], address[street], etc.)
+        if (typeof fieldValues[fieldId] !== 'object' || Array.isArray(fieldValues[fieldId])) {
+          fieldValues[fieldId] = {};
+        }
         fieldValues[fieldId][subKey] = input.value;
       }
     } else if (singleMatch) {
       const fieldId = singleMatch[1];
       if (input.type === 'checkbox') {
-        // Single required checkbox (toggle-style)
-        if (!fieldValues[fieldId]) fieldValues[fieldId] = [];
+        // Single toggle-style checkbox
+        if (!Array.isArray(fieldValues[fieldId])) fieldValues[fieldId] = [];
         if (input.checked) fieldValues[fieldId].push(input.value);
       } else {
         fieldValues[fieldId] = input.value;
