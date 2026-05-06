@@ -39,6 +39,6 @@ Route::middleware(['auth:api', 'role.api:User'])->group(function (){
     Route::get('get-patient-form-data',[ClinicalController::class, 'getPatientFormData']); // new platform form data
 
     // Funnels API
-    Route::get('funnels', [FunnelApiController::class, 'index']);
+    Route::get('get-patient-funnels', [FunnelApiController::class, 'getPatientFunnels']);
 });
 
