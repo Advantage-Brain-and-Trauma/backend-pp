@@ -61,14 +61,14 @@ class FunnelApiController extends Controller
     public function getPatientFunnels(Request $request)
     {
         try {
-            Log::channel('patient_portal')->info('Fetching patient funnels - Start', [
+            Log::channel('patient_funnel')->info('Fetching patient funnels - Start', [
                 'user_id' => $request->user()->id
             ]);
 
             $userFunnels = UserFunnel::where('user_id', $request->user()->id)
                 ->pluck('funnel_id');
 
-            Log::channel('patient_portal')->info('User funnel IDs fetched', [
+            Log::channel('patient_funnel')->info('User funnel IDs fetched', [
                 'funnel_ids' => $userFunnels
             ]);
 
@@ -84,7 +84,7 @@ class FunnelApiController extends Controller
                 ];
             });
 
-            Log::channel('patient_portal')->info('Fetching patient funnels - Success', [
+            Log::channel('patient_funnel')->info('Fetching patient funnels - Success', [
                 'user_id' => $request->user()->id,
                 'total_funnels' => $funnels->count()
             ]);
@@ -97,7 +97,7 @@ class FunnelApiController extends Controller
 
         } catch (\Throwable $e) {
 
-            Log::channel('patient_portal')->error('Error fetching patient funnels', [
+            Log::channel('patient_funnel')->error('Error fetching patient funnels', [
                 'user_id' => $request->user()->id ?? null,
                 'message' => $e->getMessage(),
                 'line' => $e->getLine(),

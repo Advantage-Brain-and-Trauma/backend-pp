@@ -150,6 +150,14 @@ return [
             'days' => 14,
             'replace_placeholders' => true,
         ],
+
+        'patient_funnel' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/patient_funnel/patient_funnel.log'),
+            'level' => env('LOG_LEVEL', 'debug'),
+            'days' => 14,
+            'replace_placeholders' => true,
+        ],
     ],
 
 ];
