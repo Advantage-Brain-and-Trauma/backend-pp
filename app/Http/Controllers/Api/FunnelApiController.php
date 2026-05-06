@@ -6,7 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Funnel;
 use App\Models\UserFunnel;
 use Illuminate\Http\Request;
-use Illuminate\Http\Facades\Log;
+use Illuminate\Support\Facades\Log;
 
 class FunnelApiController extends Controller
 {
