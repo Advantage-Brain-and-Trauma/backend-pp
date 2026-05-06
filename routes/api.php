@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\PatientAppointmentController;
 use App\Http\Controllers\Api\PatientController;
 use App\Http\Controllers\Api\ClinicalController;
 use App\Http\Controllers\Api\Auth\AuthApiController;
+use App\Http\Controllers\Api\FunnelApiController;
 
 /*
 |--------------------------------------------------------------------------
@@ -36,6 +37,8 @@ Route::middleware(['auth:api', 'role.api:User'])->group(function (){
     Route::get('view-patient-submited-form/{formValueId}',[ClinicalController::class, 'viewPatientSubmitedFormPdf']);
     Route::get('get-patient-details',[PatientController::class, 'getPatientDetails']);
     Route::get('get-patient-form-data',[ClinicalController::class, 'getPatientFormData']); // new platform form data
-    
+
+    // Funnels API
+    Route::get('funnels', [FunnelApiController::class, 'index']);
 });
 
