@@ -52,8 +52,7 @@ class FunnelApiController extends Controller
             $funnels->transform(function ($funnel) {
                 return [
                     'id' => $funnel->id,
-                    'name' => $funnel->name,
-                    // 'url' => url('/funnel/' . $funnel->slug),
+                    'funnel_name' => $funnel->name,
                 ];
             });
 
@@ -135,7 +134,7 @@ class FunnelApiController extends Controller
                     'id' => $form->id,
                     'name' => $form->name,
                     'description' => $form->description,
-                    'status' => $submission ? $submission->status : null,
+                    'submission_status' => $submission ? $submission->status : null,
                     'fields' => $form->fields,
                 ];
             });
@@ -147,7 +146,7 @@ class FunnelApiController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => 'Funnel details retrieved successfully.',
+                'message' => 'Funnel submission details retrieved successfully.',
                 'data' => [
                     'id' => $funnelDetails->id,
                     'funnel_name' => $funnelDetails->name,
