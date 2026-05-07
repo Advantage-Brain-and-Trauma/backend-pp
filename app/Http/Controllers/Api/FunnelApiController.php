@@ -169,4 +169,88 @@ class FunnelApiController extends Controller
             ], 500);
         }
     }
+
+    /**
+     * POST /api/forms/{formId}/submit
+     *
+     * Store form submission data into form_submissions table.
+     *
+     * Request body (multipart/form-data or application/json):
+     *   funnel_id  (optional) integer  - ID of the funnel this form belongs to
+     *   fields     (required) object   - Key-value pairs of field_id => value
+     *                                    For file fields, send the file under fields[fieldId]
+     *
+     * Example JSON body:
+     * {
+     *   "funnel_id": 1,
+     *   "fields": {
+     *     "f1": "John Doe",
+     *     "f2": "john@example.com",
+     *     "f3": "5551234567",
+     *     "f4": ["Option 1", "Option 3"]
+     *   }
+     * }
+     */
+    public function submitForm(Request $request, int $formId)
+    {
+        // Validate the form exists
+        $form = Form::find($formId);
+        if (!$form) {
+            return response()->json([
+                'status'  => false,
+                'message' => 'Form not found.',
+            ], 404);
+        }
+
+        // Validate funnel if provided
+        $funnelId = null;
+        if ($request->filled('funnel_id')) {
+            $funnel = Funnel::find($request->input('funnel_id'));
+            if (!$funnel) {
+                return response()->json([
+                    'status'  => false,
+                    'message' => 'Funnel not found.',
+                ], 404);
+            }
+            $funnelId = $funnel->id;
+        }
+
+        // Collect field data
+        $formData = $request->input('fields', []);
+
+        // Handle file uploads (multipart/form-data)
+        if ($request->hasFile('fields')) {
+            foreach ($request->file('fields') as $fieldId => $file) {
+                if ($file && $file->isValid()) {
+                    $path = $file->store('form-uploads/' . $formId, 'public');
+                    $formData[$fieldId] = $path;
+                }
+            }
+        }
+
+        // Determine status: completed if any field has data, draft otherwise
+        $hasData = collect($formData)->filter(fn($v) => $v !== null && $v !== '' && $v !== [])->isNotEmpty();
+
+        $submission = FormSubmission::create([
+            'user_id'    => auth()->id(),
+            'form_id'    => $formId,
+            'funnel_id'  => $funnelId,
+            'data'       => $formData,
+            'ip_address' => $request->ip(),
+            'user_agent' => $request->userAgent(),
+            'status'     => $hasData ? 'completed' : 'draft',
+        ]);
+
+        return response()->json([
+            'status'  => true,
+            'message' => 'Form submitted successfully.',
+            'data'    => [
+                'submission_id' => $submission->id,
+                'form_id'       => $submission->form_id,
+                'funnel_id'     => $submission->funnel_id,
+                'status'        => $submission->status,
+                'submitted_at'  => $submission->created_at->toISOString(),
+            ],
+        ], 201);
+    }
 }
