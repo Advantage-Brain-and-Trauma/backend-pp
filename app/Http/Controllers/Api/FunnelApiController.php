@@ -271,10 +271,11 @@ class FunnelApiController extends Controller
 
             } catch (\Throwable $e) {
                 // PDF generation failure must NOT block the submission response
-                Log::error('PDF generation failed for submission #' . $submission->id, [
+                Log::channel('patient_portal')->error('PDF generation failed for submission #' . $submission->id, [
                     'error' => $e->getMessage(),
                     'line'  => $e->getLine(),
                     'file'  => $e->getFile(),
+                    'trace' => $e->getTraceAsString(),
                 ]);
             }
 
