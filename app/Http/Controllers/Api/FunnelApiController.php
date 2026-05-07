@@ -9,6 +9,7 @@ use App\Models\Form;
 use App\Models\FormSubmission;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Validator;
 
 
 class FunnelApiController extends Controller
@@ -193,64 +194,107 @@ class FunnelApiController extends Controller
      */
     public function PatientSubmitForm(Request $request, int $formId)
     {
-        // Validate the form exists
-        $form = Form::find($formId);
-        if (!$form) {
-            return response()->json([
-                'status'  => false,
-                'message' => 'Form not found.',
-            ], 404);
-        }
+        try {
 
-        // Validate funnel if provided
-        $funnelId = null;
-        if ($request->filled('funnel_id')) {
-            $funnel = Funnel::find($request->input('funnel_id'));
-            if (!$funnel) {
+            Log::channel('patient_portal')->info('Patient form submission started', [
+                'user_id'   => auth()->id(),
+                'form_id'   => $formId,
+                'funnel_id' => $request->input('funnel_id')
+            ]);
+
+            $validator = Validator::make($request->all(), [
+                'funnel_id' => 'required|integer|exists:funnels,id',
+                'fields'    => 'required|array',
+            ]);
+
+            if ($validator->fails()) {
+
+                Log::channel('patient_portal')->warning('Patient form validation failed', [
+                    'errors' => $validator->errors()
+                ]);
+
                 return response()->json([
                     'status'  => false,
-                    'message' => 'Funnel not found.',
+                    'message' => 'Validation failed.',
+                    'errors'  => $validator->errors(),
+                ], 422);
+            }
+
+            $form = Form::find($formId);
+
+            if (!$form) {
+
+                Log::channel('patient_portal')->warning('Form not found', [
+                    'form_id' => $formId
+                ]);
+
+                return response()->json([
+                    'status'  => false,
+                    'message' => 'Form not found.',
                 ], 404);
             }
-            $funnelId = $funnel->id;
-        }
 
-        // Collect field data
-        $formData = $request->input('fields', []);
+            $formData = $request->input('fields', []);
 
-        // Handle file uploads (multipart/form-data)
-        if ($request->hasFile('fields')) {
-            foreach ($request->file('fields') as $fieldId => $file) {
-                if ($file && $file->isValid()) {
-                    $path = $file->store('form-uploads/' . $formId, 'public');
-                    $formData[$fieldId] = $path;
+            // File Upload
+            if ($request->hasFile('fields')) {
+
+                foreach ($request->file('fields') as $fieldId => $file) {
+
+                    if ($file && $file->isValid()) {
+
+                        $path = $file->store('form-uploads/' . $formId, 'public');
+
+                        $formData[$fieldId] = $path;
+                    }
                 }
             }
-        }
 
-        // Determine status: completed if any field has data, draft otherwise
-        $hasData = collect($formData)->filter(fn($v) => $v !== null && $v !== '' && $v !== [])->isNotEmpty();
+            $hasData = collect($formData)
+                ->filter(fn($v) => $v !== null && $v !== '' && $v !== [])
+                ->isNotEmpty();
 
-        $submission = FormSubmission::create([
-            'user_id'    => auth()->id(),
-            'form_id'    => $formId,
-            'funnel_id'  => $funnelId,
-            'data'       => $formData,
-            'ip_address' => $request->ip(),
-            'user_agent' => $request->userAgent(),
-            'status'     => $hasData ? 'completed' : 'draft',
-        ]);
+            $submission = FormSubmission::create([
+                'user_id'    => auth()->id(),
+                'form_id'    => $formId,
+                'funnel_id'  => $request->input('funnel_id'),
+                'data'       => $formData,
+                'ip_address' => $request->ip(),
+                'user_agent' => $request->userAgent(),
+                'status'     => $hasData ? 'completed' : 'draft',
+            ]);
 
-        return response()->json([
-            'status'  => true,
-            'message' => 'Form submitted successfully.',
-            'data'    => [
+            Log::channel('patient_portal')->info('Patient form submitted successfully', [
                 'submission_id' => $submission->id,
                 'form_id'       => $submission->form_id,
                 'funnel_id'     => $submission->funnel_id,
-                'status'        => $submission->status,
-                'submitted_at'  => $submission->created_at->toISOString(),
-            ],
-        ], 201);
+                'status'        => $submission->status
+            ]);
+
+            return response()->json([
+                'status'  => true,
+                'message' => 'Form submitted successfully.',
+                'data'    => [
+                    'submission_id' => $submission->id,
+                    'form_id'       => $submission->form_id,
+                    'funnel_id'     => $submission->funnel_id,
+                    'status'        => $submission->status,
+                    'submitted_at'  => $submission->created_at->toISOString(),
+                ],
+            ], 201);
+
+        } catch (\Throwable $e) {
+
+            Log::channel('patient_portal')->error('Patient form submission failed', [
+                'form_id' => $formId,
+                'error'   => $e->getMessage(),
+                'line'    => $e->getLine()
+            ]);
+
+            return response()->json([
+                'status'  => false,
+                'message' => 'Something went wrong while submitting the form.',
+            ], 500);
+        }
     }
 }
