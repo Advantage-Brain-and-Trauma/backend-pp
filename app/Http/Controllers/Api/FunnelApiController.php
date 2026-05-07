@@ -12,6 +12,7 @@ use App\Services\FormSubmissionPdfService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Validator;
 
 class FunnelApiController extends Controller
 {
@@ -176,7 +177,7 @@ class FunnelApiController extends Controller
      *   }
      * }
      */
-    public function submitForm(Request $request, int $formId)
+    public function PatientSubmitForm(Request $request, int $formId)
     {
         // ── 1. Validate form exists ──────────────────────────────────────────
         $form = Form::find($formId);
@@ -194,24 +195,41 @@ class FunnelApiController extends Controller
             if (!$funnel) {
                 return response()->json([
                     'status'  => false,
-                    'message' => 'Funnel not found.',
+                    'message' => 'Validation failed.',
+                    'errors'  => $validator->errors(),
+                ], 422);
+            }
+
+            $form = Form::find($formId);
+
+            if (!$form) {
+
+                Log::channel('patient_portal')->warning('Form not found', [
+                    'form_id' => $formId
+                ]);
+
+                return response()->json([
+                    'status'  => false,
+                    'message' => 'Form not found.',
                 ], 404);
             }
-            $funnelId = $funnel->id;
-        }
 
         // ── 3. Collect field data ────────────────────────────────────────────
         $formData = $request->input('fields', []);
 
-        // Handle file uploads (multipart/form-data)
-        if ($request->hasFile('fields')) {
-            foreach ($request->file('fields') as $fieldId => $file) {
-                if ($file && $file->isValid()) {
-                    $path = $file->store('form-uploads/' . $formId, 'public');
-                    $formData[$fieldId] = $path;
+            // File Upload
+            if ($request->hasFile('fields')) {
+
+                foreach ($request->file('fields') as $fieldId => $file) {
+
+                    if ($file && $file->isValid()) {
+
+                        $path = $file->store('form-uploads/' . $formId, 'public');
+
+                        $formData[$fieldId] = $path;
+                    }
                 }
             }
-        }
 
         // ── 4. Determine submission status ───────────────────────────────────
         $hasData = collect($formData)->filter(fn($v) => $v !== null && $v !== '' && $v !== [])->isNotEmpty();
