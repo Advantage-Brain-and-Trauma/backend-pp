@@ -191,7 +191,7 @@ class FunnelApiController extends Controller
      *   }
      * }
      */
-    public function submitForm(Request $request, int $formId)
+    public function PatientSubmitForm(Request $request, int $formId)
     {
         // Validate the form exists
         $form = Form::find($formId);
