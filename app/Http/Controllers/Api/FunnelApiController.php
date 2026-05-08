@@ -115,14 +115,25 @@ class FunnelApiController extends Controller
                 ->get(['form_id', 'status']);
 
             $forms = $formDetails->map(function ($form) use ($submissions) {
+
                 $submission = $submissions->where('form_id', $form->id)->first();
+
+                // Extract only fields array
+                $onlyFields = collect($form->fields['rows'] ?? [])
+                    ->flatMap(function ($row) {
+                        return collect($row['cols'] ?? [])
+                            ->flatMap(function ($col) {
+                                return $col['fields'] ?? [];
+                            });
+                    })
+                    ->values();
 
                 return [
                     'id'                => $form->id,
                     'name'              => $form->name,
                     'description'       => $form->description,
                     'submission_status' => $submission ? $submission->status : null,
-                    'fields'            => $form->fields,
+                    'fields'            => $onlyFields,
                 ];
             });
 
