@@ -83,7 +83,7 @@ class FunnelApiController extends Controller
     public function getPatientFunnelSubmissionDetails($funnelId)
     {
         try {
-            Log::channel('patient_portal')->info('Fetching patient funnel submission details', [
+            Log::channel('patient_form')->info('Fetching patient funnel submission details', [
                 'user_id'   => auth()->id(),
                 'funnel_id' => $funnelId
             ]);
@@ -92,7 +92,7 @@ class FunnelApiController extends Controller
                 ->first(['id', 'name', 'form_ids']);
 
             if (!$funnelDetails) {
-                Log::channel('patient_portal')->warning('Funnel submission details not found', [
+                Log::channel('patient_form')->warning('Funnel submission details not found', [
                     'funnel_id' => $funnelId
                 ]);
 
@@ -107,6 +107,7 @@ class FunnelApiController extends Controller
                 : json_decode($funnelDetails->form_ids, true);
 
             $formDetails = Form::whereIn('id', $formIds)
+                ->orderByRaw("FIELD(id, " . implode(',', $formIds) . ")")
                 ->get(['id', 'name', 'description', 'fields']);
 
             $submissions = FormSubmission::whereIn('form_id', $formIds)
@@ -137,7 +138,7 @@ class FunnelApiController extends Controller
                 ];
             });
 
-            Log::channel('patient_portal')->info('Patient funnel submission details fetched successfully', [
+            Log::channel('patient_form')->info('Patient funnel submission details fetched successfully', [
                 'funnel_id'   => $funnelId,
                 'forms_count' => $forms->count()
             ]);
@@ -153,7 +154,7 @@ class FunnelApiController extends Controller
             ], 200);
 
         } catch (\Throwable $e) {
-            Log::channel('patient_portal')->error('Error fetching patient funnel submission details', [
+            Log::channel('patient_form')->error('Error fetching patient funnel submission details', [
                 'funnel_id' => $funnelId,
                 'message'   => $e->getMessage(),
                 'line'      => $e->getLine()
@@ -192,7 +193,7 @@ class FunnelApiController extends Controller
     public function PatientSubmitForm(Request $request, int $formId)
     {
         try {
-            Log::channel('patient_portal')->info('Patient form submission started', [
+            Log::channel('patient_form')->info('Patient form submission started', [
                 'user_id'   => auth()->id(),
                 'form_id'   => $formId,
                 'funnel_id' => $request->input('funnel_id')
@@ -205,7 +206,7 @@ class FunnelApiController extends Controller
             ]);
 
             if ($validator->fails()) {
-                Log::channel('patient_portal')->warning('Patient form validation failed', [
+                Log::channel('patient_form')->warning('Patient form validation failed', [
                     'errors' => $validator->errors()
                 ]);
 
@@ -219,7 +220,7 @@ class FunnelApiController extends Controller
             // ── 2. Validate form exists ──────────────────────────────────────
             $form = Form::find($formId);
             if (!$form) {
-                Log::channel('patient_portal')->warning('Form not found', [
+                Log::channel('patient_form')->warning('Form not found', [
                     'form_id' => $formId
                 ]);
 
@@ -258,7 +259,7 @@ class FunnelApiController extends Controller
                 'status'     => $hasData ? 'completed' : 'draft',
             ]);
 
-            Log::channel('patient_portal')->info('Patient form submitted successfully', [
+            Log::channel('patient_form')->info('Patient form submitted successfully', [
                 'submission_id' => $submission->id,
                 'form_id'       => $submission->form_id,
                 'funnel_id'     => $submission->funnel_id,
@@ -276,14 +277,14 @@ class FunnelApiController extends Controller
                 $submission->pdf_url = $pdfFilename;
                 $submission->save();
 
-                Log::channel('patient_portal')->info('PDF generated for submission', [
+                Log::channel('patient_form')->info('PDF generated for submission', [
                     'submission_id' => $submission->id,
                     'pdf_url'       => $pdfFilename,
                 ]);
 
             } catch (\Throwable $e) {
                 // PDF generation failure must NOT block the submission response
-                Log::channel('patient_portal')->error('PDF generation failed for submission #' . $submission->id, [
+                Log::channel('patient_form')->error('PDF generation failed for submission #' . $submission->id, [
                     'error' => $e->getMessage(),
                     'line'  => $e->getLine(),
                     'file'  => $e->getFile(),
@@ -306,7 +307,7 @@ class FunnelApiController extends Controller
             ], 201);
 
         } catch (\Throwable $e) {
-            Log::channel('patient_portal')->error('Patient form submission failed', [
+            Log::channel('patient_form')->error('Patient form submission failed', [
                 'form_id' => $formId,
                 'error'   => $e->getMessage(),
                 'line'    => $e->getLine()
@@ -332,7 +333,7 @@ class FunnelApiController extends Controller
             ], 200);
 
         }catch(\Throwable $e){
-            Log::channel('patient_portal')->error('Error fetching all forms', [
+            Log::channel('patient_form')->error('Error fetching all forms', [
                 'error'   => $e->getMessage(),
                 'line'    => $e->getLine()
             ]);
