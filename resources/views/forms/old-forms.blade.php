@@ -65,11 +65,12 @@
                     <th>Title</th>
                     <th>Description</th>
                     <th>Email</th>
+                    <th style="width:100px; text-align:center;">Action</th>
                 </tr>
             </thead>
             <tbody id="old-forms-tbody">
                 <tr id="loading-row">
-                    <td colspan="3" style="text-align:center; padding:48px; color:#9ca3af;">
+                    <td colspan="4" style="text-align:center; padding:48px; color:#9ca3af;">
                         <i class="fas fa-spinner fa-spin" style="font-size:24px; display:block; margin-bottom:12px;"></i>
                         Loading old forms...
                     </td>
@@ -105,7 +106,7 @@ document.addEventListener('DOMContentLoaded', function() {
         } else {
             var tbody = document.getElementById('old-forms-tbody');
             tbody.innerHTML =
-                '<tr><td colspan="3" style="text-align:center; padding:48px; color:#9ca3af;">' +
+                '<tr><td colspan="4" style="text-align:center; padding:48px; color:#9ca3af;">' +
                 '<i class="fas fa-file-alt" style="font-size:36px; display:block; margin-bottom:12px;"></i>' +
                 'No old forms found.</td></tr>';
         }
@@ -113,7 +114,7 @@ document.addEventListener('DOMContentLoaded', function() {
     .catch(function(err) {
         var tbody = document.getElementById('old-forms-tbody');
         tbody.innerHTML =
-            '<tr><td colspan="3" style="text-align:center; padding:48px; color:#dc2626;">' +
+            '<tr><td colspan="4" style="text-align:center; padding:48px; color:#dc2626;">' +
             '<i class="fas fa-exclamation-circle" style="font-size:36px; display:block; margin-bottom:12px;"></i>' +
             'Failed to load old forms. Please try again later.</td></tr>';
         console.error('Error fetching old forms:', err);
@@ -131,10 +132,16 @@ function renderPage() {
 
     pageData.forEach(function(form) {
         var tr = document.createElement('tr');
+        tr.setAttribute('id', 'form-row-' + form.id);
         tr.innerHTML =
             '<td style="font-weight:600;">' + escapeHtml(form.title || '—') + '</td>' +
             '<td style="font-size:13px; color:#6b7280;">' + escapeHtml(form.description || '—') + '</td>' +
-            '<td style="font-size:13px; color:#6b7280;">' + escapeHtml(form.email || '—') + '</td>';
+            '<td style="font-size:13px; color:#6b7280;">' + escapeHtml(form.email || '—') + '</td>' +
+            '<td style="text-align:center;">' +
+                '<button class="btn btn-primary btn-sm" onclick="syncForm(' + form.id + ', this)" title="Sync to new platform">' +
+                    '<i class="fas fa-sync-alt"></i> Sync' +
+                '</button>' +
+            '</td>';
         tbody.appendChild(tr);
     });
 
@@ -170,6 +177,41 @@ function goToPage(page) {
     currentPage = page;
     renderPage();
     window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function syncForm(formId, btn) {
+    var originalHtml = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Syncing...';
+
+    fetch('/old-forms/' + formId + '/sync', {
+        method: 'POST',
+        headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+        },
+    })
+    .then(function(response) { return response.json(); })
+    .then(function(res) {
+        if (res.status) {
+            btn.innerHTML = '<i class="fas fa-check"></i> Synced';
+            btn.classList.remove('btn-primary');
+            btn.style.background = '#16a34a';
+            btn.style.borderColor = '#16a34a';
+            showGlobalToast(res.message, 'success');
+        } else {
+            btn.disabled = false;
+            btn.innerHTML = originalHtml;
+            showGlobalToast(res.message || 'Sync failed.', 'error');
+        }
+    })
+    .catch(function(err) {
+        btn.disabled = false;
+        btn.innerHTML = originalHtml;
+        showGlobalToast('Failed to sync form. Please try again.', 'error');
+        console.error('Sync error:', err);
+    });
 }
 
 function escapeHtml(text) {
