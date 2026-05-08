@@ -45,6 +45,8 @@ Route::middleware(['auth:api', 'role.api:User'])->group(function (){
     // Form Submissions API
     Route::post('patient-forms/{formId}/submit', [FunnelApiController::class, 'PatientSubmitForm']);
 
-    Route::get('get-all-old-forms', [FunnelApiController::class, 'getAllOldForms']); // get all olds form data 
+
 });
+
+    Route::get('get-all-old-forms', [FunnelApiController::class, 'getAllOldForms']); // get all olds form data 
 
