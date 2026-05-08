@@ -52,11 +52,83 @@
     opacity: 0.4;
     cursor: not-allowed;
 }
+.table-toolbar {
+    padding: 16px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    border-bottom: 1px solid #f3f4f6;
+}
+.table-toolbar .search-box {
+    position: relative;
+    flex: 1;
+    max-width: 320px;
+}
+.table-toolbar .search-box input {
+    width: 100%;
+    padding: 8px 12px 8px 36px;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    font-size: 13px;
+    font-family: inherit;
+    color: #374151;
+    outline: none;
+    transition: border-color 0.15s;
+}
+.table-toolbar .search-box input:focus {
+    border-color: #C8102E;
+}
+.table-toolbar .search-box .search-icon {
+    position: absolute;
+    left: 11px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #9ca3af;
+    font-size: 13px;
+}
+.table-toolbar .per-page-select {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: #6b7280;
+}
+.table-toolbar .per-page-select select {
+    padding: 8px 10px;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    font-size: 13px;
+    font-family: inherit;
+    color: #374151;
+    outline: none;
+    cursor: pointer;
+    background: #fff;
+}
+.table-toolbar .per-page-select select:focus {
+    border-color: #C8102E;
+}
 </style>
 
 <div class="card">
     <div class="card-header">
         <div class="card-title">Old Forms</div>
+    </div>
+    <div class="table-toolbar" id="table-toolbar" style="display:none;">
+        <div class="search-box">
+            <i class="fas fa-search search-icon"></i>
+            <input type="text" id="search-input" placeholder="Search by title..." oninput="onSearch()">
+        </div>
+        <div class="per-page-select">
+            <label for="per-page">Show</label>
+            <select id="per-page" onchange="onPerPageChange()">
+                <option value="10" selected>10</option>
+                <option value="25">25</option>
+                <option value="50">50</option>
+                <option value="100">100</option>
+            </select>
+            <span>entries</span>
+        </div>
     </div>
     <div class="table-container">
         <table>
@@ -86,8 +158,10 @@
 
 <script>
 var allForms = [];
+var filteredForms = [];
 var currentPage = 1;
 var perPage = 10;
+var searchQuery = '';
 
 document.addEventListener('DOMContentLoaded', function() {
     fetch('/api/get-all-old-forms', {
@@ -101,7 +175,9 @@ document.addEventListener('DOMContentLoaded', function() {
     .then(function(res) {
         if (res.status && res.data && res.data.length > 0) {
             allForms = res.data;
+            filteredForms = allForms;
             currentPage = 1;
+            document.getElementById('table-toolbar').style.display = 'flex';
             renderPage();
         } else {
             var tbody = document.getElementById('old-forms-tbody');
@@ -122,10 +198,10 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 function renderPage() {
-    var totalPages = Math.ceil(allForms.length / perPage);
+    var totalPages = Math.ceil(filteredForms.length / perPage);
     var start = (currentPage - 1) * perPage;
     var end = start + perPage;
-    var pageData = allForms.slice(start, end);
+    var pageData = filteredForms.slice(start, end);
 
     var tbody = document.getElementById('old-forms-tbody');
     tbody.innerHTML = '';
@@ -149,9 +225,9 @@ function renderPage() {
     var paginationInfo = document.getElementById('pagination-info');
     var paginationButtons = document.getElementById('pagination-buttons');
 
-    if (allForms.length > perPage) {
+    if (filteredForms.length > perPage) {
         paginationWrap.style.display = 'flex';
-        paginationInfo.textContent = 'Showing ' + (start + 1) + ' to ' + Math.min(end, allForms.length) + ' of ' + allForms.length + ' entries';
+        paginationInfo.textContent = 'Showing ' + (start + 1) + ' to ' + Math.min(end, filteredForms.length) + ' of ' + filteredForms.length + ' entries';
 
         var html = '';
         html += '<button ' + (currentPage === 1 ? 'disabled' : '') + ' onclick="goToPage(' + (currentPage - 1) + ')"><i class="fas fa-chevron-left"></i></button>';
@@ -171,8 +247,24 @@ function renderPage() {
     }
 }
 
+function onSearch() {
+    searchQuery = document.getElementById('search-input').value.toLowerCase().trim();
+    filteredForms = allForms.filter(function(form) {
+        var title = (form.title || '').toLowerCase();
+        return title.indexOf(searchQuery) !== -1;
+    });
+    currentPage = 1;
+    renderPage();
+}
+
+function onPerPageChange() {
+    perPage = parseInt(document.getElementById('per-page').value, 10);
+    currentPage = 1;
+    renderPage();
+}
+
 function goToPage(page) {
-    var totalPages = Math.ceil(allForms.length / perPage);
+    var totalPages = Math.ceil(filteredForms.length / perPage);
     if (page < 1 || page > totalPages) return;
     currentPage = page;
     renderPage();
