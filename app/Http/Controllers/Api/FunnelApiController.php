@@ -107,6 +107,7 @@ class FunnelApiController extends Controller
                 : json_decode($funnelDetails->form_ids, true);
 
             $formDetails = Form::whereIn('id', $formIds)
+                ->orderByRaw("FIELD(id, " . implode(',', $formIds) . ")")
                 ->get(['id', 'name', 'description', 'fields']);
 
             $submissions = FormSubmission::whereIn('form_id', $formIds)
