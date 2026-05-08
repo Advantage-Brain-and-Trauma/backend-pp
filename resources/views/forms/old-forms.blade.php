@@ -211,7 +211,7 @@ function renderPage() {
         tr.setAttribute('id', 'form-row-' + form.id);
         tr.innerHTML =
             '<td style="font-weight:600;">' + escapeHtml(form.title || '—') + '</td>' +
-            '<td style="font-size:13px;">' + formatStatus(form.status) + '</td>' +
+            '<td style="font-size:13px;">' + formatStatus(form.is_active) + '</td>' +
             '<td style="font-size:13px; color:#6b7280;">' + formatDate(form.created_at) + '</td>' +
             '<td style="text-align:center;">' +
                 '<button class="btn btn-primary btn-sm" onclick="syncForm(' + form.id + ', this)" title="Sync to new platform">' +
@@ -306,15 +306,13 @@ function syncForm(formId, btn) {
     });
 }
 
-function formatStatus(status) {
-    if (!status) return '<span style="color:#6b7280;">N/A</span>';
-    var s = String(status).toLowerCase();
-    if (s === 'active' || s === '1') {
-        return '<span style="color:#16a34a; font-weight:600;">Active</span>';
-    } else if (s === 'inactive' || s === '0') {
-        return '<span style="color:#dc2626; font-weight:600;">Inactive</span>';
+function formatStatus(isActive) {
+    if (isActive === 1 || isActive === '1') {
+        return '<span style="color:#16a34a; font-weight:600;">ON</span>';
+    } else if (isActive === 0 || isActive === '0') {
+        return '<span style="color:#dc2626; font-weight:600;">OFF</span>';
     }
-    return '<span style="color:#6b7280;">' + escapeHtml(status) + '</span>';
+    return '<span style="color:#6b7280;">N/A</span>';
 }
 
 function formatDate(dateStr) {
