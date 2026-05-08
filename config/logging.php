@@ -158,6 +158,15 @@ return [
             'days' => 14,
             'replace_placeholders' => true,
         ],
+
+        'patient_form' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/patient_form/patient_form_submission.log'),
+            'level' => env('LOG_LEVEL', 'debug'),
+            'days' => 14,
+            'replace_placeholders' => true,
+        ],
+
     ],
 
 ];
