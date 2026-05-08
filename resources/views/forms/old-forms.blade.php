@@ -63,8 +63,8 @@
             <thead>
                 <tr>
                     <th>Title</th>
-                    <th>Description</th>
-                    <th>Email</th>
+                    <th>Status</th>
+                    <th>Created At</th>
                     <th style="width:100px; text-align:center;">Action</th>
                 </tr>
             </thead>
@@ -135,8 +135,8 @@ function renderPage() {
         tr.setAttribute('id', 'form-row-' + form.id);
         tr.innerHTML =
             '<td style="font-weight:600;">' + escapeHtml(form.title || '—') + '</td>' +
-            '<td style="font-size:13px; color:#6b7280;">' + escapeHtml(form.description || '—') + '</td>' +
-            '<td style="font-size:13px; color:#6b7280;">' + escapeHtml(form.email || '—') + '</td>' +
+            '<td style="font-size:13px;">' + formatStatus(form.status) + '</td>' +
+            '<td style="font-size:13px; color:#6b7280;">' + formatDate(form.created_at) + '</td>' +
             '<td style="text-align:center;">' +
                 '<button class="btn btn-primary btn-sm" onclick="syncForm(' + form.id + ', this)" title="Sync to new platform">' +
                     '<i class="fas fa-sync-alt"></i> Sync' +
@@ -212,6 +212,24 @@ function syncForm(formId, btn) {
         showGlobalToast('Failed to sync form. Please try again.', 'error');
         console.error('Sync error:', err);
     });
+}
+
+function formatStatus(status) {
+    if (!status) return '<span style="color:#6b7280;">N/A</span>';
+    var s = String(status).toLowerCase();
+    if (s === 'active' || s === '1') {
+        return '<span style="color:#16a34a; font-weight:600;">Active</span>';
+    } else if (s === 'inactive' || s === '0') {
+        return '<span style="color:#dc2626; font-weight:600;">Inactive</span>';
+    }
+    return '<span style="color:#6b7280;">' + escapeHtml(status) + '</span>';
+}
+
+function formatDate(dateStr) {
+    if (!dateStr) return '—';
+    var d = new Date(dateStr);
+    if (isNaN(d.getTime())) return escapeHtml(dateStr);
+    return d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
 }
 
 function escapeHtml(text) {
