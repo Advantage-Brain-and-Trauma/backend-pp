@@ -13,6 +13,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\DB;
 
 class FunnelApiController extends Controller
 {
@@ -303,6 +304,32 @@ class FunnelApiController extends Controller
             return response()->json([
                 'status'  => false,
                 'message' => 'Something went wrong while submitting the form.',
+            ], 500);
+        }
+    }
+
+
+    public function getAllOldForms(){
+        try{
+
+            $allForms = DB::connection('patient_portal')->table('forms')->get();
+
+            return response()->json([
+                'status'  => true,
+                'message' => 'Forms retrieved successfully.',
+                'data'    => $allForms,
+            ], 200);
+
+        }catch(\Throwable $e){
+            Log::channel('patient_portal')->error('Error fetching all forms', [
+                'error'   => $e->getMessage(),
+                'line'    => $e->getLine()
+            ]);
+
+            return response()->json([
+                'status'  => false,
+                'error' => $e->getMessage(),
+                'message' => 'Something went wrong while fetching forms.',
             ], 500);
         }
     }
