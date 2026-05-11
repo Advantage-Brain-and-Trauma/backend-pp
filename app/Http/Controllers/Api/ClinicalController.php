@@ -365,8 +365,8 @@ class ClinicalController extends Controller
                     'created_at'               => $item->created_at,
                     'note_comments'            => $latestNote?->note,
                     'note_comments_update_at'  => $latestNote?->updated_at,
-                    'pdf_urls'                  => $item->pdf_urls,
-                    'downloadPdf'                  => $item->pdf_url ? url('/storage/form-pdfs/' . $item->pdf_url) : null,
+                    'pdf_url'                  => $item->pdf_url,
+                    'downloadPdf'              => $item->pdf_url ? url('/storage/form-pdfs/' . $item->pdf_url) : null,
                     'decoded_json'             => $decoded,
                 ];
             });
