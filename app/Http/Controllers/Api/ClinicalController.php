@@ -331,6 +331,7 @@ class ClinicalController extends Controller
         } catch (\Throwable $e) {
             return response()->json([
                 'success' => false,
+                'error' => $e->getMessage(),
                 'message' => 'Error downloading PDF'
             ], 500);
         }
