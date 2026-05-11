@@ -89,107 +89,6 @@ class ClinicalController extends Controller
         }
     }
 
-    // public function downloadPatientSubmitedFormPdf(Request $request)
-    // {
-    //     try {
-    //         // ✅ Validate filenames
-    //         $request->validate([
-    //             'pdfUrls' => 'required|array',
-    //             'pdfUrls.*' => 'required|string'
-    //         ]);
-
-    //         $pdfFiles = $request->pdfUrls;
-
-    //         // ✅ Base URL
-    //         $baseUrl = "https://ptp.advantagehcs.com/storage/pdfDownload/";
-    
-    //         $results = [];
-
-    //         // ⚡ Parallel request (only check, no save)
-    //         $responses = Http::pool(function ($pool) use ($pdfFiles, $baseUrl) {
-    //             $requests = [];
-
-    //             foreach ($pdfFiles as $index => $fileName) {
-    //                 $requests[$index] = $pool->timeout(20)
-    //                     ->retry(2, 500)
-    //                     ->get($baseUrl . $fileName);
-    //             }
-
-    //             return $requests;
-    //         });
-
-    //         foreach ($pdfFiles as $index => $fileName) {
-
-    //                 try {
-    //                     $response = $responses[$index];
-
-    //                     if (!$response) {
-    //                         $results[] = [
-    //                             'file' => $fileName,
-    //                             'success' => false,
-    //                             'message' => 'File not found'
-    //                         ];
-    //                         continue;
-    //                     }
-
-    //                     if ($response->status() === 404) {
-    //                         $results[] = [
-    //                             'file' => $fileName,
-    //                             'success' => false,
-    //                             'message' => 'File not found'
-    //                         ];
-    //                         continue;
-    //                     }
-
-    //                     if (!$response->successful()) {
-    //                         $results[] = [
-    //                             'file' => $fileName,
-    //                             'success' => false,
-    //                             'message' => 'File inaccessible'
-    //                         ];
-    //                         continue;
-    //                     }
-
-    //                     $contentType = $response->header('Content-Type');
-
-    //                     if (!str_contains($contentType, 'application/pdf')) {
-    //                         $results[] = [
-    //                             'file' => $fileName,
-    //                             'success' => false,
-    //                             'message' => 'File not found'
-    //                         ];
-    //                         continue;
-    //                     }
-
-    //                     $results[] = [
-    //                         'file' => $fileName,
-    //                         'success' => true,
-    //                         'url' => $baseUrl . $fileName
-    //                     ];
-
-    //                 } catch (\Exception $e) {
-    //                     $results[] = [
-    //                         'file' => $fileName,
-    //                         'success' => false,
-    //                         'message' => 'Error checking file'
-    //                     ];
-    //                 }
-    //         }
-
-    //         return response()->json([
-    //             'success' => true,
-    //             'message' => 'Pdf processing completed',
-    //             'data' => $results
-    //         ]);
-
-    //     } catch (\Exception $e) {
-    //         return response()->json([
-    //             'success' => false,
-    //             'message' => 'Error processing PDF files',
-    //         ], 500);
-    //     }
-    // }
-
     public function downloadPatientSubmitedFormPdf(Request $request)
     {
         try {
@@ -382,6 +281,57 @@ class ClinicalController extends Controller
                 'success' => false,
                 'error'   => $e->getMessage(),
                 'message' => 'Error fetching patient form data'
+            ], 500);
+        }
+    }
+
+    public function downloadPatientFormPdf(Request $request)
+    {
+        try {
+            $request->validate([
+                'pdfUrls' => 'required|array',
+                'pdfUrls.*' => 'required|string'
+            ]);
+
+            $pdfFiles = $request->pdfUrls;
+            $baseUrl = url('/storage/form-pdfs/');
+            $tempDir = storage_path('app/temp_pdfs');
+            if (!file_exists($tempDir)) {
+                mkdir($tempDir, 0777, true);
+            }
+
+            $zipFileName = 'patient_forms_pdfs_' . time() . '.zip';
+            $zipPath = storage_path("app/" . $zipFileName);
+
+            $zip = new ZipArchive();
+
+            if ($zip->open($zipPath, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== TRUE) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Could not create ZIP file'
+                ], 500);
+            }
+            foreach ($pdfFiles as $index => $fileName) {
+                try {
+                    $filePath = $tempDir . '/' . $fileName;
+
+                    if (!Storage::disk('public')->exists('form-pdfs/' . $fileName)) {
+                        continue;
+                    }
+
+                    Storage::disk('public')->copy('form-pdfs/' . $fileName, 'temp_pdfs/' . $fileName);
+                    $zip->addFile($filePath, $fileName);
+
+                } catch (\Exception $e) {
+                    continue;
+                }
+            }
+            return response()->download($pdfPath)->deleteFileAfterSend(false);
+
+        } catch (\Throwable $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error downloading PDF'
             ], 500);
         }
     }

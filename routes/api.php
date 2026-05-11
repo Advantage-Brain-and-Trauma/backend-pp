@@ -34,10 +34,11 @@ Route::middleware(['auth:api', 'role.api:User'])->group(function (){
     Route::get('get-company-by-department-and-provider',[PatientAppointmentController::class, 'getCompanyByDepartmentAndProvider']);
     Route::post('schedule-patient-appointment/{userName}/{caseId}',[PatientAppointmentController::class, 'schedulePatientAppointment']);
     Route::get('get-patient-submited-form-data',[ClinicalController::class, 'getPatientSubmitedFormData'])->middleware('cors'); // old platform form data
-    Route::post('download-patient-submited-form-pdf',[ClinicalController::class, 'downloadPatientSubmitedFormPdf']);
+    Route::post('download-patient-submited-form-pdf',[ClinicalController::class, 'downloadPatientSubmitedFormPdf']); // old platform form pdf download
     Route::get('view-patient-submited-form/{formValueId}',[ClinicalController::class, 'viewPatientSubmitedFormPdf']);
     Route::get('get-patient-details',[PatientController::class, 'getPatientDetails']);
     Route::get('get-patient-form-data',[ClinicalController::class, 'getPatientFormData']); // new platform form data
+    Route::post('download-patient-form-pdf',[ClinicalController::class, 'downloadPatientFormPdf']); // new platform form pdf download
 
     // Funnels API
     Route::get('get-patient-funnels', [FunnelApiController::class, 'getPatientFunnels']);
