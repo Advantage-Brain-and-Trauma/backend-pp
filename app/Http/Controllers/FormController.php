@@ -25,7 +25,8 @@ class FormController extends Controller
             $query->where('is_active', 0);
         }
 
-        $forms = $query->latest()->paginate(20);
+        $perPage = in_array((int) $request->per_page, [10, 25, 50, 100]) ? (int) $request->per_page : 10;
+        $forms = $query->latest()->paginate($perPage)->withQueryString();
 
         return view('forms.index', compact('forms'));
     }

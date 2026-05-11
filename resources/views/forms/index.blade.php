@@ -87,19 +87,32 @@
 #delete-modal .btn-confirm-delete:hover { background: #b91c1c; }
 </style>
 
-<div class="card">
-    <div class="card-header">
-        <form method="GET" class="search-bar" style="margin-bottom:0; flex:1;">
-            <div class="search-input-wrap">
-                <i class="fas fa-search"></i>
-                <input type="text" name="search" value="{{ request('search') }}" placeholder="Search forms...">
-            </div>
-            <select name="status" class="form-control" style="width:160px; padding:10px 14px;">
+<div class="card" style="padding:0;overflow:hidden;">
+    {{-- Toolbar --}}
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid #e5e7eb;gap:12px;flex-wrap:wrap;">
+        <div style="display:flex;align-items:center;gap:10px;">
+            <form method="GET" action="{{ route('forms.index') }}" style="display:flex;align-items:center;gap:8px;">
+                <select name="per_page" onchange="this.form.submit()" style="padding:7px 10px;border:1px solid #e5e7eb;border-radius:7px;font-size:13px;background:#f9fafb;color:#374151;cursor:pointer;">
+                    @foreach([10,25,50,100] as $n)
+                        <option value="{{ $n }}" {{ request('per_page', 10) == $n ? 'selected' : '' }}>{{ $n }}</option>
+                    @endforeach
+                </select>
+                <span style="font-size:13px;color:#6b7280;">Entries Per Page</span>
+                @if(request('search')) <input type="hidden" name="search" value="{{ request('search') }}"> @endif
+                @if(request('status')) <input type="hidden" name="status" value="{{ request('status') }}"> @endif
+            </form>
+        </div>
+        <form method="GET" action="{{ route('forms.index') }}" style="display:flex;gap:8px;align-items:center;">
+            @if(request('per_page')) <input type="hidden" name="per_page" value="{{ request('per_page') }}"> @endif
+            @if(request('status')) <input type="hidden" name="status" value="{{ request('status') }}"> @endif
+            <select name="status" style="padding:8px 12px;border:1px solid #e5e7eb;border-radius:8px;font-size:13px;background:#f9fafb;color:#374151;outline:none;">
                 <option value="">All Statuses</option>
                 <option value="active" {{ request('status') === 'active' ? 'selected' : '' }}>Active</option>
                 <option value="inactive" {{ request('status') === 'inactive' ? 'selected' : '' }}>Inactive</option>
             </select>
-            <button type="submit" class="btn btn-secondary"><i class="fas fa-filter"></i> Filter</button>
+            <input type="text" name="search" value="{{ request('search') }}" placeholder="Search..."
+                style="padding:8px 14px;border:1px solid #e5e7eb;border-radius:8px;font-size:13px;background:#f9fafb;color:#374151;width:220px;outline:none;">
+            <button type="submit" style="padding:8px 16px;border:1px solid #e5e7eb;border-radius:8px;font-size:13px;background:#f9fafb;color:#374151;cursor:pointer;"><i class="fas fa-search"></i></button>
         </form>
     </div>
     <div class="table-container">
@@ -169,9 +182,31 @@
             </tbody>
         </table>
     </div>
-    @if($forms->hasPages())
-        <div class="pagination">{{ $forms->withQueryString()->links() }}</div>
-    @endif
+    {{-- Footer / Pagination --}}
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-top:1px solid #e5e7eb;flex-wrap:wrap;gap:10px;">
+        <div style="font-size:13px;color:#6b7280;">
+            Showing {{ $forms->firstItem() ?? 0 }} to {{ $forms->lastItem() ?? 0 }} of {{ $forms->total() }} results
+        </div>
+        <div style="display:flex;gap:4px;align-items:center;">
+            @if($forms->onFirstPage())
+                <span style="padding:6px 12px;border-radius:7px;border:1px solid #e5e7eb;background:#f9fafb;color:#d1d5db;font-size:13px;">&#8249;</span>
+            @else
+                <a href="{{ $forms->previousPageUrl() }}" style="padding:6px 12px;border-radius:7px;border:1px solid #e5e7eb;background:#fff;color:#374151;font-size:13px;text-decoration:none;">&#8249;</a>
+            @endif
+            @foreach($forms->getUrlRange(max(1, $forms->currentPage()-2), min($forms->lastPage(), $forms->currentPage()+2)) as $page => $url)
+                @if($page == $forms->currentPage())
+                    <span style="padding:6px 12px;border-radius:7px;border:1px solid #C8102E;background:#C8102E;color:#fff;font-size:13px;font-weight:600;">{{ $page }}</span>
+                @else
+                    <a href="{{ $url }}" style="padding:6px 12px;border-radius:7px;border:1px solid #e5e7eb;background:#fff;color:#374151;font-size:13px;text-decoration:none;">{{ $page }}</a>
+                @endif
+            @endforeach
+            @if($forms->hasMorePages())
+                <a href="{{ $forms->nextPageUrl() }}" style="padding:6px 12px;border-radius:7px;border:1px solid #e5e7eb;background:#fff;color:#374151;font-size:13px;text-decoration:none;">&#8250;</a>
+            @else
+                <span style="padding:6px 12px;border-radius:7px;border:1px solid #e5e7eb;background:#f9fafb;color:#d1d5db;font-size:13px;">&#8250;</span>
+            @endif
+        </div>
+    </div>
 </div>
 
 {{-- Duplicate Confirmation Modal --}}
