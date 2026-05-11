@@ -6,16 +6,16 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-class FormSubmissionComment extends Model
+class FormSubmissionNote extends Model
 {
     use SoftDeletes;
 
-    protected $table = 'form_submission_comments';
+    protected $table = 'form_submission_notes';
 
     protected $fillable = [
         'form_submission_id',
-        'comment',
-        'commented_by',
+        'note',
+        'noted_by',
     ];
 
     protected $casts = [
@@ -23,7 +23,7 @@ class FormSubmissionComment extends Model
     ];
 
     /**
-     * The form submission this comment belongs to.
+     * The form submission this note belongs to.
      */
     public function formSubmission(): BelongsTo
     {
@@ -31,10 +31,10 @@ class FormSubmissionComment extends Model
     }
 
     /**
-     * The user who wrote the comment.
+     * The user who wrote the note.
      */
-    public function commentedBy(): BelongsTo
+    public function notedBy(): BelongsTo
     {
-        return $this->belongsTo(User::class, 'commented_by');
+        return $this->belongsTo(User::class, 'noted_by');
     }
 }
