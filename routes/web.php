@@ -64,6 +64,8 @@ Route::middleware('auth')->group(function () {
     // AJAX: Save funnel form_ids from builder
     Route::post('/funnels/{funnel}/schema', [FunnelController::class, 'saveSchema'])->name('funnels.schema');
     Route::post('/funnels/{funnel}/publish', [FunnelController::class, 'publish'])->name('funnels.publish');
+    Route::post('/funnels/{funnel}/send-to-patient', [FunnelController::class, 'sendToPatient'])->name('funnels.send_to_patient');
+    Route::get('/funnels/search-patients', [FunnelController::class, 'searchPatients'])->name('funnels.search_patients');
 
     // ---- Analytics & Reports ----
     Route::get('/analytics/funnels', [AnalyticsController::class, 'funnels'])->name('analytics.funnels');

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Funnel;
 use App\Models\Form;
 use App\Models\FormSubmission;
+use App\Models\User;
 use App\Models\UserFunnel;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -328,5 +329,94 @@ class FunnelController extends Controller
                 'slug'   => $form?->slug ?? '',
             ];
         })->filter(fn($s) => $s['name'] !== 'Unknown Form')->values()->toArray();
+    }
+
+    // ─── Send to Patient ────────────────────────────────────────────────────────
+
+    /**
+     * Search users with role 'User' for the send-to-patient modal.
+     * Route: GET /funnels/search-patients?q=...&funnel_id=...
+     */
+    public function searchPatients(Request $request)
+    {
+        $q        = trim($request->input('q', ''));
+        $funnelId = (int) $request->input('funnel_id', 0);
+
+        $query = User::where('role', 'User')
+            ->where('is_active', 1)
+            ->select('id', 'name', 'email', 'patient_id');
+
+        if ($q !== '') {
+            $query->where(function ($sub) use ($q) {
+                $sub->where('name', 'like', "%{$q}%")
+                    ->orWhere('email', 'like', "%{$q}%");
+            });
+        }
+
+        $users = $query->orderBy('name')->limit(20)->get();
+
+        // Mark which users are already assigned to this funnel
+        $assignedUserIds = [];
+        if ($funnelId) {
+            $assignedUserIds = UserFunnel::where('funnel_id', $funnelId)
+                ->whereNull('deleted_at')
+                ->pluck('user_id')
+                ->toArray();
+        }
+
+        $result = $users->map(function ($user) use ($assignedUserIds) {
+            return [
+                'id'               => $user->id,
+                'name'             => $user->name,
+                'email'            => $user->email,
+                'already_assigned' => in_array($user->id, $assignedUserIds),
+            ];
+        });
+
+        return response()->json(['status' => true, 'data' => $result]);
+    }
+
+    /**
+     * Assign a funnel to a patient user and return the shareable URL.
+     * Returns a 422 error if the patient is already assigned.
+     * Route: POST /funnels/{funnel}/send-to-patient
+     */
+    public function sendToPatient(Request $request, Funnel $funnel)
+    {
+        $request->validate([
+            'user_id' => 'required|integer|exists:users,id',
+        ]);
+
+        $userId = (int) $request->input('user_id');
+
+        // Check if already assigned (not soft-deleted)
+        $existing = UserFunnel::where('user_id', $userId)
+            ->where('funnel_id', $funnel->id)
+            ->whereNull('deleted_at')
+            ->first();
+
+        if ($existing) {
+            $patient = User::find($userId);
+            return response()->json([
+                'status'  => false,
+                'message' => 'This funnel has already been assigned to ' . ($patient->name ?? 'this patient') . '. Please choose a different patient.',
+            ], 422);
+        }
+
+        // Create the assignment
+        UserFunnel::create([
+            'user_id'      => $userId,
+            'funnel_id'    => $funnel->id,
+            'assigned_via' => 'admin_share',
+            'assigned_at'  => now(),
+        ]);
+
+        $url = url('/funnel/' . $funnel->slug);
+
+        return response()->json([
+            'status'  => true,
+            'message' => 'Funnel assigned successfully.',
+            'url'     => $url,
+        ]);
     }
 }

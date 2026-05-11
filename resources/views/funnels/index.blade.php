@@ -65,14 +65,16 @@
           <td style="padding:14px 20px;font-size:13px;color:#6b7280;">{{ $funnel->created_at->format('M d, Y g:i A') }}</td>
           <td style="padding:14px 20px;text-align:right;">
             <div style="display:flex;gap:6px;justify-content:flex-end;align-items:center;">
-              {{-- View / Copy URL --}}
+              {{-- Send to Patient --}}
               @if($funnel->slug && $funnel->status === 'active')
-              <button onclick="copyFunnelUrl('{{ url('/funnel/' . $funnel->slug) }}')" title="Copy Public URL"
+              <button
+                onclick="openSendModal({{ $funnel->id }}, '{{ addslashes($funnel->name) }}', '{{ route('funnels.send_to_patient', $funnel) }}')"
+                title="Send to Patient"
                 style="display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:7px;background:#22c55e;color:#fff;border:none;cursor:pointer;">
                 <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
               </button>
               @else
-              <span title="Publish funnel to get public URL"
+              <span title="Publish funnel to send to patients"
                 style="display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:7px;background:#d1fae5;color:#6ee7b7;cursor:not-allowed;">
                 <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
               </span>
@@ -136,9 +138,65 @@
   </div>
 </div>
 
-<!-- Copy URL Toast -->
-<div id="copyToast" style="display:none;position:fixed;bottom:24px;right:24px;background:#111827;color:#fff;padding:12px 20px;border-radius:10px;font-size:13px;font-weight:500;box-shadow:0 8px 24px rgba(0,0,0,0.2);z-index:9999;">
-  ✅ Funnel URL copied to clipboard!
+<!-- ─── Send to Patient Modal ──────────────────────────────────────────────── -->
+<div id="sendPatientModal" style="display:none;position:fixed;inset:0;z-index:9100;align-items:center;justify-content:center;">
+  <!-- Backdrop -->
+  <div onclick="closeSendModal()" style="position:absolute;inset:0;background:rgba(0,0,0,0.45);backdrop-filter:blur(2px);"></div>
+  <!-- Dialog -->
+  <div style="position:relative;background:#fff;border-radius:16px;box-shadow:0 20px 60px rgba(0,0,0,0.18);padding:28px 28px 24px;width:100%;max-width:460px;margin:0 16px;z-index:1;">
+
+    <!-- Header -->
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;">
+      <div style="width:40px;height:40px;border-radius:10px;background:#dcfce7;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+        <svg width="20" height="20" fill="none" stroke="#16a34a" stroke-width="2.5" viewBox="0 0 24 24"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+      </div>
+      <div>
+        <h3 style="font-size:16px;font-weight:700;color:#111827;margin:0 0 2px;">Send Funnel to Patient</h3>
+        <p id="sendModalFunnelName" style="font-size:13px;color:#6b7280;margin:0;"></p>
+      </div>
+      <button onclick="closeSendModal()" style="margin-left:auto;background:none;border:none;cursor:pointer;color:#9ca3af;padding:4px;">
+        <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+
+    <!-- Search Input -->
+    <div style="position:relative;margin-bottom:10px;">
+      <input id="patientSearchInput" type="text" placeholder="Search patient by name or email..."
+        oninput="searchPatients(this.value)"
+        style="width:100%;padding:10px 14px 10px 38px;border:1px solid #e5e7eb;border-radius:9px;font-size:13px;color:#374151;background:#f9fafb;outline:none;box-sizing:border-box;">
+      <svg style="position:absolute;left:12px;top:50%;transform:translateY(-50%);pointer-events:none;" width="14" height="14" fill="none" stroke="#9ca3af" stroke-width="2.5" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+    </div>
+
+    <!-- Patient List -->
+    <div id="patientListContainer" style="max-height:220px;overflow-y:auto;border:1px solid #e5e7eb;border-radius:9px;background:#fff;">
+      <div id="patientListInner" style="padding:8px 0;">
+        <div style="padding:20px;text-align:center;color:#9ca3af;font-size:13px;">Type to search patients...</div>
+      </div>
+    </div>
+
+    <!-- Error / Success Message -->
+    <div id="sendModalMsg" style="display:none;margin-top:12px;padding:10px 14px;border-radius:8px;font-size:13px;font-weight:500;"></div>
+
+    <!-- Copied URL row (shown after success) -->
+    <div id="sendModalUrlRow" style="display:none;margin-top:10px;">
+      <div style="display:flex;align-items:center;gap:8px;padding:10px 14px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;">
+        <input id="sendModalUrlInput" type="text" readonly
+          style="flex:1;border:none;background:transparent;font-size:12px;color:#166534;font-family:monospace;outline:none;min-width:0;">
+        <button onclick="copySendUrl()" style="flex-shrink:0;padding:5px 12px;background:#16a34a;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;">Copy</button>
+      </div>
+    </div>
+
+    <!-- Footer Buttons -->
+    <div style="display:flex;gap:10px;margin-top:20px;">
+      <button onclick="closeSendModal()" style="flex:1;padding:10px 0;border-radius:9px;border:1px solid #e5e7eb;background:#fff;color:#374151;font-size:14px;font-weight:500;cursor:pointer;">
+        Cancel
+      </button>
+      <button id="sendModalBtn" onclick="confirmSendToPatient()" disabled
+        style="flex:1;padding:10px 0;border-radius:9px;border:none;background:#22c55e;color:#fff;font-size:14px;font-weight:600;cursor:not-allowed;opacity:0.6;">
+        Assign &amp; Copy URL
+      </button>
+    </div>
+  </div>
 </div>
 
 <!-- Delete Confirmation Modal -->
@@ -172,6 +230,7 @@
 </div>
 
 <script>
+// ─── Delete Modal ─────────────────────────────────────────────────────────────
 var _deleteFunnelId = null;
 
 function openDeleteModal(id, name) {
@@ -192,14 +251,237 @@ function confirmDeleteFunnel() {
   }
 }
 
-function copyFunnelUrl(url) {
-  navigator.clipboard.writeText(url).then(() => {
-    const toast = document.getElementById('copyToast');
-    toast.style.display = 'block';
-    setTimeout(() => toast.style.display = 'none', 3000);
-  }).catch(() => {
-    prompt('Copy this URL:', url);
+// ─── Send to Patient Modal ────────────────────────────────────────────────────
+var _sendFunnelId       = null;
+var _sendFunnelName     = null;
+var _sendActionUrl      = null;
+var _selectedPatientId  = null;
+var _searchTimeout      = null;
+
+function openSendModal(funnelId, funnelName, actionUrl) {
+  _sendFunnelId      = funnelId;
+  _sendFunnelName    = funnelName;
+  _sendActionUrl     = actionUrl;
+  _selectedPatientId = null;
+
+  document.getElementById('sendModalFunnelName').textContent = funnelName;
+  document.getElementById('patientSearchInput').value = '';
+  document.getElementById('patientListInner').innerHTML =
+    '<div style="padding:20px;text-align:center;color:#9ca3af;font-size:13px;">Type to search patients...</div>';
+  document.getElementById('sendModalMsg').style.display = 'none';
+  document.getElementById('sendModalUrlRow').style.display = 'none';
+
+  var btn = document.getElementById('sendModalBtn');
+  btn.disabled = true;
+  btn.style.opacity = '0.6';
+  btn.style.cursor  = 'not-allowed';
+  btn.textContent   = 'Assign & Copy URL';
+
+  document.getElementById('sendPatientModal').style.display = 'flex';
+  setTimeout(function(){ document.getElementById('patientSearchInput').focus(); }, 100);
+}
+
+function closeSendModal() {
+  _sendFunnelId      = null;
+  _selectedPatientId = null;
+  document.getElementById('sendPatientModal').style.display = 'none';
+}
+
+function searchPatients(q) {
+  clearTimeout(_searchTimeout);
+  _selectedPatientId = null;
+  disableSendBtn();
+
+  if (q.trim().length === 0) {
+    document.getElementById('patientListInner').innerHTML =
+      '<div style="padding:20px;text-align:center;color:#9ca3af;font-size:13px;">Type to search patients...</div>';
+    return;
+  }
+
+  document.getElementById('patientListInner').innerHTML =
+    '<div style="padding:20px;text-align:center;color:#9ca3af;font-size:13px;">Searching...</div>';
+
+  _searchTimeout = setTimeout(function() {
+    var url = '{{ route("funnels.search_patients") }}?q=' + encodeURIComponent(q) + '&funnel_id=' + _sendFunnelId;
+    fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+      .then(function(r){ return r.json(); })
+      .then(function(data) {
+        renderPatientList(data.data || []);
+      })
+      .catch(function() {
+        document.getElementById('patientListInner').innerHTML =
+          '<div style="padding:20px;text-align:center;color:#ef4444;font-size:13px;">Failed to load patients.</div>';
+      });
+  }, 300);
+}
+
+function renderPatientList(patients) {
+  var container = document.getElementById('patientListInner');
+  if (!patients.length) {
+    container.innerHTML = '<div style="padding:20px;text-align:center;color:#9ca3af;font-size:13px;">No patients found.</div>';
+    return;
+  }
+
+  var html = '';
+  patients.forEach(function(p) {
+    var assigned = p.already_assigned;
+    html += '<div id="patient-row-' + p.id + '" onclick="' + (assigned ? '' : 'selectPatient(' + p.id + ', \'' + escapeJs(p.name) + '\')') + '"'
+      + ' style="display:flex;align-items:center;gap:10px;padding:10px 14px;cursor:' + (assigned ? 'default' : 'pointer') + ';'
+      + 'opacity:' + (assigned ? '0.55' : '1') + ';'
+      + 'transition:background 0.1s;"'
+      + ' onmouseover="' + (assigned ? '' : 'this.style.background=\'#f9fafb\'') + '"'
+      + ' onmouseout="this.style.background=\'\'">  '
+      + '<div style="width:34px;height:34px;border-radius:50%;background:#e0e7ff;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#4f46e5;flex-shrink:0;">'
+      + p.name.charAt(0).toUpperCase()
+      + '</div>'
+      + '<div style="flex:1;min-width:0;">'
+      + '<div style="font-size:13px;font-weight:600;color:#111827;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + escapeHtml(p.name) + '</div>'
+      + '<div style="font-size:11px;color:#6b7280;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + escapeHtml(p.email) + '</div>'
+      + '</div>'
+      + (assigned
+          ? '<span style="font-size:11px;font-weight:600;color:#16a34a;background:#dcfce7;padding:2px 8px;border-radius:20px;white-space:nowrap;">Already assigned</span>'
+          : '<div id="patient-check-' + p.id + '" style="width:18px;height:18px;border-radius:50%;border:2px solid #d1d5db;flex-shrink:0;"></div>')
+      + '</div>';
   });
+
+  container.innerHTML = html;
+}
+
+function selectPatient(id, name) {
+  // Deselect previous
+  if (_selectedPatientId) {
+    var prev = document.getElementById('patient-check-' + _selectedPatientId);
+    if (prev) {
+      prev.style.background = '';
+      prev.style.borderColor = '#d1d5db';
+    }
+    var prevRow = document.getElementById('patient-row-' + _selectedPatientId);
+    if (prevRow) prevRow.style.background = '';
+  }
+
+  _selectedPatientId = id;
+
+  var check = document.getElementById('patient-check-' + id);
+  if (check) {
+    check.style.background = '#22c55e';
+    check.style.borderColor = '#22c55e';
+  }
+  var row = document.getElementById('patient-row-' + id);
+  if (row) row.style.background = '#f0fdf4';
+
+  // Enable send button
+  var btn = document.getElementById('sendModalBtn');
+  btn.disabled = false;
+  btn.style.opacity = '1';
+  btn.style.cursor  = 'pointer';
+
+  // Clear any previous messages
+  document.getElementById('sendModalMsg').style.display = 'none';
+  document.getElementById('sendModalUrlRow').style.display = 'none';
+}
+
+function disableSendBtn() {
+  var btn = document.getElementById('sendModalBtn');
+  btn.disabled = true;
+  btn.style.opacity = '0.6';
+  btn.style.cursor  = 'not-allowed';
+}
+
+function confirmSendToPatient() {
+  if (!_selectedPatientId || !_sendActionUrl) return;
+
+  var btn = document.getElementById('sendModalBtn');
+  btn.disabled = true;
+  btn.style.opacity = '0.7';
+  btn.textContent = 'Assigning...';
+
+  var csrfToken = document.querySelector('meta[name="csrf-token"]')
+    ? document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+    : '{{ csrf_token() }}';
+
+  fetch(_sendActionUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRF-TOKEN': csrfToken,
+      'X-Requested-With': 'XMLHttpRequest',
+      'Accept': 'application/json',
+    },
+    body: JSON.stringify({ user_id: _selectedPatientId }),
+  })
+  .then(function(r) { return r.json().then(function(d){ return { ok: r.ok, data: d }; }); })
+  .then(function(res) {
+    var msgEl = document.getElementById('sendModalMsg');
+    if (res.ok && res.data.status) {
+      // Success
+      msgEl.style.display = 'block';
+      msgEl.style.background = '#f0fdf4';
+      msgEl.style.border = '1px solid #bbf7d0';
+      msgEl.style.color = '#166534';
+      msgEl.textContent = '✅ ' + res.data.message;
+
+      // Show URL row
+      document.getElementById('sendModalUrlInput').value = res.data.url;
+      document.getElementById('sendModalUrlRow').style.display = 'block';
+
+      // Auto-copy
+      navigator.clipboard.writeText(res.data.url).catch(function(){});
+
+      btn.textContent = 'Assigned!';
+      btn.style.background = '#16a34a';
+
+      // Mark patient as assigned in the list
+      var check = document.getElementById('patient-check-' + _selectedPatientId);
+      if (check) check.parentElement.innerHTML =
+        '<span style="font-size:11px;font-weight:600;color:#16a34a;background:#dcfce7;padding:2px 8px;border-radius:20px;white-space:nowrap;">Already assigned</span>';
+
+      _selectedPatientId = null;
+    } else {
+      // Error (e.g. already assigned)
+      msgEl.style.display = 'block';
+      msgEl.style.background = '#fef2f2';
+      msgEl.style.border = '1px solid #fecaca';
+      msgEl.style.color = '#991b1b';
+      msgEl.textContent = '⚠️ ' + (res.data.message || 'An error occurred.');
+
+      btn.disabled = false;
+      btn.style.opacity = '1';
+      btn.style.cursor = 'pointer';
+      btn.textContent = 'Assign & Copy URL';
+    }
+  })
+  .catch(function() {
+    var msgEl = document.getElementById('sendModalMsg');
+    msgEl.style.display = 'block';
+    msgEl.style.background = '#fef2f2';
+    msgEl.style.border = '1px solid #fecaca';
+    msgEl.style.color = '#991b1b';
+    msgEl.textContent = '⚠️ Network error. Please try again.';
+
+    btn.disabled = false;
+    btn.style.opacity = '1';
+    btn.style.cursor = 'pointer';
+    btn.textContent = 'Assign & Copy URL';
+  });
+}
+
+function copySendUrl() {
+  var input = document.getElementById('sendModalUrlInput');
+  navigator.clipboard.writeText(input.value).then(function() {
+    var btn = event.target;
+    btn.textContent = 'Copied!';
+    setTimeout(function(){ btn.textContent = 'Copy'; }, 2000);
+  }).catch(function(){
+    prompt('Copy this URL:', input.value);
+  });
+}
+
+function escapeHtml(str) {
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function escapeJs(str) {
+  return String(str).replace(/\\/g,'\\\\').replace(/'/g,"\\'");
 }
 </script>
 @endsection
