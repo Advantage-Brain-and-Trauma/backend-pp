@@ -356,13 +356,13 @@ class ClinicalController extends Controller
                 $latestNote = $item->notes->first();
 
                 return [
-                    'form_title'               => $item->form->name ?? null,
-                    'funnel_name'              => $item->funnel->name ?? null,
                     'id'                       => $item->id,
                     'form_id'                  => $item->form_id,
-                    'Funnel_Id'                => $item->funnel_id,
-                    'user_id'                  => $item->user_id,
-                    'case_id'                  => $item->case_id,
+                    'funnel_id'                => $item->funnel_id,
+                    'form_name'                => $item->form->name ?? null,
+                    'funnel_name'              => $item->funnel->name ?? null,
+                    'status'                   => $item->status,
+                    'created_at'               => $item->created_at,
                     'note_comments'            => $latestNote?->note,
                     'note_comments_update_at'  => $latestNote?->updated_at,
                     'decoded_json'             => $decoded,
@@ -383,4 +383,5 @@ class ClinicalController extends Controller
             ], 500);
         }
     }
+
 }
