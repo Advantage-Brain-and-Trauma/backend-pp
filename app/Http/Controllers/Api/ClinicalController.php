@@ -288,50 +288,83 @@ class ClinicalController extends Controller
     public function downloadPatientFormPdf(Request $request)
     {
         try {
+
             $request->validate([
-                'pdfUrls' => 'required|array',
+                'pdfUrls'   => 'required|array',
                 'pdfUrls.*' => 'required|string'
             ]);
 
             $pdfFiles = $request->pdfUrls;
-            $baseUrl = url('/storage/form-pdfs/');
+
             $tempDir = storage_path('app/temp_pdfs');
+
             if (!file_exists($tempDir)) {
                 mkdir($tempDir, 0777, true);
             }
 
             $zipFileName = 'patient_forms_pdfs_' . time() . '.zip';
-            $zipPath = storage_path("app/" . $zipFileName);
+            $zipPath     = storage_path('app/' . $zipFileName);
 
             $zip = new ZipArchive();
 
-            if ($zip->open($zipPath, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== TRUE) {
+            if ($zip->open($zipPath, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
+
                 return response()->json([
                     'success' => false,
                     'message' => 'Could not create ZIP file'
                 ], 500);
             }
-            foreach ($pdfFiles as $index => $fileName) {
-                try {
-                    $filePath = $tempDir . '/' . $fileName;
 
-                    if (!Storage::disk('public')->exists('form-pdfs/' . $fileName)) {
+            foreach ($pdfFiles as $fileName) {
+
+                try {
+
+                    $storageFilePath = 'form-pdfs/' . $fileName;
+
+                    // Check file exists
+                    if (!Storage::disk('public')->exists($storageFilePath)) {
                         continue;
                     }
 
-                    Storage::disk('public')->copy('form-pdfs/' . $fileName, 'temp_pdfs/' . $fileName);
-                    $zip->addFile($filePath, $fileName);
+                    // Absolute path from storage
+                    $fullPath = Storage::disk('public')->path($storageFilePath);
+
+                    // Add directly into zip
+                    $zip->addFile($fullPath, $fileName);
 
                 } catch (\Exception $e) {
+
+                    Log::error('PDF add to zip failed', [
+                        'file'  => $fileName,
+                        'error' => $e->getMessage()
+                    ]);
+
                     continue;
                 }
             }
-            return response()->download($zipPath)->deleteFileAfterSend(false);
+
+            $zip->close();
+
+            // Check zip created
+            if (!file_exists($zipPath)) {
+
+                return response()->json([
+                    'success' => false,
+                    'message' => 'ZIP file not found after creation'
+                ], 500);
+            }
+
+            return response()->download($zipPath)->deleteFileAfterSend(true);
 
         } catch (\Throwable $e) {
+
+            Log::error('Download patient PDF failed', [
+                'error' => $e->getMessage()
+            ]);
+
             return response()->json([
                 'success' => false,
-                'error' => $e->getMessage(),
+                'error'   => $e->getMessage(),
                 'message' => 'Error downloading PDF'
             ], 500);
         }
