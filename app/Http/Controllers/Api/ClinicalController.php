@@ -301,10 +301,18 @@ class ClinicalController extends Controller
                             ->select('id', 'name');
                     },
                     'notes' => function ($query) {
-                        $query->select('id', 'form_submission_id', 'note', 'noted_by', 'created_at', 'updated_at')
-                            ->with('notedBy:id,name')
-                            ->orderBy('created_at', 'desc');
-                    }
+                            $query->select(
+                                    'id',
+                                    'form_submission_id',
+                                    'note',
+                                    'noted_by',
+                                    'created_at',
+                                    'updated_at'
+                                )
+                                ->with('notedBy:id,name')
+                                ->latest()
+                                ->limit(1);
+                        }
                 ])
                 ->where('user_id', auth()->id())
                 ->where('status', 'completed')
@@ -345,28 +353,19 @@ class ClinicalController extends Controller
                     }
                 }
 
-                $notes = $item->notes->map(function ($note) {
-                    return [
-                        'id'            => $note->id,
-                        'note'          => $note->note,
-                        'noted_by'      => $note->noted_by,
-                        'noted_by_name' => $note->notedBy?->name,
-                        'created_at'    => $note->created_at,
-                        'updated_at'    => $note->updated_at,
-                    ];
-                });
+                $latestNote = $item->notes->first();
 
                 return [
-                    'id'           => $item->id,
-                    'form_id'      => $item->form_id,
-                    'funnel_id'    => $item->funnel_id,
-                    'form_name'    => $item->form->name ?? null,
-                    'funnel_name'  => $item->funnel->name ?? null,
-                    'status'       => $item->status,
-                    'created_at'   => $item->created_at,
-                    'updated_at'   => $item->updated_at,
-                    'notes'        => $notes,
-                    'decoded_json' => $decoded,
+                    'form_title'               => $item->form->name ?? null,
+                    'funnel_name'              => $item->funnel->name ?? null,
+                    'id'                       => $item->id,
+                    'form_id'                  => $item->form_id,
+                    'Funnel_Id'                => $item->funnel_id,
+                    'user_id'                  => $item->user_id,
+                    'case_id'                  => $item->case_id,
+                    'note_comments'            => $latestNote?->note,
+                    'note_comments_update_at'  => $latestNote?->updated_at,
+                    'decoded_json'             => $decoded,
                 ];
             });
 
