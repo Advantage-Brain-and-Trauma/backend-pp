@@ -217,6 +217,20 @@ class FunnelApiController extends Controller
                 ], 422);
             }
 
+            $alreadySubmitted = FormSubmission::where('user_id', auth()->id())
+                ->where('form_id', $formId)
+                ->where('funnel_id', $request->funnel_id)
+                ->whereNull('deleted_at')
+                ->exists();
+
+            if ($alreadySubmitted) {
+
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Form already submitted.'
+                ], 409);
+            }
+
             // ── 2. Validate form exists ──────────────────────────────────────
             $form = Form::find($formId);
             if (!$form) {
