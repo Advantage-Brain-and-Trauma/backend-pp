@@ -32,9 +32,9 @@ class LoginController extends Controller
             if ($pendingSlug = session()->pull('pending_funnel_slug')) {
                 $funnel = Funnel::where('slug', $pendingSlug)->where('status', 'active')->first();
                 if ($funnel) {
-                    UserFunnel::firstOrCreate(
+                    UserFunnel::withTrashed()->updateOrCreate(
                         ['user_id' => Auth::id(), 'funnel_id' => $funnel->id],
-                        ['assigned_via' => 'share_link', 'assigned_at' => now()]
+                        ['assigned_via' => 'share_link', 'assigned_at' => now(), 'deleted_at' => null]
                     );
                     return redirect()->to('/funnel/' . $pendingSlug);
                 }

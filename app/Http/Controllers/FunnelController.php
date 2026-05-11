@@ -202,10 +202,12 @@ class FunnelController extends Controller
     {
         $funnel = Funnel::where('slug', $slug)->where('status', 'active')->firstOrFail();
         if (Auth::check()) {
-            // Assign funnel to the logged-in user (ignore if already assigned)
-            UserFunnel::firstOrCreate(
+            // Assign funnel to the logged-in user.
+            // Use withTrashed()->updateOrCreate so that if a soft-deleted record exists
+            // we restore it instead of inserting a new row (which would violate the unique index).
+            UserFunnel::withTrashed()->updateOrCreate(
                 ['user_id' => Auth::id(), 'funnel_id' => $funnel->id],
-                ['assigned_via' => 'share_link', 'assigned_at' => now()]
+                ['assigned_via' => 'share_link', 'assigned_at' => now(), 'deleted_at' => null]
             );
         } else {
             // Store the funnel slug in session so we can assign after login
