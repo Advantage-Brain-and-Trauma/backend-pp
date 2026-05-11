@@ -9,7 +9,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
 
-class FormSubmissionCommentController extends Controller
+class FormSubmissionNoteController extends Controller
 {
     /**
      * GET /api/form-submissions/{submissionId}/comments

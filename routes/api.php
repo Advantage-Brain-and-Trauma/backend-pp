@@ -7,7 +7,7 @@ use App\Http\Controllers\Api\PatientController;
 use App\Http\Controllers\Api\ClinicalController;
 use App\Http\Controllers\Api\Auth\AuthApiController;
 use App\Http\Controllers\Api\FunnelApiController;
-use App\Http\Controllers\Api\FormSubmissionCommentController;
+use App\Http\Controllers\Api\FormSubmissionNoteController;
 
 /*
 |--------------------------------------------------------------------------
@@ -46,11 +46,11 @@ Route::middleware(['auth:api', 'role.api:User'])->group(function (){
     // Form Submissions API
     Route::post('patient-forms/{formId}/submit', [FunnelApiController::class, 'PatientSubmitForm']);
 
-    // Form Submission Comments API
-    Route::get('form-submissions/{submissionId}/comments',                [FormSubmissionCommentController::class, 'index']);
-    Route::post('form-submissions/{submissionId}/comments',               [FormSubmissionCommentController::class, 'store']);
-    Route::put('form-submissions/{submissionId}/comments/{commentId}',    [FormSubmissionCommentController::class, 'update']);
-    Route::delete('form-submissions/{submissionId}/comments/{commentId}', [FormSubmissionCommentController::class, 'destroy']);
+    // Form Submission notes API
+    Route::get('form-submissions/{submissionId}/notes',                [FormSubmissionNoteController::class, 'index']);
+    Route::post('form-submissions/{submissionId}/notes',               [FormSubmissionNoteController::class, 'store']);
+    Route::put('form-submissions/{submissionId}/notes/{commentId}',    [FormSubmissionNoteController::class, 'update']);
+    Route::delete('form-submissions/{submissionId}/notes/{commentId}', [FormSubmissionNoteController::class, 'destroy']);
 
 });
 
