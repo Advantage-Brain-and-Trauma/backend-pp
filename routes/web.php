@@ -10,6 +10,7 @@ use App\Http\Controllers\FunnelController;
 use App\Http\Controllers\BillingController;
 use App\Http\Controllers\MessageController;
 use App\Http\Controllers\AnalyticsController;
+use App\Http\Controllers\OldFormController;
 
 // ============================================================
 // PUBLIC ROUTES — No authentication required
@@ -86,4 +87,9 @@ Route::middleware('auth')->group(function () {
     Route::post('/messages', [MessageController::class, 'store'])->name('messages.store');
     Route::get('/messages/{message}', [MessageController::class, 'show'])->name('messages.show');
     Route::post('/messages/{message}/reply', [MessageController::class, 'reply'])->name('messages.reply');
+
+    // ---- Old Forms ----
+    Route::get('/old-forms', [OldFormController::class, 'index'])->name('old-forms.index');
+    Route::get('/old-forms/list', [OldFormController::class, 'list'])->name('old-forms.list');
+    Route::post('/old-forms/{id}/sync', [OldFormController::class, 'sync'])->name('old-forms.sync');
 });

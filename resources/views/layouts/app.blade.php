@@ -576,6 +576,9 @@
         <a href="{{ route('funnels.index') }}" class="nav-item {{ request()->routeIs('funnels.*') ? 'active' : '' }}">
             <i class="fas fa-filter"></i> Funnels
         </a>
+        <a href="{{ route('old-forms.index') }}" class="nav-item {{ request()->routeIs('old-forms.*') ? 'active' : '' }}">
+            <i class="fas fa-file-alt"></i> Old Forms
+        </a>
         <div class="nav-section-title">ANALYTICS</div>
         <a href="{{ route('analytics.reports') }}" class="nav-item {{ request()->is('analytics/reports') ? 'active' : '' }}">
             <i class="fas fa-chart-bar"></i> Reports Overview
