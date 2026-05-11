@@ -326,7 +326,7 @@ class ClinicalController extends Controller
                     continue;
                 }
             }
-            return response()->download($pdfPath)->deleteFileAfterSend(false);
+            return response()->download($zipPath)->deleteFileAfterSend(false);
 
         } catch (\Throwable $e) {
             return response()->json([
