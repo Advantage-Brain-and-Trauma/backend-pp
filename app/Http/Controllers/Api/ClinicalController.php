@@ -289,28 +289,44 @@ class ClinicalController extends Controller
     public function getPatientFormData()
     {
         try {
-            $formSubmission = FormSubmission::with(['form:id,name,fields', 'funnel:id,name'])
+
+            $formSubmission = FormSubmission::with([
+                    'form' => function ($query) {
+                        $query->whereNull('deleted_at')
+                            ->select('id', 'name', 'fields');
+                    },
+                    'funnel' => function ($query) {
+                        $query->whereNull('deleted_at')
+                            ->select('id', 'name');
+                    }
+                ])
                 ->where('user_id', auth()->id())
-                ->where('status','completed')
+                ->where('status', 'completed')
                 ->orderBy('created_at', 'desc')
-                ->get();
+                ->get()
+                ->filter(function ($item) {
+                    return $item->form && $item->funnel;
+                });
 
             $data = $formSubmission->map(function ($item) {
 
                 $decoded = [];
 
                 if (!empty($item->form->fields['rows'])) {
+
                     foreach ($item->form->fields['rows'] as $row) {
+
                         foreach ($row['cols'] as $col) {
+
                             foreach ($col['fields'] as $field) {
 
                                 $fieldId = $field['id'];
 
                                 $decodedItem = [
-                                    'type' => $field['type'] ?? null,
-                                    'label' => $field['label'] ?? null,
+                                    'type'     => $field['type'] ?? null,
+                                    'label'    => $field['label'] ?? null,
                                     'required' => $field['required'] ?? false,
-                                    'value' => $item->data[$fieldId] ?? null,
+                                    'value'    => $item->data[$fieldId] ?? null,
                                 ];
 
                                 if (!empty($field['options'])) {
@@ -324,26 +340,27 @@ class ClinicalController extends Controller
                 }
 
                 return [
-                    'id' => $item->id,
-                    'form_id' => $item->form_id,
-                    'funnel_id' => $item->funnel_id,
-                    'form_name' => $item->form->name ?? null,
-                    'funnel_name' => $item->funnel->name ?? null,
-                    'status' => $item->status,
-                    'created_at' => $item->created_at,
+                    'id'           => $item->id,
+                    'form_id'      => $item->form_id,
+                    'funnel_id'    => $item->funnel_id,
+                    'form_name'    => $item->form->name ?? null,
+                    'funnel_name'  => $item->funnel->name ?? null,
+                    'status'       => $item->status,
+                    'created_at'   => $item->created_at,
                     'decoded_json' => $decoded,
                 ];
             });
 
             return response()->json([
                 'success' => true,
-                'data' => $data
+                'data'    => $data
             ], 200);
 
         } catch (\Throwable $e) {
+
             return response()->json([
                 'success' => false,
-                'error' => $e->getMessage(),
+                'error'   => $e->getMessage(),
                 'message' => 'Error fetching patient form data'
             ], 500);
         }
