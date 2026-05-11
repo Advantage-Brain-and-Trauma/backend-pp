@@ -16,6 +16,45 @@ class OldFormController extends Controller
     }
 
     /**
+     * GET /old-forms/list
+     *
+     * Return old forms from patient_portal.forms excluding already-synced ones.
+     */
+    public function list()
+    {
+        try {
+            $allOldForms = DB::connection('patient_portal')->table('forms')->get();
+
+            // Get slugs of already-synced forms from test_pp.forms
+            $syncedSlugs = Form::pluck('slug')->toArray();
+
+            // Filter out old forms whose slug (title-slug + id) already exists in test_pp.forms
+            $filteredForms = $allOldForms->filter(function ($form) use ($syncedSlugs) {
+                $slug = Str::slug($form->title ?? 'untitled') . '-' . $form->id;
+                return !in_array($slug, $syncedSlugs);
+            })->values();
+
+            return response()->json([
+                'status'  => true,
+                'message' => 'Forms retrieved successfully.',
+                'data'    => $filteredForms,
+            ], 200);
+
+        } catch (\Throwable $e) {
+            Log::channel('patient_form')->error('Error fetching old forms list', [
+                'error' => $e->getMessage(),
+                'line'  => $e->getLine(),
+            ]);
+
+            return response()->json([
+                'status'  => false,
+                'message' => 'Something went wrong while fetching forms.',
+                'error'   => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
      * POST /old-forms/{id}/sync
      *
      * Sync a single old form from patient_portal.forms into test_pp.forms

@@ -164,7 +164,7 @@ var perPage = 10;
 var searchQuery = '';
 
 document.addEventListener('DOMContentLoaded', function() {
-    fetch('/api/get-all-old-forms', {
+    fetch('/old-forms/list', {
         method: 'GET',
         headers: {
             'Accept': 'application/json',
@@ -287,11 +287,13 @@ function syncForm(formId, btn) {
     .then(function(response) { return response.json(); })
     .then(function(res) {
         if (res.status) {
-            btn.innerHTML = '<i class="fas fa-check"></i> Synced';
-            btn.classList.remove('btn-primary');
-            btn.style.background = '#16a34a';
-            btn.style.borderColor = '#16a34a';
             showGlobalToast(res.message, 'success');
+            // Remove synced form from lists and re-render
+            allForms = allForms.filter(function(f) { return f.id !== formId; });
+            filteredForms = filteredForms.filter(function(f) { return f.id !== formId; });
+            var totalPages = Math.ceil(filteredForms.length / perPage);
+            if (currentPage > totalPages && totalPages > 0) currentPage = totalPages;
+            renderPage();
         } else {
             btn.disabled = false;
             btn.innerHTML = originalHtml;

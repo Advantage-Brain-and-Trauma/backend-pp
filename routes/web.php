@@ -90,5 +90,6 @@ Route::middleware('auth')->group(function () {
 
     // ---- Old Forms ----
     Route::get('/old-forms', [OldFormController::class, 'index'])->name('old-forms.index');
+    Route::get('/old-forms/list', [OldFormController::class, 'list'])->name('old-forms.list');
     Route::post('/old-forms/{id}/sync', [OldFormController::class, 'sync'])->name('old-forms.sync');
 });
