@@ -7,6 +7,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\File;
 use App\Models\FormSubmission;
+use App\Models\FormSubmissionNote;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Storage;
 use ZipArchive;
@@ -298,6 +299,11 @@ class ClinicalController extends Controller
                     'funnel' => function ($query) {
                         $query->whereNull('deleted_at')
                             ->select('id', 'name');
+                    },
+                    'notes' => function ($query) {
+                        $query->select('id', 'form_submission_id', 'note', 'noted_by', 'created_at', 'updated_at')
+                            ->with('notedBy:id,name')
+                            ->orderBy('created_at', 'desc');
                     }
                 ])
                 ->where('user_id', auth()->id())
@@ -339,6 +345,17 @@ class ClinicalController extends Controller
                     }
                 }
 
+                $notes = $item->notes->map(function ($note) {
+                    return [
+                        'id'            => $note->id,
+                        'note'          => $note->note,
+                        'noted_by'      => $note->noted_by,
+                        'noted_by_name' => $note->notedBy?->name,
+                        'created_at'    => $note->created_at,
+                        'updated_at'    => $note->updated_at,
+                    ];
+                });
+
                 return [
                     'id'           => $item->id,
                     'form_id'      => $item->form_id,
@@ -347,6 +364,8 @@ class ClinicalController extends Controller
                     'funnel_name'  => $item->funnel->name ?? null,
                     'status'       => $item->status,
                     'created_at'   => $item->created_at,
+                    'updated_at'   => $item->updated_at,
+                    'notes'        => $notes,
                     'decoded_json' => $decoded,
                 ];
             });

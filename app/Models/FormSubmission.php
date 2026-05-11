@@ -3,6 +3,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 class FormSubmission extends Model
 {
@@ -28,5 +29,10 @@ class FormSubmission extends Model
     public function funnel(): BelongsTo
     {
         return $this->belongsTo(Funnel::class);
+    }
+
+    public function notes(): HasMany
+    {
+        return $this->hasMany(FormSubmissionNote::class, 'form_submission_id');
     }
 }
