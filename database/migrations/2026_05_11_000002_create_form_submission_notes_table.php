@@ -8,11 +8,11 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::create('form_submission_comments', function (Blueprint $table) {
+        Schema::create('form_submission_notes', function (Blueprint $table) {
             $table->id();
             $table->unsignedBigInteger('form_submission_id');
-            $table->text('comment');
-            $table->unsignedBigInteger('commented_by');
+            $table->text('note');
+            $table->unsignedBigInteger('noted_by');
             $table->timestamps();
             $table->softDeletes();
 
@@ -21,7 +21,7 @@ return new class extends Migration
                   ->on('form_submissions')
                   ->onDelete('cascade');
 
-            $table->foreign('commented_by')
+            $table->foreign('noted_by')
                   ->references('id')
                   ->on('users')
                   ->onDelete('cascade');
@@ -30,6 +30,6 @@ return new class extends Migration
 
     public function down(): void
     {
-        Schema::dropIfExists('form_submission_comments');
+        Schema::dropIfExists('form_submission_notes');
     }
 };
