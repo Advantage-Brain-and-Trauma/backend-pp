@@ -202,24 +202,11 @@ class FunnelController extends Controller
     {
         $funnel = Funnel::where('slug', $slug)->where('status', 'active')->firstOrFail();
         if (Auth::check()) {
-            // Check if already assigned (not soft-deleted)
-            $existing = UserFunnel::where('user_id', Auth::id())
-                ->where('funnel_id', $funnel->id)
-                ->whereNull('deleted_at')
-                ->first();
-
-            if ($existing) {
-                // Already assigned — show error view
-                return view('funnels.already_assigned', compact('funnel'));
-            }
-
-            // First visit — assign the funnel
-            UserFunnel::create([
-                'user_id'      => Auth::id(),
-                'funnel_id'    => $funnel->id,
-                'assigned_via' => 'share_link',
-                'assigned_at'  => now(),
-            ]);
+            // Assign funnel to the logged-in user (ignore if already assigned)
+            UserFunnel::firstOrCreate(
+                ['user_id' => Auth::id(), 'funnel_id' => $funnel->id],
+                ['assigned_via' => 'share_link', 'assigned_at' => now()]
+            );
         } else {
             // Store the funnel slug in session so we can assign after login
             session(['pending_funnel_slug' => $slug]);
