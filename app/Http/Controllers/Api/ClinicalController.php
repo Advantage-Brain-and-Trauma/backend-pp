@@ -364,7 +364,7 @@ class ClinicalController extends Controller
                     'id'                       => $item->id,
                     'form_id'                  => $item->form_id,
                     'funnel_id'                => $item->funnel_id,
-                    'form_name'                => $item->form->name ?? null,
+                    'form_title'                => $item->form->name ?? null,
                     'funnel_name'              => $item->funnel->name ?? null,
                     'status'                   => $item->status,
                     'created_at'               => $item->created_at,
