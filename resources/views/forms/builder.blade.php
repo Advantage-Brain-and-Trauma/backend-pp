@@ -280,6 +280,11 @@ body {
 }
 .canvas-drop-zone.drag-over { border-color: var(--accent); background: var(--accent-light); }
 .canvas-drop-zone.has-fields { border: none; padding: 0; min-height: unset; display: block; background: transparent; }
+.row-drop-indicator {
+  height: 6px; border-radius: 3px; background: var(--accent); margin: 2px 4px;
+  opacity: 0; transition: opacity 0.15s; pointer-events: none;
+}
+.row-drop-indicator.active { opacity: 1; }
 .drop-hint { color: var(--text-muted); font-size: 13px; text-align: center; }
 .drop-hint-icon { font-size: 36px; margin-bottom: 6px; opacity: 0.5; }
 
@@ -935,6 +940,29 @@ function createField(type) {
 }
 
 // ===================== RENDER =====================
+function makeRowDropIndicator(insertBeforeRowId) {
+  const ind = document.createElement('div');
+  ind.className = 'row-drop-indicator';
+  ind.dataset.insertBefore = insertBeforeRowId || '__end__';
+  ind.addEventListener('dragover', e => { e.preventDefault(); e.stopPropagation(); ind.classList.add('active'); });
+  ind.addEventListener('dragleave', e => { if (!ind.contains(e.relatedTarget)) ind.classList.remove('active'); });
+  ind.addEventListener('drop', e => {
+    e.preventDefault(); e.stopPropagation(); ind.classList.remove('active');
+    if (dragSourceType !== 'palette') return;
+    const f = createField(dragSourcePaletteType);
+    const newRow = createRow(1); newRow.cols[0].fields.push(f);
+    const targetId = ind.dataset.insertBefore;
+    if (targetId === '__end__') { formData.rows.push(newRow); }
+    else {
+      const idx = formData.rows.findIndex(r => r.id === targetId);
+      if (idx === -1) formData.rows.push(newRow);
+      else formData.rows.splice(idx, 0, newRow);
+    }
+    render(); selectField(f.id, newRow.id, 0); showToast('Field added', 'success');
+  });
+  return ind;
+}
+
 function render() {
   const dz = document.getElementById('dropZone');
   if (formData.rows.length === 0) {
@@ -944,7 +972,14 @@ function render() {
   }
   dz.className = 'canvas-drop-zone has-fields';
   dz.innerHTML = '';
-  formData.rows.forEach(row => dz.appendChild(renderRow(row)));
+  // Insert a drop indicator before the first row
+  dz.appendChild(makeRowDropIndicator(formData.rows[0].id));
+  formData.rows.forEach((row, i) => {
+    dz.appendChild(renderRow(row));
+    // Insert a drop indicator after each row (before the next row, or at end)
+    const nextRowId = (i + 1 < formData.rows.length) ? formData.rows[i + 1].id : '__end__';
+    dz.appendChild(makeRowDropIndicator(nextRowId));
+  });
   document.getElementById('canvasFormTitle').textContent = formData.title;
   document.getElementById('canvasFormDesc').textContent = formData.description;
 }
@@ -1060,9 +1095,31 @@ document.querySelectorAll('.palette-item, .palette-item-wide').forEach(item => {
   });
 });
 
-document.getElementById('dropZone').addEventListener('dragover', e => { e.preventDefault(); document.getElementById('dropZone').classList.add('drag-over'); });
-document.getElementById('dropZone').addEventListener('dragleave', () => document.getElementById('dropZone').classList.remove('drag-over'));
-document.getElementById('dropZone').addEventListener('drop', e => { e.preventDefault(); document.getElementById('dropZone').classList.remove('drag-over'); if (dragSourceType === 'palette') addFieldToNewRow(dragSourcePaletteType); });
+document.getElementById('dropZone').addEventListener('dragover', e => { e.preventDefault(); });
+document.getElementById('dropZone').addEventListener('dragleave', () => {});
+document.getElementById('dropZone').addEventListener('drop', e => {
+  e.preventDefault();
+  if (dragSourceType !== 'palette') return;
+  // Find the closest row by Y position and insert before it
+  const dz = document.getElementById('dropZone');
+  const rowEls = Array.from(dz.querySelectorAll('.form-row'));
+  if (rowEls.length === 0) { addFieldToNewRow(dragSourcePaletteType); return; }
+  let insertBeforeRowId = '__end__';
+  for (const rowEl of rowEls) {
+    const rect = rowEl.getBoundingClientRect();
+    const midY = rect.top + rect.height / 2;
+    if (e.clientY < midY) { insertBeforeRowId = rowEl.dataset.rowId; break; }
+  }
+  const f = createField(dragSourcePaletteType);
+  const newRow = createRow(1); newRow.cols[0].fields.push(f);
+  if (insertBeforeRowId === '__end__') { formData.rows.push(newRow); }
+  else {
+    const idx = formData.rows.findIndex(r => r.id === insertBeforeRowId);
+    if (idx === -1) formData.rows.push(newRow);
+    else formData.rows.splice(idx, 0, newRow);
+  }
+  render(); selectField(f.id, newRow.id, 0); showToast('Field added', 'success');
+});
 
 let rowCounter = 0;
 function createRow(cols) { rowCounter++; return { id: 'r' + rowCounter, cols: Array.from({length: cols}, () => ({ fields: [] })) }; }
