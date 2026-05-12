@@ -1413,6 +1413,22 @@ function escHtml(str) {
   return (str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
+// ===================== INIT COUNTERS FROM EXISTING DATA =====================
+// Scan all existing rows/fields so new IDs never collide with saved ones
+(function initCounters() {
+  formData.rows.forEach(function(row) {
+    // row IDs like 'r3' -> extract numeric part
+    const rNum = parseInt((row.id || '').replace(/^r/, ''), 10);
+    if (!isNaN(rNum) && rNum > rowCounter) rowCounter = rNum;
+    (row.cols || []).forEach(function(col) {
+      (col.fields || []).forEach(function(field) {
+        const fNum = parseInt((field.id || '').replace(/^f/, ''), 10);
+        if (!isNaN(fNum) && fNum > fieldCounter) fieldCounter = fNum;
+      });
+    });
+  });
+})();
+
 // Load existing schema if available
 if (formData.rows.length > 0) { render(); }
 </script>
