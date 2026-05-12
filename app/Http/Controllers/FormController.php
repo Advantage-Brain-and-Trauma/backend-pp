@@ -125,6 +125,14 @@ class FormController extends Controller
     public function destroy(Form $form)
     {
         $form->delete();
+
+        if (request()->expectsJson()) {
+            return response()->json([
+                'status'  => true,
+                'message' => 'Form deleted successfully.',
+            ]);
+        }
+
         return redirect()->route('forms.index')
             ->with('toast_success', 'Form deleted successfully.');
     }

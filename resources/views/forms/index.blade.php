@@ -282,9 +282,65 @@ function closeDeleteModal() {
 }
 
 function confirmDelete() {
-    if (_deleteFormId) {
-        document.getElementById('delete-form-' + _deleteFormId).submit();
-    }
+    if (!_deleteFormId) return;
+    var formId = _deleteFormId;
+    var deleteForm = document.getElementById('delete-form-' + formId);
+    if (!deleteForm) return;
+
+    // Disable button to prevent double-click
+    var btn = document.querySelector('#delete-modal .btn-confirm-delete');
+    if (btn) { btn.disabled = true; btn.textContent = 'Deleting...'; }
+
+    var url = deleteForm.action;
+    var token = deleteForm.querySelector('input[name="_token"]').value;
+
+    fetch(url, {
+        method: 'DELETE',
+        headers: {
+            'X-CSRF-TOKEN': token,
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+        },
+    })
+    .then(function(r) { return r.json().catch(function() { return { status: false }; }); })
+    .then(function(res) {
+        closeDeleteModal();
+        if (btn) { btn.disabled = false; btn.textContent = 'Delete'; }
+        if (res.status === false && res.message) {
+            showGlobalToast(res.message || 'Failed to delete.', 'error');
+            return;
+        }
+        // Remove the row from the table
+        var row = document.getElementById('form-row-' + formId);
+        if (row) {
+            row.style.transition = 'opacity 0.25s';
+            row.style.opacity = '0';
+            setTimeout(function() {
+                row.remove();
+                // Update "Showing X to Y of Z results" text
+                var countEl = document.querySelector('[style*="Showing"], .showing-count');
+                var allRows = document.querySelectorAll('tbody tr[id^="form-row-"]');
+                var footer = document.querySelector('div[style*="Showing"]');
+                if (footer) {
+                    var text = footer.textContent.trim();
+                    var match = text.match(/(\d+) to (\d+) of (\d+)/);
+                    if (match) {
+                        var from = parseInt(match[1]);
+                        var to = parseInt(match[2]) - 1;
+                        var total = parseInt(match[3]) - 1;
+                        if (to < from) from = to;
+                        footer.textContent = 'Showing ' + from + ' to ' + to + ' of ' + total + ' results';
+                    }
+                }
+            }, 260);
+        }
+        showGlobalToast('Form deleted successfully.', 'success');
+    })
+    .catch(function() {
+        closeDeleteModal();
+        if (btn) { btn.disabled = false; btn.textContent = 'Delete'; }
+        showGlobalToast('Failed to delete form.', 'error');
+    });
 }
 
 document.getElementById('delete-modal-overlay').addEventListener('click', function(e) {
