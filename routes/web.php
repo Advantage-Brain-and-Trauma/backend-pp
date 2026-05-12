@@ -58,6 +58,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/forms/{form}/public-url', [FormController::class, 'getPublicUrl'])->name('forms.public-url');
     Route::post('/forms/{form}/toggle-status', [FormController::class, 'toggleStatus'])->name('forms.toggle-status');
     Route::post('/forms/{form}/duplicate', [FormController::class, 'duplicate'])->name('forms.duplicate');
+    Route::delete('/forms/bulk-destroy', [FormController::class, 'bulkDestroy'])->name('forms.bulk-destroy');
 
     // ---- Funnels ----
     Route::resource('funnels', FunnelController::class);

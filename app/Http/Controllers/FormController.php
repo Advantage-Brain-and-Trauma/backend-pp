@@ -137,6 +137,26 @@ class FormController extends Controller
             ->with('toast_success', 'Form deleted successfully.');
     }
 
+    public function bulkDestroy(Request $request)
+    {
+        $ids = $request->input('ids', []);
+
+        if (empty($ids) || !is_array($ids)) {
+            return response()->json([
+                'status'  => false,
+                'message' => 'No forms selected.',
+            ], 422);
+        }
+
+        $count = Form::whereIn('id', $ids)->delete();
+
+        return response()->json([
+            'status'  => true,
+            'message' => $count . ' form(s) deleted successfully.',
+            'deleted' => $count,
+        ]);
+    }
+
     /**
      * Duplicate a form — the copy is inserted directly below the original
      * by setting created_at to 1 second before the original's created_at.

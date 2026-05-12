@@ -85,6 +85,39 @@
     font-size: 14px; font-weight: 600; cursor: pointer; transition: background .15s;
 }
 #delete-modal .btn-confirm-delete:hover { background: #b91c1c; }
+
+/* ── Bulk Select ───────────────────────────────────────────── */
+.row-checkbox {
+    width: 16px; height: 16px; cursor: pointer;
+    accent-color: #C8102E;
+}
+#bulk-action-bar {
+    display: none;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 20px;
+    background: #fef2f2;
+    border-bottom: 1px solid #fecaca;
+    font-size: 13px;
+    color: #374151;
+}
+#bulk-action-bar.visible { display: flex; }
+#bulk-delete-btn {
+    padding: 7px 16px;
+    border-radius: 7px;
+    border: none;
+    background: #C8102E;
+    color: #fff;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: background .15s;
+}
+#bulk-delete-btn:hover { background: #a50e25; }
+#bulk-delete-btn:disabled { opacity: .6; cursor: not-allowed; }
 </style>
 
 <div class="card" style="padding:0;overflow:hidden;">
@@ -115,10 +148,21 @@
             <button type="submit" style="padding:8px 16px;border:1px solid #e5e7eb;border-radius:8px;font-size:13px;background:#f9fafb;color:#374151;cursor:pointer;"><i class="fas fa-search"></i></button>
         </form>
     </div>
+    {{-- Bulk Action Bar --}}
+    <div id="bulk-action-bar">
+        <span id="bulk-selected-count">0 selected</span>
+        <button id="bulk-delete-btn" onclick="openBulkDeleteModal()">
+            <i class="fas fa-trash"></i> Delete Selected
+        </button>
+        <button onclick="clearSelection()" style="padding:7px 14px;border-radius:7px;border:1px solid #e5e7eb;background:#fff;color:#374151;font-size:13px;cursor:pointer;">Clear</button>
+    </div>
     <div class="table-container">
         <table>
             <thead>
                 <tr>
+                    <th style="width:40px;text-align:center;">
+                        <input type="checkbox" id="select-all-checkbox" class="row-checkbox" title="Select all" onchange="toggleSelectAll(this)">
+                    </th>
                     <th>Form Name</th>
                     <th style="width:90px; text-align:center;">Status</th>
                     <th>Submissions</th>
@@ -130,6 +174,9 @@
             <tbody>
                 @forelse($forms as $form)
                 <tr id="form-row-{{ $form->id }}">
+                    <td style="text-align:center;">
+                        <input type="checkbox" class="row-checkbox form-checkbox" value="{{ $form->id }}" onchange="onRowCheckboxChange()">
+                    </td>
                     <td>
                         <div style="font-weight:600;">{{ $form->name }}</div>
                         @if($form->description)
@@ -173,7 +220,7 @@
                 </tr>
                 @empty
                 <tr>
-                    <td colspan="6" style="text-align:center; padding:48px; color:#9ca3af;">
+                    <td colspan="7" style="text-align:center; padding:48px; color:#9ca3af;">
                         <i class="fas fa-wpforms" style="font-size:36px; display:block; margin-bottom:12px;"></i>
                         No forms yet. <a href="{{ route('forms.create') }}" style="color:#C8102E;">Create your first form</a>
                     </td>
@@ -184,7 +231,7 @@
     </div>
     {{-- Footer / Pagination --}}
     <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-top:1px solid #e5e7eb;flex-wrap:wrap;gap:10px;">
-        <div style="font-size:13px;color:#6b7280;">
+        <div id="pagination-footer-text" style="font-size:13px;color:#6b7280;">
             Showing {{ $forms->firstItem() ?? 0 }} to {{ $forms->lastItem() ?? 0 }} of {{ $forms->total() }} results
         </div>
         <div style="display:flex;gap:4px;align-items:center;">
@@ -281,59 +328,97 @@ function closeDeleteModal() {
     document.getElementById('delete-modal-overlay').classList.remove('open');
 }
 
+function updateFooterCount(removedCount) {
+    var footer = document.querySelector('#pagination-footer-text');
+    if (!footer) {
+        // fallback: find by content
+        document.querySelectorAll('div').forEach(function(el) {
+            if (/Showing \d+ to \d+ of \d+/.test(el.textContent) && el.children.length === 0) footer = el;
+        });
+    }
+    if (!footer) return;
+    var text = footer.textContent.trim();
+    var match = text.match(/(\d+) to (\d+) of (\d+)/);
+    if (match) {
+        var from = parseInt(match[1]);
+        var to = Math.max(from - 1, parseInt(match[2]) - removedCount);
+        var total = parseInt(match[3]) - removedCount;
+        if (total <= 0) { footer.textContent = 'Showing 0 to 0 of 0 results'; return; }
+        if (to < from) from = to;
+        footer.textContent = 'Showing ' + from + ' to ' + to + ' of ' + total + ' results';
+    }
+}
+
+function removeRowsAnimated(ids, callback) {
+    var pending = ids.length;
+    if (pending === 0) { if (callback) callback(); return; }
+    ids.forEach(function(id) {
+        var row = document.getElementById('form-row-' + id);
+        if (row) {
+            row.style.transition = 'opacity 0.25s';
+            row.style.opacity = '0';
+            setTimeout(function() {
+                if (row.parentNode) row.remove();
+                pending--;
+                if (pending === 0 && callback) callback();
+            }, 260);
+        } else {
+            pending--;
+            if (pending === 0 && callback) callback();
+        }
+    });
+}
+
 function confirmDelete() {
     if (!_deleteFormId) return;
-    var formId = _deleteFormId;
-    var deleteForm = document.getElementById('delete-form-' + formId);
-    if (!deleteForm) return;
-
-    // Disable button to prevent double-click
     var btn = document.querySelector('#delete-modal .btn-confirm-delete');
     if (btn) { btn.disabled = true; btn.textContent = 'Deleting...'; }
 
+    // ── Bulk delete ──
+    if (_deleteFormId === '__bulk__') {
+        var ids = getSelectedIds();
+        if (ids.length === 0) { closeDeleteModal(); if (btn) { btn.disabled = false; btn.textContent = 'Delete'; } return; }
+        var token = document.querySelector('meta[name="csrf-token"]').content;
+        fetch('{{ route("forms.bulk-destroy") }}', {
+            method: 'DELETE',
+            headers: { 'X-CSRF-TOKEN': token, 'Accept': 'application/json', 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ids: ids }),
+        })
+        .then(function(r) { return r.json().catch(function() { return { status: false }; }); })
+        .then(function(res) {
+            closeDeleteModal();
+            if (btn) { btn.disabled = false; btn.textContent = 'Delete'; }
+            if (!res.status) { showGlobalToast(res.message || 'Failed to delete.', 'error'); return; }
+            removeRowsAnimated(ids, function() {
+                updateFooterCount(ids.length);
+                clearSelection();
+            });
+            showGlobalToast(res.message || (ids.length + ' form(s) deleted.'), 'success');
+        })
+        .catch(function() {
+            closeDeleteModal();
+            if (btn) { btn.disabled = false; btn.textContent = 'Delete'; }
+            showGlobalToast('Failed to delete forms.', 'error');
+        });
+        return;
+    }
+
+    // ── Single delete ──
+    var formId = _deleteFormId;
+    var deleteForm = document.getElementById('delete-form-' + formId);
+    if (!deleteForm) return;
     var url = deleteForm.action;
     var token = deleteForm.querySelector('input[name="_token"]').value;
-
     fetch(url, {
         method: 'DELETE',
-        headers: {
-            'X-CSRF-TOKEN': token,
-            'Accept': 'application/json',
-            'Content-Type': 'application/json',
-        },
+        headers: { 'X-CSRF-TOKEN': token, 'Accept': 'application/json', 'Content-Type': 'application/json' },
     })
     .then(function(r) { return r.json().catch(function() { return { status: false }; }); })
     .then(function(res) {
         closeDeleteModal();
         if (btn) { btn.disabled = false; btn.textContent = 'Delete'; }
-        if (res.status === false && res.message) {
-            showGlobalToast(res.message || 'Failed to delete.', 'error');
-            return;
-        }
-        // Remove the row from the table
-        var row = document.getElementById('form-row-' + formId);
-        if (row) {
-            row.style.transition = 'opacity 0.25s';
-            row.style.opacity = '0';
-            setTimeout(function() {
-                row.remove();
-                // Update "Showing X to Y of Z results" text
-                var countEl = document.querySelector('[style*="Showing"], .showing-count');
-                var allRows = document.querySelectorAll('tbody tr[id^="form-row-"]');
-                var footer = document.querySelector('div[style*="Showing"]');
-                if (footer) {
-                    var text = footer.textContent.trim();
-                    var match = text.match(/(\d+) to (\d+) of (\d+)/);
-                    if (match) {
-                        var from = parseInt(match[1]);
-                        var to = parseInt(match[2]) - 1;
-                        var total = parseInt(match[3]) - 1;
-                        if (to < from) from = to;
-                        footer.textContent = 'Showing ' + from + ' to ' + to + ' of ' + total + ' results';
-                    }
-                }
-            }, 260);
-        }
+        if (res.status === false && res.message) { showGlobalToast(res.message || 'Failed to delete.', 'error'); return; }
+        removeRowsAnimated([formId], function() { updateFooterCount(1); });
         showGlobalToast('Form deleted successfully.', 'success');
     })
     .catch(function() {
@@ -349,6 +434,54 @@ document.getElementById('delete-modal-overlay').addEventListener('click', functi
 document.addEventListener('keydown', function(e) {
     if (e.key === 'Escape') closeDeleteModal();
 });
+
+// ── Bulk Select ──────────────────────────────────────────────
+function getSelectedIds() {
+    return Array.from(document.querySelectorAll('.form-checkbox:checked')).map(function(cb) { return cb.value; });
+}
+
+function updateBulkBar() {
+    var ids = getSelectedIds();
+    var bar = document.getElementById('bulk-action-bar');
+    var countEl = document.getElementById('bulk-selected-count');
+    if (ids.length > 0) {
+        bar.classList.add('visible');
+        countEl.textContent = ids.length + ' selected';
+    } else {
+        bar.classList.remove('visible');
+    }
+    // Sync select-all state
+    var all = document.querySelectorAll('.form-checkbox');
+    var selectAll = document.getElementById('select-all-checkbox');
+    if (selectAll) {
+        selectAll.checked = all.length > 0 && ids.length === all.length;
+        selectAll.indeterminate = ids.length > 0 && ids.length < all.length;
+    }
+}
+
+function onRowCheckboxChange() { updateBulkBar(); }
+
+function toggleSelectAll(cb) {
+    document.querySelectorAll('.form-checkbox').forEach(function(el) { el.checked = cb.checked; });
+    updateBulkBar();
+}
+
+function clearSelection() {
+    document.querySelectorAll('.form-checkbox').forEach(function(el) { el.checked = false; });
+    var sa = document.getElementById('select-all-checkbox');
+    if (sa) { sa.checked = false; sa.indeterminate = false; }
+    updateBulkBar();
+}
+
+function openBulkDeleteModal() {
+    var ids = getSelectedIds();
+    if (ids.length === 0) return;
+    document.getElementById('delete-modal-msg').textContent =
+        'Are you sure you want to delete ' + ids.length + ' selected form(s)? This action cannot be undone.';
+    // Store bulk mode flag
+    _deleteFormId = '__bulk__';
+    document.getElementById('delete-modal-overlay').classList.add('open');
+}
 
 // ── Status Toggle ─────────────────────────────────────────────
 function toggleFormStatus(formId, wrapEl) {
