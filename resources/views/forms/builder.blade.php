@@ -1041,14 +1041,22 @@ document.querySelectorAll('.palette-item, .palette-item-wide').forEach(item => {
   item.addEventListener('dragend', () => item.classList.remove('dragging-source'));
   item.addEventListener('click', () => {
     const field = createField(item.dataset.type);
-    if (formData.rows.length === 0) { const row = createRow(1); row.cols[0].fields.push(field); formData.rows.push(row); }
-    else {
+    let placedRowId, placedColIdx;
+    if (formData.rows.length === 0) {
+      const row = createRow(1); row.cols[0].fields.push(field); formData.rows.push(row);
+      placedRowId = row.id; placedColIdx = 0;
+    } else {
       const lastRow = formData.rows[formData.rows.length - 1];
-      const emptyCol = lastRow.cols.find(c => c.fields.length === 0);
-      if (emptyCol) emptyCol.fields.push(field);
-      else { const newRow = createRow(1); newRow.cols[0].fields.push(field); formData.rows.push(newRow); }
+      const emptyColIdx = lastRow.cols.findIndex(c => c.fields.length === 0);
+      if (emptyColIdx !== -1) {
+        lastRow.cols[emptyColIdx].fields.push(field);
+        placedRowId = lastRow.id; placedColIdx = emptyColIdx;
+      } else {
+        const newRow = createRow(1); newRow.cols[0].fields.push(field); formData.rows.push(newRow);
+        placedRowId = newRow.id; placedColIdx = 0;
+      }
     }
-    render(); selectField(field.id, formData.rows[formData.rows.length-1].id, 0); showToast('Field added', 'success');
+    render(); selectField(field.id, placedRowId, placedColIdx); showToast('Field added', 'success');
   });
 });
 
