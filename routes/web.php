@@ -49,6 +49,9 @@ Route::middleware('auth')->group(function () {
     Route::get('/appointments/{id}', [AppointmentController::class, 'show'])->name('appointments.show');
 
     // ---- Forms ----
+    // IMPORTANT: bulk-destroy must be declared BEFORE the resource route to avoid
+    // Laravel treating 'bulk-destroy' as a {form} model binding parameter.
+    Route::delete('/forms/bulk-destroy', [FormController::class, 'bulkDestroy'])->name('forms.bulk-destroy');
     Route::resource('forms', FormController::class);
     Route::get('/forms/{form}/builder', [FormController::class, 'builder'])->name('forms.builder');
     // AJAX: Save form field schema from builder
@@ -58,7 +61,6 @@ Route::middleware('auth')->group(function () {
     Route::get('/forms/{form}/public-url', [FormController::class, 'getPublicUrl'])->name('forms.public-url');
     Route::post('/forms/{form}/toggle-status', [FormController::class, 'toggleStatus'])->name('forms.toggle-status');
     Route::post('/forms/{form}/duplicate', [FormController::class, 'duplicate'])->name('forms.duplicate');
-    Route::delete('/forms/bulk-destroy', [FormController::class, 'bulkDestroy'])->name('forms.bulk-destroy');
 
     // ---- Funnels ----
     Route::resource('funnels', FunnelController::class);
