@@ -342,21 +342,17 @@ class ClinicalController extends Controller
 
                                 $fieldId = $field['id'];
 
-                                $value = $item->data[$fieldId] ?? null;
-
                                 $decodedItem = [
                                     'type'     => $field['type'] ?? null,
                                     'label'    => $field['label'] ?? null,
                                     'required' => $field['required'] ?? false,
-                                    'value'    => $value,
+                                    'value' => (
+                                                    in_array($field['type'] ?? '', ['file', 'image']) &&
+                                                    !empty($item->data[$fieldId])
+                                                )
+                                                    ? asset('storage/' . $item->data[$fieldId])
+                                                    : ($item->data[$fieldId] ?? null),
                                 ];
-
-                                if (
-                                    in_array($field['type'] ?? '', ['file', 'image']) &&
-                                    !empty($value)
-                                ) {
-                                    $decodedItem['file_url'] = asset('storage/' . $value);
-                                }
 
                                 if (!empty($field['options'])) {
                                     $decodedItem['options'] = $field['options'];
