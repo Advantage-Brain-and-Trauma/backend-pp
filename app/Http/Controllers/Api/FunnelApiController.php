@@ -40,10 +40,28 @@ class FunnelApiController extends Controller
                 ->where('status', 'active')
                 ->get(['id', 'name']);
 
-            $funnels->transform(function ($funnel) {
+            $funnels->transform(function ($funnel) use ($request) {
+
+                $formIds = is_array($funnel->form_ids)
+                    ? $funnel->form_ids
+                    : json_decode($funnel->form_ids, true);
+
+                $totalForms = count($formIds);
+
+                $submittedForms = FormSubmission::where('user_id', $request->user()->id)
+                    ->where('funnel_id', $funnel->id)
+                    ->whereIn('form_id', $formIds)
+                    ->where('status', 'completed')
+                    ->distinct('form_id')
+                    ->count('form_id');
+
+                $pendingCount = max($totalForms - $submittedForms, 0);
+
                 return [
-                    'id'          => $funnel->id,
-                    'funnel_name' => $funnel->name,
+                    'id'                 => $funnel->id,
+                    'funnel_name'        => $funnel->name,
+                    'submission_status'  => $pendingCount === 0 ? 'completed' : 'pending',
+                    'pending_count'      => $pendingCount,
                 ];
             });
 
