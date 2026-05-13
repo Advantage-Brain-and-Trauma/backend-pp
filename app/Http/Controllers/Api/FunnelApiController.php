@@ -38,13 +38,15 @@ class FunnelApiController extends Controller
 
             $funnels = Funnel::whereIn('id', $userFunnels)
                 ->where('status', 'active')
-                ->get(['id', 'name']);
+                ->get(['id', 'name','form_ids']);
 
             $funnels->transform(function ($funnel) use ($request) {
 
                 $formIds = is_array($funnel->form_ids)
                     ? $funnel->form_ids
-                    : json_decode($funnel->form_ids, true);
+                    : json_decode($funnel->form_ids ?? '[]', true);
+
+                $formIds = is_array($formIds) ? $formIds : [];
 
                 $totalForms = count($formIds);
 
