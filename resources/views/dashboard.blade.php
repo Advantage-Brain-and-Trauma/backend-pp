@@ -145,12 +145,6 @@
             <a href="{{ route('funnels.create') }}" class="btn btn-secondary">
                 <i class="fas fa-plus"></i> Create Funnel
             </a>
-            <a href="{{ route('appointments.index') }}" class="btn btn-secondary">
-                <i class="fas fa-calendar"></i> View Appointments
-            </a>
-            <a href="{{ route('billing.index') }}" class="btn btn-secondary">
-                <i class="fas fa-file-invoice-dollar"></i> View Billing
-            </a>
             <a href="{{ route('messages.index') }}" class="btn btn-secondary">
                 <i class="fas fa-envelope"></i> View Messages
             </a>
