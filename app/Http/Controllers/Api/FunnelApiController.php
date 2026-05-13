@@ -280,6 +280,10 @@ class FunnelApiController extends Controller
                         $formData[$fieldId] = $path;
                     }
                 }
+            }else{
+                Log::channel('patient_form')->info('No file uploads received', [
+                    'fields' => $formData
+                ]);
             }
 
             // ── 4. Determine submission status ───────────────────────────────
