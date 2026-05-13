@@ -23,7 +23,7 @@ class OldFormController extends Controller
     public function list()
     {
         try {
-            $allOldForms = DB::connection('patient_portal')->table('forms')->get();
+            $allOldForms = DB::connection('patient_portal')->table('forms')->whereNull('deleted_at')->get();
 
             // Get slugs of already-synced forms from test_pp.forms
             $syncedSlugs = Form::pluck('slug')->toArray();
@@ -63,7 +63,7 @@ class OldFormController extends Controller
     public function sync($id)
     {
         try {
-            $oldForm = DB::connection('patient_portal')->table('forms')->where('id', $id)->first();
+            $oldForm = DB::connection('patient_portal')->table('forms')->whereNull('deleted_at')->where('id', $id)->first();
 
             if (!$oldForm) {
                 return response()->json([

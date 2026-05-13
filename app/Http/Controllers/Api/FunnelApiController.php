@@ -38,12 +38,32 @@ class FunnelApiController extends Controller
 
             $funnels = Funnel::whereIn('id', $userFunnels)
                 ->where('status', 'active')
-                ->get(['id', 'name']);
+                ->get(['id', 'name','form_ids']);
 
-            $funnels->transform(function ($funnel) {
+            $funnels->transform(function ($funnel) use ($request) {
+
+                $formIds = is_array($funnel->form_ids)
+                    ? $funnel->form_ids
+                    : json_decode($funnel->form_ids ?? '[]', true);
+
+                $formIds = is_array($formIds) ? $formIds : [];
+
+                $totalForms = count($formIds);
+
+                $submittedForms = FormSubmission::where('user_id', $request->user()->id)
+                    ->where('funnel_id', $funnel->id)
+                    ->whereIn('form_id', $formIds)
+                    ->where('status', 'completed')
+                    ->distinct('form_id')
+                    ->count('form_id');
+
+                $pendingCount = max($totalForms - $submittedForms, 0);
+
                 return [
-                    'id'          => $funnel->id,
-                    'funnel_name' => $funnel->name,
+                    'id'                 => $funnel->id,
+                    'funnel_name'        => $funnel->name,
+                    'submission_status'  => $pendingCount === 0 ? 'completed' : 'pending',
+                    'pending_count'      => $pendingCount,
                 ];
             });
 
@@ -251,7 +271,12 @@ class FunnelApiController extends Controller
             if ($request->hasFile('fields')) {
                 foreach ($request->file('fields') as $fieldId => $file) {
                     if ($file && $file->isValid()) {
-                        $path = $file->store('form-uploads/' . $formId, 'public');
+                        $originalName = pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME);
+                        $extension    = $file->getClientOriginalExtension();
+
+                        $filename = $originalName . '_' . time() . '.' . $extension;
+
+                        $path = $file->storeAs('form-uploads/' . $formId, $filename, 'public');
                         $formData[$fieldId] = $path;
                     }
                 }
@@ -338,7 +363,7 @@ class FunnelApiController extends Controller
     public function getAllOldForms(){
         try{
 
-            $allForms = DB::connection('patient_portal')->table('forms')->get();
+            $allForms = DB::connection('patient_portal')->table('forms')->whereNull('deleted_at')->get();
 
             return response()->json([
                 'status'  => true,

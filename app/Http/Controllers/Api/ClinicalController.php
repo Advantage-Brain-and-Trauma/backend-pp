@@ -346,7 +346,12 @@ class ClinicalController extends Controller
                                     'type'     => $field['type'] ?? null,
                                     'label'    => $field['label'] ?? null,
                                     'required' => $field['required'] ?? false,
-                                    'value'    => $item->data[$fieldId] ?? null,
+                                    'value' => (
+                                                    in_array($field['type'] ?? '', ['file', 'image']) &&
+                                                    !empty($item->data[$fieldId])
+                                                )
+                                                    ? asset('storage/' . $item->data[$fieldId])
+                                                    : ($item->data[$fieldId] ?? null),
                                 ];
 
                                 if (!empty($field['options'])) {
