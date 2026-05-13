@@ -181,17 +181,23 @@
 .pv-scale-labels { display: flex; justify-content: space-between; font-size: 11px; color: #9ca3af; margin-top: 5px; }
 
 /* Signature */
-.pv-sig-box {
-    border: 1.5px solid #e5e7eb;
-    border-radius: 9px;
-    height: 110px;
-    background: #f9fafb;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: #9ca3af;
-    font-size: 13px;
+.pv-sig-wrap { position: relative; }
+.pv-sig-canvas {
+    width: 100%; height: 140px; display: block;
+    border: 1.5px solid #e5e7eb; border-radius: 9px;
+    background: #f9fafb; cursor: crosshair;
+    touch-action: none;
 }
+.pv-sig-canvas.has-sig { background: #fff; }
+.pv-sig-actions {
+    display: flex; justify-content: flex-end; margin-top: 5px; gap: 8px;
+}
+.pv-sig-clear {
+    font-size: 11px; color: #9ca3af; background: none; border: 1px solid #e5e7eb;
+    border-radius: 6px; padding: 3px 10px; cursor: pointer;
+}
+.pv-sig-clear:hover { color: #dc2626; border-color: #dc2626; }
+.pv-sig-hint { font-size: 11px; color: #9ca3af; margin-top: 4px; text-align: center; }
 
 /* File upload */
 .pv-file-zone {
@@ -202,8 +208,12 @@
     background: #f9fafb;
     color: #9ca3af;
     font-size: 13px;
+    cursor: pointer;
+    transition: border-color .15s, background .15s;
 }
+.pv-file-zone:hover { border-color: #8B1A1A; background: #fdf2f2; color: #8B1A1A; }
 .pv-file-zone i { font-size: 28px; display: block; margin-bottom: 8px; }
+.pv-file-name { font-size: 12px; color: #374151; margin-top: 8px; font-weight: 600; }
 
 /* Section header */
 .pv-section-header { margin-bottom: 4px; }
@@ -326,7 +336,11 @@ function renderField(field) {
             wrap.innerHTML = `<hr class="pv-divider">`;
             break;
         case 'image':
-            wrap.innerHTML = `<div style="text-align:center;padding:12px 0;"><div style="border:2px dashed #e5e7eb;border-radius:9px;padding:20px;color:#9ca3af;font-size:13px;"><i class="fas fa-image" style="font-size:24px;display:block;margin-bottom:6px;"></i>Image placeholder</div></div>`;
+            if (field.imageUrl) {
+                wrap.innerHTML = `<div style="text-align:center;padding:8px 0;"><img src="${esc(field.imageUrl)}" alt="${esc(field.label||'Image')}" style="max-width:100%;border-radius:9px;display:inline-block;"></div>`;
+            } else {
+                wrap.innerHTML = `<div style="text-align:center;padding:12px 0;"><div style="border-radius:9px;padding:24px 20px;color:#9ca3af;font-size:13px;background:#f9fafb;"><i class="fas fa-image" style="font-size:32px;display:block;margin-bottom:8px;color:#d1d5db;"></i><span style="font-size:12px;">No image configured</span></div></div>`;
+            }
             break;
         case 'submit':
             wrap.innerHTML = '';
@@ -377,19 +391,34 @@ function renderField(field) {
                 <div class="pv-scale" id="pvscl_${field.id}">${[1,2,3,4,5,6,7,8,9,10].map(n => `<div class="pv-scale-num" data-val="${n}" onclick="pvSetScale('${field.id}', ${n})">${n}</div>`).join('')}</div>
                 <div class="pv-scale-labels"><span>Not at all</span><span>Extremely</span></div>`;
             break;
-        case 'signature':
+        case 'signature': {
+            const sigId = 'pvSig_' + field.id;
             wrap.innerHTML = `<label class="pv-label">${esc(field.label)}${req}</label>
-                <div class="pv-sig-box"><i class="fas fa-signature" style="margin-right:8px;"></i>Signature area</div>
-                <div style="font-size:11px;color:#9ca3af;margin-top:5px;text-align:center;">Draw your signature above</div>`;
-            break;
-        case 'file':
-            wrap.innerHTML = `<label class="pv-label">${esc(field.label)}${req}</label>
-                <div class="pv-file-zone">
-                    <i class="fas fa-paperclip"></i>
-                    Click to upload or drag & drop<br>
-                    <span style="font-size:11px;">PDF, JPG, PNG, DOCX up to 10MB</span>
+                <div class="pv-sig-wrap">
+                    <canvas id="${sigId}" class="pv-sig-canvas"></canvas>
+                    <div class="pv-sig-actions">
+                        <button type="button" class="pv-sig-clear" onclick="pvSigClear('${sigId}')">Clear</button>
+                    </div>
+                    <div class="pv-sig-hint">Draw your signature above</div>
                 </div>`;
+            // Init canvas after DOM insertion (deferred)
+            setTimeout(() => pvSigInit(sigId), 0);
             break;
+        }
+        case 'file': {
+            const fileId = 'pvFile_' + field.id;
+            const zoneId = 'pvZone_' + field.id;
+            const nameId = 'pvFName_' + field.id;
+            wrap.innerHTML = `<label class="pv-label">${esc(field.label)}${req}</label>
+                <div class="pv-file-zone" id="${zoneId}" onclick="document.getElementById('${fileId}').click()">
+                    <i class="fas fa-paperclip"></i>
+                    Click to upload or drag &amp; drop<br>
+                    <span style="font-size:11px;">PDF, JPG, PNG, DOCX up to 10MB</span>
+                    <div class="pv-file-name" id="${nameId}" style="display:none;"></div>
+                </div>
+                <input type="file" id="${fileId}" style="display:none;" onchange="pvFileChosen('${fileId}','${nameId}','${zoneId}')">`;
+            break;
+        }
         case 'address':
             wrap.innerHTML = `<label class="pv-label">${esc(field.label)}${req}</label>
                 <div style="display:flex;flex-direction:column;gap:8px;">
@@ -433,6 +462,61 @@ function pvSetScale(id, val) {
     document.querySelectorAll('#pvscl_' + id + ' .pv-scale-num').forEach(n => {
         n.classList.toggle('selected', parseInt(n.dataset.val) === val);
     });
+}
+
+/* ── Signature pad ─────────────────────────────────────────── */
+const _sigState = {};
+function pvSigInit(canvasId) {
+    const canvas = document.getElementById(canvasId);
+    if (!canvas) return;
+    // Set internal resolution to match display size
+    const rect = canvas.getBoundingClientRect();
+    canvas.width  = rect.width  || 600;
+    canvas.height = rect.height || 140;
+    const ctx = canvas.getContext('2d');
+    ctx.strokeStyle = '#1a1a1a';
+    ctx.lineWidth   = 2;
+    ctx.lineCap     = 'round';
+    ctx.lineJoin    = 'round';
+    _sigState[canvasId] = { drawing: false, ctx, canvas };
+
+    function getPos(e) {
+        const r = canvas.getBoundingClientRect();
+        const src = e.touches ? e.touches[0] : e;
+        return { x: (src.clientX - r.left) * (canvas.width / r.width),
+                 y: (src.clientY - r.top)  * (canvas.height / r.height) };
+    }
+    function start(e) { e.preventDefault(); const s = _sigState[canvasId]; s.drawing = true; const p = getPos(e); s.ctx.beginPath(); s.ctx.moveTo(p.x, p.y); canvas.classList.add('has-sig'); }
+    function move(e)  { e.preventDefault(); const s = _sigState[canvasId]; if (!s.drawing) return; const p = getPos(e); s.ctx.lineTo(p.x, p.y); s.ctx.stroke(); }
+    function stop(e)  { _sigState[canvasId].drawing = false; }
+
+    canvas.addEventListener('mousedown',  start);
+    canvas.addEventListener('mousemove',  move);
+    canvas.addEventListener('mouseup',    stop);
+    canvas.addEventListener('mouseleave', stop);
+    canvas.addEventListener('touchstart', start, { passive: false });
+    canvas.addEventListener('touchmove',  move,  { passive: false });
+    canvas.addEventListener('touchend',   stop);
+}
+function pvSigClear(canvasId) {
+    const s = _sigState[canvasId];
+    if (!s) return;
+    s.ctx.clearRect(0, 0, s.canvas.width, s.canvas.height);
+    s.canvas.classList.remove('has-sig');
+}
+
+/* ── File upload ───────────────────────────────────────────── */
+function pvFileChosen(inputId, nameId, zoneId) {
+    const input = document.getElementById(inputId);
+    const nameEl = document.getElementById(nameId);
+    const zone   = document.getElementById(zoneId);
+    if (!input || !input.files.length) return;
+    const file = input.files[0];
+    nameEl.textContent = '✓ ' + file.name;
+    nameEl.style.display = 'block';
+    zone.style.borderColor = '#16a34a';
+    zone.style.background  = '#f0fdf4';
+    zone.style.color       = '#16a34a';
 }
 </script>
 @endsection
