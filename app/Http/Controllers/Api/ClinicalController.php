@@ -320,7 +320,8 @@ class ClinicalController extends Controller
                 ->get()
                 ->filter(function ($item) {
                     return $item->form && $item->funnel;
-                });
+                })
+                ->values();
 
             Log::channel('patient_form')->info('Patient form records fetched', [
                 'user_id' => auth()->id(),
