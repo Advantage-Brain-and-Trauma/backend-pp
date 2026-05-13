@@ -365,8 +365,16 @@ function renderField(field) {
       wrap.innerHTML = `<hr class="form-divider">`;
       totalFields--; break;
     case 'image':
-      wrap.innerHTML = `<div style="text-align:center;padding:16px 0;"><div style="border:2px dashed #e2e8f0;border-radius:9px;padding:24px;color:#a0aec0;font-size:13px;">🖼 Image placeholder</div></div>`;
-      totalFields--; break;
+      wrap.innerHTML = `<label class="form-label">${esc(field.label)}${labelRequired}</label>
+        <div class="file-upload-zone" id="fuz_img_${field.id}" onclick="document.getElementById('imgfile_${field.id}').click()">
+          <div class="file-upload-icon">🖼</div>
+          <div class="file-upload-text">Click to upload image</div>
+          <div class="file-upload-hint">JPG, PNG, GIF, WEBP up to 10MB</div>
+        </div>
+        <input type="file" id="imgfile_${field.id}" name="fields[${field.id}]" accept="image/*" style="display:none;" onchange="handleFileSelect('imgf_${field.id}', this)" ${field.required ? 'required' : ''}>
+        <div class="file-list" id="fl_imgf_${field.id}"></div>`;
+      setTimeout(() => setupFileDrop('imgf_' + field.id), 0);
+      break;
     case 'submit':
       wrap.innerHTML = ''; totalFields--;
       document.getElementById('submitBtn').textContent = field.buttonText || 'Submit Form';
@@ -466,15 +474,14 @@ function renderField(field) {
       setTimeout(() => setupFileDrop(field.id), 0);
       break;
     case 'address':
-      wrap.innerHTML = `<label class="form-label">${esc(field.label)}${labelRequired}</label>
-        <div class="address-grid">
-          <input class="form-input" name="fields[${field.id}][street]" placeholder="Street Address" ${field.required ? 'required' : ''}>
-          <div class="address-row">
-            <input class="form-input" name="fields[${field.id}][city]" placeholder="City" ${field.required ? 'required' : ''}>
-            <input class="form-input" style="max-width:100px;" name="fields[${field.id}][state]" placeholder="State">
-            <input class="form-input" style="max-width:110px;" name="fields[${field.id}][zip]" placeholder="ZIP Code">
-          </div>
-        </div>`;
+      wrap.innerHTML = `<label class="form-label" for="${field.id}">${esc(field.label)}${labelRequired}</label>
+        <textarea class="form-textarea" id="${field.id}" name="fields[${field.id}]" placeholder="${esc(field.placeholder || 'Enter address...')}" rows="3" ${field.required ? 'required' : ''}></textarea>
+        ${field.helpText ? `<div class="form-help">${esc(field.helpText)}</div>` : ''}
+        <div class="field-error" id="err_${field.id}">This field is required.</div>`;
+      setTimeout(() => {
+        const inp = document.getElementById(field.id);
+        if (inp) inp.addEventListener('input', () => { updateProgress(); clearError(field.id); });
+      }, 0);
       break;
     case 'name':
       wrap.innerHTML = `<label class="form-label">${esc(field.label)}${labelRequired}</label>

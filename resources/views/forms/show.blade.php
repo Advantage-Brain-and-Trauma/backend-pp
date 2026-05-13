@@ -335,13 +335,20 @@ function renderField(field) {
         case 'divider':
             wrap.innerHTML = `<hr class="pv-divider">`;
             break;
-        case 'image':
-            if (field.imageUrl) {
-                wrap.innerHTML = `<div style="text-align:center;padding:8px 0;"><img src="${esc(field.imageUrl)}" alt="${esc(field.label||'Image')}" style="max-width:100%;border-radius:9px;display:inline-block;"></div>`;
-            } else {
-                wrap.innerHTML = `<div style="text-align:center;padding:12px 0;"><div style="border-radius:9px;padding:24px 20px;color:#9ca3af;font-size:13px;background:#f9fafb;"><i class="fas fa-image" style="font-size:32px;display:block;margin-bottom:8px;color:#d1d5db;"></i><span style="font-size:12px;">No image configured</span></div></div>`;
-            }
+        case 'image': {
+            const imgFileId = 'pvImgFile_' + field.id;
+            const imgZoneId = 'pvImgZone_' + field.id;
+            const imgNameId = 'pvImgName_' + field.id;
+            wrap.innerHTML = `<label class="pv-label">${esc(field.label)}${req}</label>
+                <div class="pv-file-zone" id="${imgZoneId}" onclick="document.getElementById('${imgFileId}').click()">
+                    <i class="fas fa-image"></i>
+                    Click to upload image<br>
+                    <span style="font-size:11px;">JPG, PNG, GIF, WEBP up to 10MB</span>
+                    <div class="pv-file-name" id="${imgNameId}" style="display:none;"></div>
+                </div>
+                <input type="file" id="${imgFileId}" accept="image/*" style="display:none;" onchange="pvFileChosen('${imgFileId}','${imgNameId}','${imgZoneId}')">`;
             break;
+        }
         case 'submit':
             wrap.innerHTML = '';
             break;
@@ -421,14 +428,8 @@ function renderField(field) {
         }
         case 'address':
             wrap.innerHTML = `<label class="pv-label">${esc(field.label)}${req}</label>
-                <div style="display:flex;flex-direction:column;gap:8px;">
-                    <input class="pv-input" placeholder="Street Address">
-                    <div class="pv-addr-row">
-                        <input class="pv-input" placeholder="City">
-                        <input class="pv-input" style="max-width:90px;" placeholder="State">
-                        <input class="pv-input" style="max-width:100px;" placeholder="ZIP Code">
-                    </div>
-                </div>`;
+                <textarea class="pv-textarea" placeholder="${esc(field.placeholder || 'Enter address...')}" rows="3"></textarea>
+                ${field.helpText ? `<div class="pv-help">${esc(field.helpText)}</div>` : ''}`;
             break;
         case 'name':
             wrap.innerHTML = `<label class="pv-label">${esc(field.label)}${req}</label>
