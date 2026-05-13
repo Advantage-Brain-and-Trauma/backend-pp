@@ -338,7 +338,7 @@ class FunnelApiController extends Controller
     public function getAllOldForms(){
         try{
 
-            $allForms = DB::connection('patient_portal')->table('forms')->get();
+            $allForms = DB::connection('patient_portal')->table('forms')->whereNull('deleted_at')->get();
 
             return response()->json([
                 'status'  => true,
