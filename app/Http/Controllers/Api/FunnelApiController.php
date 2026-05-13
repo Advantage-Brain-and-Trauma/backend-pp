@@ -251,7 +251,12 @@ class FunnelApiController extends Controller
             if ($request->hasFile('fields')) {
                 foreach ($request->file('fields') as $fieldId => $file) {
                     if ($file && $file->isValid()) {
-                        $path = $file->store('form-uploads/' . $formId, 'public');
+                        $originalName = pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME);
+                        $extension    = $file->getClientOriginalExtension();
+
+                        $filename = $originalName . '_' . time() . '.' . $extension;
+
+                        $path = $file->storeAs('form-uploads/' . $formId, $filename, 'public');
                         $formData[$fieldId] = $path;
                     }
                 }
