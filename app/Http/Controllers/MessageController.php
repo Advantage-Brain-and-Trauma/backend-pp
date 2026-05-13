@@ -9,10 +9,18 @@ class MessageController extends Controller
 {
     public function index(Request $request)
     {
+        $search = $request->input('search', '');
         $messages = Message::whereNull('parent_id')
+            ->when($search, function($q) use ($search) {
+                $q->where(function($q2) use ($search) {
+                    $q2->where('sender_name', 'like', "%{$search}%")
+                       ->orWhere('subject', 'like', "%{$search}%")
+                       ->orWhere('body', 'like', "%{$search}%");
+                });
+            })
             ->latest()
             ->paginate(30);
-        return view('messages.index', compact('messages'));
+        return view('messages.index', compact('messages', 'search'));
     }
 
     public function create()

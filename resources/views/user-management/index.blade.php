@@ -89,11 +89,11 @@
             </select>
             <span style="font-size:14px; color:#6b7280; white-space:nowrap;">Entries Per Page</span>
         </form>
-        <form method="GET" action="{{ route('user-management.index') }}" style="display:flex; align-items:center; gap:8px; margin-bottom:0;">
+        <form id="users-filter-form" method="GET" action="{{ route('user-management.index') }}" style="display:flex; align-items:center; gap:8px; margin-bottom:0;">
             <input type="hidden" name="per_page" value="{{ $perPage }}">
             <div class="search-input-wrap" style="width:240px;">
                 <i class="fas fa-search"></i>
-                <input type="text" name="search" value="{{ $search }}" placeholder="Search...">
+                <input type="text" id="users-search-input" name="search" value="{{ $search }}" placeholder="Search...">
             </div>
         </form>
     </div>
@@ -531,5 +531,18 @@ document.getElementById('createForm').addEventListener('submit', function(e) {
 document.getElementById('createModal').addEventListener('click', function(e) { if (e.target === this) closeCreateModal(); });
 document.getElementById('editModal').addEventListener('click', function(e) { if (e.target === this) closeEditModal(); });
 document.getElementById('deleteModal').addEventListener('click', function(e) { if (e.target === this) cancelDelete(); });
+
+// Live search
+(function() {
+    var inp = document.getElementById('users-search-input');
+    if (!inp) return;
+    var timer;
+    inp.addEventListener('input', function() {
+        clearTimeout(timer);
+        timer = setTimeout(function() {
+            document.getElementById('users-filter-form').submit();
+        }, 300);
+    });
+})();
 </script>
 @endsection

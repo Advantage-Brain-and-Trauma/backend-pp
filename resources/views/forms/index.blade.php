@@ -135,15 +135,15 @@
                 @if(request('status')) <input type="hidden" name="status" value="{{ request('status') }}"> @endif
             </form>
         </div>
-        <form method="GET" action="{{ route('forms.index') }}" style="display:flex;gap:8px;align-items:center;">
+        <form id="forms-filter-form" method="GET" action="{{ route('forms.index') }}" style="display:flex;gap:8px;align-items:center;">
             @if(request('per_page')) <input type="hidden" name="per_page" value="{{ request('per_page') }}"> @endif
             @if(request('status')) <input type="hidden" name="status" value="{{ request('status') }}"> @endif
-            <select name="status" style="padding:8px 12px;border:1px solid #e5e7eb;border-radius:8px;font-size:13px;background:#f9fafb;color:#374151;outline:none;">
+            <select name="status" id="forms-status-select" onchange="document.getElementById('forms-filter-form').submit()" style="padding:8px 12px;border:1px solid #e5e7eb;border-radius:8px;font-size:13px;background:#f9fafb;color:#374151;outline:none;">
                 <option value="">All Statuses</option>
                 <option value="active" {{ request('status') === 'active' ? 'selected' : '' }}>Active</option>
                 <option value="inactive" {{ request('status') === 'inactive' ? 'selected' : '' }}>Inactive</option>
             </select>
-            <input type="text" name="search" value="{{ request('search') }}" placeholder="Search..."
+            <input type="text" id="forms-search-input" name="search" value="{{ request('search') }}" placeholder="Search..."
                 style="padding:8px 14px;border:1px solid #e5e7eb;border-radius:8px;font-size:13px;background:#f9fafb;color:#374151;width:220px;outline:none;">
             <button type="submit" style="padding:8px 16px;border:1px solid #e5e7eb;border-radius:8px;font-size:13px;background:#f9fafb;color:#374151;cursor:pointer;"><i class="fas fa-search"></i></button>
         </form>
@@ -517,5 +517,18 @@ function toggleFormStatus(formId, wrapEl) {
         showGlobalToast('Failed to update status.', 'error');
     });
 }
+
+// Live search — submit form after user stops typing (300ms debounce)
+(function() {
+    var inp = document.getElementById('forms-search-input');
+    if (!inp) return;
+    var timer;
+    inp.addEventListener('input', function() {
+        clearTimeout(timer);
+        timer = setTimeout(function() {
+            document.getElementById('forms-filter-form').submit();
+        }, 300);
+    });
+})();
 </script>
 @endsection

@@ -16,10 +16,12 @@
     <!-- Message List -->
     <div style="border-right:1px solid #e5e7eb; overflow-y:auto;">
         <div style="padding:16px; border-bottom:1px solid #e5e7eb;">
-            <div class="search-input-wrap" style="margin:0;">
-                <i class="fas fa-search"></i>
-                <input type="text" placeholder="Search messages..." style="border:1px solid #e5e7eb; border-radius:8px; padding:9px 9px 9px 36px; width:100%; font-size:13px; outline:none;">
-            </div>
+            <form id="messages-filter-form" method="GET" action="{{ route('messages.index') }}" style="margin:0;">
+                <div class="search-input-wrap" style="margin:0;">
+                    <i class="fas fa-search"></i>
+                    <input type="text" id="messages-search-input" name="search" value="{{ $search ?? '' }}" placeholder="Search messages..." style="border:1px solid #e5e7eb; border-radius:8px; padding:9px 9px 9px 36px; width:100%; font-size:13px; outline:none;">
+                </div>
+            </form>
         </div>
 
         @forelse($messages as $message)
@@ -63,4 +65,17 @@
         </div>
     </div>
 </div>
+<script>
+(function() {
+    var inp = document.getElementById('messages-search-input');
+    if (!inp) return;
+    var timer;
+    inp.addEventListener('input', function() {
+        clearTimeout(timer);
+        timer = setTimeout(function() {
+            document.getElementById('messages-filter-form').submit();
+        }, 300);
+    });
+})();
+</script>
 @endsection

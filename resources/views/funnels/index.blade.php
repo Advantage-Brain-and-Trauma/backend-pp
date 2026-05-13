@@ -31,9 +31,9 @@
       </form>
 
     </div>
-    <form method="GET" action="{{ route('funnels.index') }}" style="display:flex;gap:8px;align-items:center;">
+    <form id="funnels-filter-form" method="GET" action="{{ route('funnels.index') }}" style="display:flex;gap:8px;align-items:center;">
       @if(request('per_page')) <input type="hidden" name="per_page" value="{{ request('per_page') }}"> @endif
-      <input type="text" name="search" value="{{ request('search') }}" placeholder="Search..."
+      <input type="text" id="funnels-search-input" name="search" value="{{ request('search') }}" placeholder="Search..."
         style="padding:8px 14px;border:1px solid #e5e7eb;border-radius:8px;font-size:13px;background:#f9fafb;color:#374151;width:220px;outline:none;">
     </form>
   </div>
@@ -201,5 +201,18 @@ function copyFunnelUrl(url) {
     prompt('Copy this URL:', url);
   });
 }
+
+// Live search
+(function() {
+  var inp = document.getElementById('funnels-search-input');
+  if (!inp) return;
+  var timer;
+  inp.addEventListener('input', function() {
+    clearTimeout(timer);
+    timer = setTimeout(function() {
+      document.getElementById('funnels-filter-form').submit();
+    }, 300);
+  });
+})();
 </script>
 @endsection
