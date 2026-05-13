@@ -271,6 +271,7 @@ class FunnelApiController extends Controller
             if ($request->hasFile('fields')) {
                 foreach ($request->file('fields') as $fieldId => $file) {
                     if ($file && $file->isValid()) {
+                        
                         $originalName = pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME);
                         $extension    = $file->getClientOriginalExtension();
 
@@ -278,6 +279,11 @@ class FunnelApiController extends Controller
 
                         $path = $file->storeAs('form-uploads/' . $formId, $filename, 'public');
                         $formData[$fieldId] = $path;
+
+                        Log::channel('patient_form')->info('File uploaded for form submission', [
+                            'field_id' => $fieldId,
+                            'file_path' => $path
+                        ]);
                     }
                 }
             }else{
