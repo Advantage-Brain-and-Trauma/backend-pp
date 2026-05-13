@@ -354,6 +354,7 @@ class FunnelApiController extends Controller
 
             return response()->json([
                 'status'  => false,
+                'error' => $e->getMessage(),
                 'message' => 'Something went wrong while submitting the form.',
             ], 500);
         }
