@@ -330,18 +330,36 @@
                 'draft'     => ['bg'=>'#fffbeb','text'=>'#d97706','label'=>'Draft'],
                 default     => ['bg'=>'#eff6ff','text'=>'#2563eb','label'=>ucfirst($sub->status)],
             };
+            $subName = $sub->patient_name;
+            $subEmail = $sub->patient_email;
+            if (!$subName && is_array($sub->data)) {
+                foreach ($sub->data as $val) {
+                    if (is_array($val) && (isset($val['first']) || isset($val['last']))) {
+                        $subName = trim(($val['first'] ?? '') . ' ' . ($val['last'] ?? ''));
+                        break;
+                    }
+                }
+                if (!$subEmail) {
+                    foreach ($sub->data as $val) {
+                        if (is_string($val) && filter_var($val, FILTER_VALIDATE_EMAIL)) {
+                            $subEmail = $val;
+                            break;
+                        }
+                    }
+                }
+            }
         @endphp
         <div class="fa-sub-row">
             <div style="display:flex;align-items:center;gap:12px;flex:1;min-width:0;">
                 <div style="width:34px;height:34px;border-radius:10px;background:linear-gradient(135deg,#dbeafe,#bfdbfe);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;color:#1d4ed8;flex-shrink:0;">
-                    {{ strtoupper(substr($sub->patient_name ?: 'A', 0, 1)) }}
+                    {{ strtoupper(substr($subName ?: 'A', 0, 1)) }}
                 </div>
                 <div style="min-width:0;">
                     <div style="font-size:13px;font-weight:600;color:#0f172a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
-                        {{ $sub->patient_name ?: 'Anonymous' }}
+                        {{ $subName ?: 'Anonymous' }}
                     </div>
-                    @if($sub->patient_email)
-                    <div style="font-size:11px;color:#94a3b8;">{{ $sub->patient_email }}</div>
+                    @if($subEmail)
+                    <div style="font-size:11px;color:#94a3b8;">{{ $subEmail }}</div>
                     @endif
                 </div>
             </div>
