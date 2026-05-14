@@ -126,19 +126,7 @@
 .fa-empty-icon { font-size:40px; margin-bottom:12px; opacity:.4; }
 
 /* Pagination */
-.fa-pagination { display:flex; justify-content:center; align-items:center; gap:6px; margin-top:8px; }
-.fa-pagination nav { display:flex; justify-content:center; }
-.fa-pagination .pagination { display:flex; gap:4px; list-style:none; padding:0; margin:0; }
-.fa-pagination .page-item .page-link {
-    display:inline-flex; align-items:center; justify-content:center;
-    min-width:38px; height:38px; padding:0 12px;
-    font-size:13px; font-weight:600; border-radius:10px;
-    border:1.5px solid #e2e8f0; background:#fff; color:#475569;
-    text-decoration:none; transition:all .2s;
-}
-.fa-pagination .page-item .page-link:hover { border-color:#3b82f6; color:#3b82f6; background:#eff6ff; }
-.fa-pagination .page-item.active .page-link { background:#3b82f6; color:#fff; border-color:#3b82f6; }
-.fa-pagination .page-item.disabled .page-link { opacity:.4; pointer-events:none; }
+.fa-pagination { display:flex; justify-content:center; align-items:center; margin-top:8px; }
 </style>
 @endpush
 
@@ -391,7 +379,7 @@
 
     @if($forms->hasPages())
     <div class="fa-pagination">
-        {{ $forms->links() }}
+        {{ $forms->links('vendor.pagination.custom') }}
     </div>
     @endif
 
