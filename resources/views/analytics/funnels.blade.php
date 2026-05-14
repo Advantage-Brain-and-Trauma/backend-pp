@@ -216,6 +216,7 @@
     </div>
 
     {{-- ── Per-Funnel Cards ────────────────────────────────────────── --}}
+    <div id="fna-cards-container">
     @forelse($funnels as $funnel)
     @php
         $total      = $funnel->stats['total'];
@@ -387,6 +388,7 @@
         {{ $funnels->links('vendor.pagination.custom') }}
     </div>
     @endif
+    </div>
 
 </div>
 
@@ -402,7 +404,27 @@ function fnaRange(days) {
 var _fnaTimer;
 document.getElementById('fna-search').addEventListener('input', function() {
     clearTimeout(_fnaTimer);
-    _fnaTimer = setTimeout(function() { document.getElementById('fna-filter-form').submit(); }, 500);
+    var searchEl = this;
+    _fnaTimer = setTimeout(function() {
+        var form = document.getElementById('fna-filter-form');
+        var params = new URLSearchParams(new FormData(form)).toString();
+        var url = window.location.pathname + '?' + params;
+        history.replaceState(null, '', url);
+        fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+            .then(function(r) { return r.text(); })
+            .then(function(html) {
+                var parser = new DOMParser();
+                var doc = parser.parseFromString(html, 'text/html');
+                var newCards = doc.getElementById('fna-cards-container');
+                if (newCards) {
+                    document.getElementById('fna-cards-container').innerHTML = newCards.innerHTML;
+                }
+                searchEl.focus();
+                var val = searchEl.value;
+                searchEl.value = '';
+                searchEl.value = val;
+            });
+    }, 500);
 });
 </script>
 @endsection

@@ -220,6 +220,7 @@
     </div>
 
     {{-- ── Per-Form Cards ──────────────────────────────────────────── --}}
+    <div id="fa-cards-container">
     @forelse($forms as $form)
     @php
         $total     = $form->stats['total_submissions'];
@@ -386,6 +387,7 @@
         {{ $forms->links('vendor.pagination.custom') }}
     </div>
     @endif
+    </div>
 
 </div>
 
@@ -401,7 +403,27 @@ function faRange(days) {
 var _faTimer;
 document.getElementById('fa-search').addEventListener('input', function() {
     clearTimeout(_faTimer);
-    _faTimer = setTimeout(function() { document.getElementById('fa-filter-form').submit(); }, 500);
+    var searchEl = this;
+    _faTimer = setTimeout(function() {
+        var form = document.getElementById('fa-filter-form');
+        var params = new URLSearchParams(new FormData(form)).toString();
+        var url = window.location.pathname + '?' + params;
+        history.replaceState(null, '', url);
+        fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+            .then(function(r) { return r.text(); })
+            .then(function(html) {
+                var parser = new DOMParser();
+                var doc = parser.parseFromString(html, 'text/html');
+                var newCards = doc.getElementById('fa-cards-container');
+                if (newCards) {
+                    document.getElementById('fa-cards-container').innerHTML = newCards.innerHTML;
+                }
+                searchEl.focus();
+                var val = searchEl.value;
+                searchEl.value = '';
+                searchEl.value = val;
+            });
+    }, 500);
 });
 </script>
 @endsection
