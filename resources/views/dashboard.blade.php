@@ -38,8 +38,8 @@
     <div class="stat-card">
         <div class="stat-icon red"><i class="fas fa-inbox"></i></div>
         <div class="stat-info">
-            <div class="stat-value">{{ $stats['pending_submissions'] }}</div>
-            <div class="stat-label">Pending Submissions</div>
+            <div class="stat-value">{{ $stats['total_submissions'] }}</div>
+            <div class="stat-label">Total Submissions</div>
         </div>
     </div>
     <div class="stat-card">
