@@ -539,6 +539,7 @@
 
         .pagination nav { display: flex; justify-content: flex-end; }
     </style>
+    @stack('styles')
 </head>
 <body>
 
