@@ -285,7 +285,7 @@
                 @php
                     $trendDates  = array_keys($stats['daily_trend']);
                     $trendCounts = array_values($stats['daily_trend']);
-                    $maxCount    = max(max($trendCounts), 1);
+                    $maxCount    = !empty($trendCounts) ? max(max($trendCounts), 1) : 1;
                     $tCount      = count($trendDates);
                 @endphp
 

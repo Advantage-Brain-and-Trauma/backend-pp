@@ -224,7 +224,7 @@
         $inProgress = $funnel->stats['in_progress'];
         $rate       = $funnel->stats['rate'];
         $trend      = array_values($funnel->stats['daily_trend']);
-        $maxTrend   = max(max($trend), 1);
+        $maxTrend   = !empty($trend) ? max(max($trend), 1) : 1;
         $rateColor  = $rate >= 75 ? '#22c55e' : ($rate >= 40 ? '#f59e0b' : '#ef4444');
         $steps      = is_array($funnel->steps) ? $funnel->steps : (json_decode($funnel->steps ?? '[]', true) ?: []);
     @endphp
