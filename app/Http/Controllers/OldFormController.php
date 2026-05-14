@@ -25,8 +25,8 @@ class OldFormController extends Controller
         try {
             $allOldForms = DB::connection('patient_portal')->table('forms')->whereNull('deleted_at')->get();
 
-            // Get slugs of already-synced forms from test_pp.forms
-            $syncedSlugs = Form::pluck('slug')->toArray();
+            // Get slugs of already-synced forms from test_pp.forms (include soft-deleted)
+            $syncedSlugs = Form::withTrashed()->pluck('slug')->toArray();
 
             // Filter out old forms whose slug (title-slug + id) already exists in test_pp.forms
             $filteredForms = $allOldForms->filter(function ($form) use ($syncedSlugs) {
@@ -76,16 +76,36 @@ class OldFormController extends Controller
 
             $slug = Str::slug($oldForm->title ?? 'untitled') . '-' . $oldForm->id;
 
-            Form::create([
-                'name'             => $oldForm->title ?? 'Untitled',
-                'description'      => $oldForm->description ?? null,
-                'slug'             => $slug,
-                'email'            => $oldForm->email ?? null,
-                'fields'           => $transformedFields,
-                'created_by'       => auth()->id(),
-                'is_active'        => 1,
-                'submission_count' => 0,
-            ]);
+            // Check if a soft-deleted form with this slug exists — restore it
+            $existingForm = Form::withTrashed()->where('slug', $slug)->first();
+            if ($existingForm) {
+                if ($existingForm->trashed()) {
+                    $existingForm->restore();
+                    $existingForm->update([
+                        'name'             => $oldForm->title ?? 'Untitled',
+                        'description'      => $oldForm->description ?? null,
+                        'email'            => $oldForm->email ?? null,
+                        'fields'           => $transformedFields,
+                        'is_active'        => 1,
+                    ]);
+                } else {
+                    return response()->json([
+                        'status'  => false,
+                        'message' => 'This form has already been synced.',
+                    ], 409);
+                }
+            } else {
+                Form::create([
+                    'name'             => $oldForm->title ?? 'Untitled',
+                    'description'      => $oldForm->description ?? null,
+                    'slug'             => $slug,
+                    'email'            => $oldForm->email ?? null,
+                    'fields'           => $transformedFields,
+                    'created_by'       => auth()->id(),
+                    'is_active'        => 1,
+                    'submission_count' => 0,
+                ]);
+            }
 
             return response()->json([
                 'status'  => true,

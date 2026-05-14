@@ -297,7 +297,7 @@ function syncForm(formId, btn) {
         } else {
             btn.disabled = false;
             btn.innerHTML = originalHtml;
-            showGlobalToast(res.message || 'Sync failed.', 'error');
+            showGlobalToast(res.error || res.message || 'Sync failed.', 'error');
         }
     })
     .catch(function(err) {
