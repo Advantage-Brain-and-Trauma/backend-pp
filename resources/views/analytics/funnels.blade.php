@@ -151,7 +151,7 @@
             <div class="fna-filter-inner">
                 <div class="fna-filter-field">
                     <label>Search Funnel</label>
-                    <input type="text" name="search" value="{{ $search }}" placeholder="Funnel name..." style="height:40px;border:1.5px solid #e2e8f0;border-radius:10px;padding:0 12px;font-size:13px;color:#1e293b;background:#f8fafc;outline:none;transition:border .2s;width:180px;">
+                    <input type="text" name="search" id="fna-search" value="{{ $search }}" placeholder="Funnel name..." style="height:40px;border:1.5px solid #e2e8f0;border-radius:10px;padding:0 12px;font-size:13px;color:#1e293b;background:#f8fafc;outline:none;transition:border .2s;width:180px;">
                 </div>
                 <div class="fna-filter-field">
                     <label>From Date</label>
@@ -399,5 +399,10 @@ function fnaRange(days) {
     document.getElementById('fna-to').value   = to.toISOString().split('T')[0];
     document.getElementById('fna-filter-form').submit();
 }
+var _fnaTimer;
+document.getElementById('fna-search').addEventListener('input', function() {
+    clearTimeout(_fnaTimer);
+    _fnaTimer = setTimeout(function() { document.getElementById('fna-filter-form').submit(); }, 500);
+});
 </script>
 @endsection

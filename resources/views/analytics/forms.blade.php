@@ -155,7 +155,7 @@
             <div class="fa-filter-inner">
                 <div class="fa-filter-field">
                     <label>Search Form</label>
-                    <input type="text" name="search" value="{{ $search }}" placeholder="Form name..." style="height:40px;border:1.5px solid #e2e8f0;border-radius:10px;padding:0 12px;font-size:13px;color:#1e293b;background:#f8fafc;outline:none;transition:border .2s;width:180px;">
+                    <input type="text" name="search" id="fa-search" value="{{ $search }}" placeholder="Form name..." style="height:40px;border:1.5px solid #e2e8f0;border-radius:10px;padding:0 12px;font-size:13px;color:#1e293b;background:#f8fafc;outline:none;transition:border .2s;width:180px;">
                 </div>
                 <div class="fa-filter-field">
                     <label>From Date</label>
@@ -398,5 +398,10 @@ function faRange(days) {
     document.getElementById('fa-to').value   = to.toISOString().split('T')[0];
     document.getElementById('fa-filter-form').submit();
 }
+var _faTimer;
+document.getElementById('fa-search').addEventListener('input', function() {
+    clearTimeout(_faTimer);
+    _faTimer = setTimeout(function() { document.getElementById('fa-filter-form').submit(); }, 500);
+});
 </script>
 @endsection
