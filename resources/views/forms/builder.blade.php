@@ -532,17 +532,17 @@ body {
   background: var(--canvas-bg); z-index: 50; overflow-y: auto;
   padding: 40px 24px;
 }
-.preview-overlay.visible { display: flex; justify-content: center; }
+.preview-overlay.visible { display: flex; justify-content: center; align-items: flex-start; }
 .preview-form {
   width: 100%; max-width: 700px;
   background: var(--bg-panel); border: 1px solid var(--border);
-  border-radius: var(--radius-lg); overflow: hidden;
+  border-radius: var(--radius-lg);
   box-shadow: var(--shadow-lg);
 }
-.preview-form-header { padding: 32px 36px 24px; border-bottom: 1px solid var(--border); }
+.preview-form-header { padding: 32px 36px 24px; border-bottom: 1px solid var(--border); border-radius: var(--radius-lg) var(--radius-lg) 0 0; }
 .preview-form h2 { font-size: 24px; font-weight: 700; margin-bottom: 6px; color: var(--text-primary); }
 .preview-form p { font-size: 13px; color: var(--text-muted); margin-bottom: 0; }
-.preview-form-body { padding: 24px 28px; background: #f3f4f6; }
+.preview-form-body { padding: 24px 28px; background: #f3f4f6; border-radius: 0 0 var(--radius-lg) var(--radius-lg); }
 [data-theme="dark"] .preview-form-body { background: var(--bg-card); }
 .preview-field {
   margin-bottom: 16px; background: #fff; border: 1px solid var(--border);
