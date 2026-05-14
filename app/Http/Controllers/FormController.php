@@ -45,6 +45,19 @@ class FormController extends Controller
         $currentSort = $sortCol;
         $currentDir  = $sortDir;
 
+        // AJAX live-search: return only the table rows + pagination info
+        if ($request->ajax() || $request->header('X-Requested-With') === 'XMLHttpRequest') {
+            $rowsHtml = view('forms.partials.table-rows', compact('forms'))->render();
+            $paginationHtml = $forms->withQueryString()->links()->toHtml();
+            return response()->json([
+                'rows'       => $rowsHtml,
+                'pagination' => $paginationHtml,
+                'total'      => $forms->total(),
+                'from'       => $forms->firstItem() ?? 0,
+                'to'         => $forms->lastItem() ?? 0,
+            ]);
+        }
+
         return view('forms.index', compact('forms', 'currentSort', 'currentDir'));
     }
 

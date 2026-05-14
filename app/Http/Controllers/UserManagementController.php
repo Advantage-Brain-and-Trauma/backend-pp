@@ -218,6 +218,18 @@ class UserManagementController extends Controller
         $countryCodes = $this->countryCodes();
         $currentSort  = $sortCol;
         $currentDir   = $sortDir;
+
+        // AJAX live-search: return only the table rows + pagination info
+        if ($request->ajax() || $request->header('X-Requested-With') === 'XMLHttpRequest') {
+            $rowsHtml = view('user-management.partials.table-rows', compact('users'))->render();
+            return response()->json([
+                'rows'  => $rowsHtml,
+                'total' => $users->total(),
+                'from'  => $users->firstItem() ?? 0,
+                'to'    => $users->lastItem() ?? 0,
+            ]);
+        }
+
         return view('user-management.index', compact('users', 'perPage', 'search', 'countryCodes', 'currentSort', 'currentDir'));
     }
 

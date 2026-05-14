@@ -39,6 +39,18 @@ class FunnelController extends Controller
         });
         $currentSort = $sortCol;
         $currentDir  = $sortDir;
+
+        // AJAX live-search: return only the table rows + pagination info
+        if ($request->ajax() || $request->header('X-Requested-With') === 'XMLHttpRequest') {
+            $rowsHtml = view('funnels.partials.table-rows', compact('funnels'))->render();
+            return response()->json([
+                'rows'  => $rowsHtml,
+                'total' => $funnels->total(),
+                'from'  => $funnels->firstItem() ?? 0,
+                'to'    => $funnels->lastItem() ?? 0,
+            ]);
+        }
+
         return view('funnels.index', compact('funnels', 'currentSort', 'currentDir'));
     }
 

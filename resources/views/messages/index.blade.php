@@ -24,6 +24,7 @@
             </form>
         </div>
 
+        <div id="messages-list-container">
         @forelse($messages as $message)
         <a href="{{ route('messages.show', $message) }}" style="display:block; padding:16px; border-bottom:1px solid #f3f4f6; text-decoration:none; {{ !$message->is_read && $message->sender_type === 'patient' ? 'background:#fef2f2;' : 'background:white;' }} transition:background 0.15s;" onmouseover="this.style.background='#f9fafb'" onmouseout="this.style.background='{{ !$message->is_read && $message->sender_type === 'patient' ? '#fef2f2' : 'white' }}'">
             <div style="display:flex; align-items:center; gap:10px; margin-bottom:6px;">
@@ -54,6 +55,7 @@
             No messages yet
         </div>
         @endforelse
+        </div>
     </div>
 
     <!-- Empty State / Select Message -->
@@ -66,22 +68,41 @@
     </div>
 </div>
 <script>
+// Live search — AJAX in-place (no page reload, cursor stays in input)
 (function() {
-    var inp = document.getElementById('messages-search-input');
-    if (!inp) return;
+    var inp       = document.getElementById('messages-search-input');
+    var form      = document.getElementById('messages-filter-form');
+    var container = document.getElementById('messages-list-container');
+    if (!inp || !form || !container) return;
+
     var timer;
+
     inp.addEventListener('keydown', function(e) {
-        if (e.key === 'Enter') { e.preventDefault(); }
+        if (e.key === 'Enter') { e.preventDefault(); doSearch(); }
     });
-    document.getElementById('messages-filter-form').addEventListener('submit', function(e) {
-        if (document.activeElement === inp) { e.preventDefault(); }
+    form.addEventListener('submit', function(e) {
+        e.preventDefault();
+        doSearch();
     });
     inp.addEventListener('input', function() {
         clearTimeout(timer);
-        timer = setTimeout(function() {
-            document.getElementById('messages-filter-form').submit();
-        }, 300);
+        timer = setTimeout(doSearch, 300);
     });
+
+    function doSearch() {
+        var params = new URLSearchParams();
+        params.set('search', inp.value);
+
+        fetch('{{ route('messages.index') }}?' + params.toString(), {
+            headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' }
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            container.innerHTML = data.items;
+            history.replaceState(null, '', '{{ route('messages.index') }}?' + params.toString());
+        })
+        .catch(function(err) { console.error('Search error', err); });
+    }
 })();
 </script>
 @endsection

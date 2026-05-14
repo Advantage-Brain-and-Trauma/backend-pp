@@ -20,6 +20,15 @@ class MessageController extends Controller
             })
             ->latest()
             ->paginate(30);
+        // AJAX live-search: return only the list items
+        if ($request->ajax() || $request->header('X-Requested-With') === 'XMLHttpRequest') {
+            $itemsHtml = view('messages.partials.list-items', compact('messages'))->render();
+            return response()->json([
+                'items' => $itemsHtml,
+                'total' => $messages->total(),
+            ]);
+        }
+
         return view('messages.index', compact('messages', 'search'));
     }
 

@@ -121,7 +121,7 @@
                     <th style="text-align:center;">Actions</th>
                 </tr>
             </thead>
-            <tbody>
+            <tbody id="users-table-body">
                 @forelse($users as $user)
                 <tr id="user-row-{{ $user->id }}">
                     <td style="font-weight:600; color:#1a1a2e;">{{ $user->name }}</td>
@@ -190,14 +190,20 @@
     </div>
 
     {{-- Pagination --}}
+    <div id="users-pagination-wrap">
     @if($users->hasPages())
     <div class="pagination" style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px;">
-        <div style="font-size:13px; color:#6b7280;">
+        <div id="users-footer-text" style="font-size:13px; color:#6b7280;">
             Showing {{ $users->firstItem() }} to {{ $users->lastItem() }} of {{ $users->total() }} results
         </div>
         <div>{{ $users->onEachSide(2)->links('vendor.pagination.custom') }}</div>
     </div>
+    @else
+    <div id="users-footer-text" style="font-size:13px; color:#6b7280; padding:14px 20px;">
+        Showing {{ $users->firstItem() ?? 0 }} to {{ $users->lastItem() ?? 0 }} of {{ $users->total() }} results
+    </div>
     @endif
+    </div>
 </div>
 
 {{-- Country codes data for JS --}}
@@ -543,23 +549,48 @@ document.getElementById('createModal').addEventListener('click', function(e) { i
 document.getElementById('editModal').addEventListener('click', function(e) { if (e.target === this) closeEditModal(); });
 document.getElementById('deleteModal').addEventListener('click', function(e) { if (e.target === this) cancelDelete(); });
 
-// Live search
+// Live search — AJAX in-place (no page reload, cursor stays in input)
 (function() {
-    var inp = document.getElementById('users-search-input');
-    if (!inp) return;
+    var inp    = document.getElementById('users-search-input');
+    var form   = document.getElementById('users-filter-form');
+    var tbody  = document.getElementById('users-table-body');
+    var footer = document.getElementById('users-footer-text');
+    if (!inp || !form || !tbody) return;
+
     var timer;
+
     inp.addEventListener('keydown', function(e) {
-        if (e.key === 'Enter') { e.preventDefault(); }
+        if (e.key === 'Enter') { e.preventDefault(); doSearch(); }
     });
-    document.getElementById('users-filter-form').addEventListener('submit', function(e) {
-        if (document.activeElement === inp) { e.preventDefault(); }
+    form.addEventListener('submit', function(e) {
+        e.preventDefault();
+        doSearch();
     });
     inp.addEventListener('input', function() {
         clearTimeout(timer);
-        timer = setTimeout(function() {
-            document.getElementById('users-filter-form').submit();
-        }, 300);
+        timer = setTimeout(doSearch, 300);
     });
+
+    function doSearch() {
+        var params = new URLSearchParams();
+        params.set('search', inp.value);
+        var perPage = document.querySelector('[name="per_page"]');
+        if (perPage) params.set('per_page', perPage.value);
+        var url = new URL(window.location.href);
+        if (url.searchParams.get('sort'))      params.set('sort',      url.searchParams.get('sort'));
+        if (url.searchParams.get('direction')) params.set('direction', url.searchParams.get('direction'));
+
+        fetch('{{ route('user-management.index') }}?' + params.toString(), {
+            headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' }
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            tbody.innerHTML = data.rows;
+            if (footer) footer.textContent = 'Showing ' + data.from + ' to ' + data.to + ' of ' + data.total + ' results';
+            history.replaceState(null, '', '{{ route('user-management.index') }}?' + params.toString());
+        })
+        .catch(function(err) { console.error('Search error', err); });
+    }
 })();
 </script>
 @endsection

@@ -198,7 +198,7 @@
                     <th>Actions</th>
                 </tr>
             </thead>
-            <tbody>
+            <tbody id="forms-table-body">
                 @forelse($forms as $form)
                 <tr id="form-row-{{ $form->id }}">
                     <td style="text-align:center;">
@@ -261,7 +261,7 @@
         <div id="pagination-footer-text" style="font-size:13px;color:#6b7280;">
             Showing {{ $forms->firstItem() ?? 0 }} to {{ $forms->lastItem() ?? 0 }} of {{ $forms->total() }} results
         </div>
-        <div style="display:flex;gap:4px;align-items:center;">
+        <div id="forms-pagination" style="display:flex;gap:4px;align-items:center;">
             @if($forms->onFirstPage())
                 <span style="padding:6px 12px;border-radius:7px;border:1px solid #e5e7eb;background:#f9fafb;color:#d1d5db;font-size:13px;">&#8249;</span>
             @else
@@ -545,26 +545,60 @@ function toggleFormStatus(formId, wrapEl) {
     });
 }
 
-// Live search — submit form after user stops typing (300ms debounce)
+// Live search — AJAX in-place (no page reload, cursor stays in input)
 (function() {
-    var inp = document.getElementById('forms-search-input');
-    if (!inp) return;
+    var inp    = document.getElementById('forms-search-input');
+    var form   = document.getElementById('forms-filter-form');
+    var tbody  = document.getElementById('forms-table-body');
+    var footer = document.getElementById('pagination-footer-text');
+    if (!inp || !form || !tbody) return;
+
     var timer;
-    // Prevent Enter key from submitting the form natively (space is already safe with the submit listener below)
+
+    // Prevent any native form submission while typing
     inp.addEventListener('keydown', function(e) {
-        if (e.key === 'Enter') { e.preventDefault(); }
+        if (e.key === 'Enter') { e.preventDefault(); doSearch(); }
     });
-    // Block ALL native form submissions from this form; only the debounce timer should navigate
-    document.getElementById('forms-filter-form').addEventListener('submit', function(e) {
-        // Allow status-select and search-button submits only when NOT triggered by keyboard on the text input
-        if (document.activeElement === inp) { e.preventDefault(); }
+    form.addEventListener('submit', function(e) {
+        e.preventDefault();
+        doSearch();
     });
+
+    // Status dropdown also triggers AJAX search
+    var statusSel = document.getElementById('forms-status-select');
+    if (statusSel) {
+        statusSel.removeAttribute('onchange');
+        statusSel.addEventListener('change', function() { doSearch(); });
+    }
+
     inp.addEventListener('input', function() {
         clearTimeout(timer);
-        timer = setTimeout(function() {
-            document.getElementById('forms-filter-form').submit();
-        }, 300);
+        timer = setTimeout(doSearch, 300);
     });
+
+    function doSearch() {
+        var params = new URLSearchParams();
+        params.set('search', inp.value);
+        if (statusSel) params.set('status', statusSel.value);
+        var perPage = document.querySelector('[name="per_page"]');
+        if (perPage) params.set('per_page', perPage.value);
+        // Preserve sort params from current URL
+        var url = new URL(window.location.href);
+        if (url.searchParams.get('sort'))      params.set('sort',      url.searchParams.get('sort'));
+        if (url.searchParams.get('direction')) params.set('direction', url.searchParams.get('direction'));
+
+        fetch('{{ route('forms.index') }}?' + params.toString(), {
+            headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' }
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            tbody.innerHTML = data.rows;
+            if (footer) footer.textContent = 'Showing ' + data.from + ' to ' + data.to + ' of ' + data.total + ' results';
+            // Update browser URL without reload
+            history.replaceState(null, '', '{{ route('forms.index') }}?' + params.toString());
+        })
+        .catch(function(err) { console.error('Search error', err); });
+    }
 })();
 </script>
 @endsection

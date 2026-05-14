@@ -64,7 +64,7 @@
           <th style="padding:12px 20px;text-align:right;font-size:12px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:0.05em;width:140px;">ACTION</th>
         </tr>
       </thead>
-      <tbody>
+      <tbody id="funnels-table-body">
         @forelse($funnels as $funnel)
         <tr style="border-bottom:1px solid #f3f4f6;transition:background 0.1s;" onmouseover="this.style.background='#f9fafb'" onmouseout="this.style.background=''">
           <td style="padding:14px 20px;font-size:14px;color:#6b7280;">{{ $loop->iteration + ($funnels->currentPage() - 1) * $funnels->perPage() }}</td>
@@ -123,7 +123,7 @@
 
   <!-- Footer / Pagination -->
   <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-top:1px solid #e5e7eb;flex-wrap:wrap;gap:10px;">
-    <div style="font-size:13px;color:#6b7280;">
+    <div id="funnels-footer-text" style="font-size:13px;color:#6b7280;">
       Showing {{ $funnels->firstItem() ?? 0 }} to {{ $funnels->lastItem() ?? 0 }} of {{ $funnels->total() }} entries
     </div>
     <div style="display:flex;gap:4px;align-items:center;">
@@ -214,23 +214,48 @@ function copyFunnelUrl(url) {
   });
 }
 
-// Live search
+// Live search — AJAX in-place (no page reload, cursor stays in input)
 (function() {
-  var inp = document.getElementById('funnels-search-input');
-  if (!inp) return;
+  var inp    = document.getElementById('funnels-search-input');
+  var form   = document.getElementById('funnels-filter-form');
+  var tbody  = document.getElementById('funnels-table-body');
+  var footer = document.getElementById('funnels-footer-text');
+  if (!inp || !form || !tbody) return;
+
   var timer;
+
   inp.addEventListener('keydown', function(e) {
-    if (e.key === 'Enter') { e.preventDefault(); }
+    if (e.key === 'Enter') { e.preventDefault(); doSearch(); }
   });
-  document.getElementById('funnels-filter-form').addEventListener('submit', function(e) {
-    if (document.activeElement === inp) { e.preventDefault(); }
+  form.addEventListener('submit', function(e) {
+    e.preventDefault();
+    doSearch();
   });
   inp.addEventListener('input', function() {
     clearTimeout(timer);
-    timer = setTimeout(function() {
-      document.getElementById('funnels-filter-form').submit();
-    }, 300);
+    timer = setTimeout(doSearch, 300);
   });
+
+  function doSearch() {
+    var params = new URLSearchParams();
+    params.set('search', inp.value);
+    var perPage = document.querySelector('[name="per_page"]');
+    if (perPage) params.set('per_page', perPage.value);
+    var url = new URL(window.location.href);
+    if (url.searchParams.get('sort'))      params.set('sort',      url.searchParams.get('sort'));
+    if (url.searchParams.get('direction')) params.set('direction', url.searchParams.get('direction'));
+
+    fetch('{{ route('funnels.index') }}?' + params.toString(), {
+      headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' }
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      tbody.innerHTML = data.rows;
+      if (footer) footer.textContent = 'Showing ' + data.from + ' to ' + data.to + ' of ' + data.total + ' entries';
+      history.replaceState(null, '', '{{ route('funnels.index') }}?' + params.toString());
+    })
+    .catch(function(err) { console.error('Search error', err); });
+  }
 })();
 </script>
 @endsection
