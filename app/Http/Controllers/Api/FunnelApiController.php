@@ -423,7 +423,6 @@ class FunnelApiController extends Controller
                     $groupedFunnels['Consent'][] = $funnel;
 
                 } else {
-
                     $groupedFunnels['Other'][] = $funnel;
                 }
             }
@@ -431,6 +430,7 @@ class FunnelApiController extends Controller
             return response()->json([
                 'status'  => true,
                 'message' => 'Funnels retrieved successfully.',
+                'records' => count($funnels),
                 'data'    => $groupedFunnels,
             ], 200);
 
