@@ -71,11 +71,19 @@
     line-height: 1.5;
 }
 .pv-card-body {
-    padding: 32px 36px;
+    padding: 24px 28px;
+    background: #f3f4f6;
 }
 
 /* ── Fields ─────────────────────────────────────────────────── */
-.pv-field { margin-bottom: 22px; }
+.pv-field {
+    margin-bottom: 16px;
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    padding: 18px 20px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+}
 .pv-label {
     display: block;
     font-size: 13px;
@@ -228,6 +236,16 @@
 /* Divider */
 .pv-divider { border: none; border-top: 1px solid #e5e7eb; margin: 4px 0; }
 
+/* Layout-only fields: no white box */
+.pv-field.pv-field-header,
+.pv-field.pv-field-paragraph,
+.pv-field.pv-field-divider {
+    background: transparent;
+    border: none;
+    box-shadow: none;
+    padding: 4px 0;
+}
+
 /* Multi-col row */
 .pv-row { display: flex; gap: 18px; }
 .pv-row .pv-field { flex: 1; min-width: 0; }
@@ -327,12 +345,15 @@ function renderField(field) {
 
     switch (field.type) {
         case 'header':
+            wrap.classList.add('pv-field-header');
             wrap.innerHTML = `<div class="pv-section-header"><h3>${esc(field.content || 'Section')}</h3></div>`;
             break;
         case 'paragraph':
+            wrap.classList.add('pv-field-paragraph');
             wrap.innerHTML = `<div class="pv-para">${esc(field.content || '')}</div>`;
             break;
         case 'divider':
+            wrap.classList.add('pv-field-divider');
             wrap.innerHTML = `<hr class="pv-divider">`;
             break;
         case 'image': {
@@ -350,6 +371,7 @@ function renderField(field) {
             break;
         }
         case 'submit':
+            wrap.classList.add('pv-field-divider'); // reuse transparent style
             wrap.innerHTML = '';
             break;
         case 'text': case 'email': case 'phone': case 'number': case 'date': case 'time': case 'password':
