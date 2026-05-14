@@ -760,7 +760,6 @@ body {
     </div>
     <div class="preview-form-body">
       <div id="previewFields"></div>
-      <button class="preview-submit">Submit Form</button>
     </div>
   </div>
 </div>
