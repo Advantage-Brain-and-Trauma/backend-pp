@@ -41,7 +41,7 @@ class AnalyticsController extends Controller
                                     : 0,
         ];
 
-        $funnels = Funnel::withCount('submissions')->orderBy('submissions_count', 'desc')->get();
+        $funnels = Funnel::withCount('submissions')->orderBy('submissions_count', 'desc')->paginate(5)->withQueryString();
 
         foreach ($funnels as $funnel) {
             $formIds = is_array($funnel->form_ids) ? $funnel->form_ids
@@ -113,7 +113,7 @@ class AnalyticsController extends Controller
                 : 0,
         ];
 
-        $forms = Form::withCount('submissions')->orderBy('submissions_count', 'desc')->get();
+        $forms = Form::withCount('submissions')->orderBy('submissions_count', 'desc')->paginate(5)->withQueryString();
 
         foreach ($forms as $form) {
             // Field count

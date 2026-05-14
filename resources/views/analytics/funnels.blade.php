@@ -120,6 +120,21 @@
 /* Empty */
 .fna-empty { padding:48px; text-align:center; color:#94a3b8; }
 .fna-empty-icon { font-size:40px; margin-bottom:12px; opacity:.4; }
+
+/* Pagination */
+.fna-pagination { display:flex; justify-content:center; align-items:center; gap:6px; margin-top:8px; }
+.fna-pagination nav { display:flex; justify-content:center; }
+.fna-pagination .pagination { display:flex; gap:4px; list-style:none; padding:0; margin:0; }
+.fna-pagination .page-item .page-link {
+    display:inline-flex; align-items:center; justify-content:center;
+    min-width:38px; height:38px; padding:0 12px;
+    font-size:13px; font-weight:600; border-radius:10px;
+    border:1.5px solid #e2e8f0; background:#fff; color:#475569;
+    text-decoration:none; transition:all .2s;
+}
+.fna-pagination .page-item .page-link:hover { border-color:#6366f1; color:#6366f1; background:#f5f3ff; }
+.fna-pagination .page-item.active .page-link { background:#6366f1; color:#fff; border-color:#6366f1; }
+.fna-pagination .page-item.disabled .page-link { opacity:.4; pointer-events:none; }
 </style>
 @endpush
 
@@ -374,6 +389,12 @@
         <a href="{{ route('funnels.create') }}" class="btn btn-primary">Create Funnel</a>
     </div>
     @endforelse
+
+    @if($funnels->hasPages())
+    <div class="fna-pagination">
+        {{ $funnels->links() }}
+    </div>
+    @endif
 
 </div>
 
