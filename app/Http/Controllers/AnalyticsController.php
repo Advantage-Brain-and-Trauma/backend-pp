@@ -16,82 +16,156 @@ class AnalyticsController extends Controller
     /**
      * Funnel Analytics — per-funnel stats with submission breakdown
      */
-    public function funnels()
+    public function funnels(Request $request)
     {
+        $from     = $request->input('from', now()->subDays(30)->format('Y-m-d'));
+        $to       = $request->input('to',   now()->format('Y-m-d'));
+        $fromDate = \Carbon\Carbon::parse($from)->startOfDay();
+        $toDate   = \Carbon\Carbon::parse($to)->endOfDay();
+
+        // All-time summary stats
+        $allFunnelSubs   = FormSubmission::whereNotNull('funnel_id')->count();
+        $allFunnelDrafts = FormSubmission::whereNotNull('funnel_id')->where('status', 'draft')->count();
+        $activeFunnels   = Funnel::where('status', 'active')->count();
+
         $summary = [
             'total_funnels'     => Funnel::count(),
-            'total_submissions' => FormSubmission::whereNotNull('funnel_id')->count(),
-            'not_started'       => 0,
-            'in_progress'       => FormSubmission::where('status', 'draft')->whereNotNull('funnel_id')->count(),
-            'completed'         => FormSubmission::where('status', '!=', 'draft')->whereNotNull('funnel_id')->count(),
+            'active_funnels'    => $activeFunnels,
+            'total_submissions' => $allFunnelSubs,
+            'in_progress'       => $allFunnelDrafts,
+            'completed'         => $allFunnelSubs - $allFunnelDrafts,
+            'period_submissions'=> FormSubmission::whereNotNull('funnel_id')
+                                    ->whereBetween('created_at', [$fromDate, $toDate])->count(),
+            'completion_rate'   => $allFunnelSubs > 0
+                                    ? round((($allFunnelSubs - $allFunnelDrafts) / $allFunnelSubs) * 100)
+                                    : 0,
         ];
 
-        $funnels = Funnel::orderBy('created_at', 'desc')->get();
+        $funnels = Funnel::withCount('submissions')->orderBy('submissions_count', 'desc')->get();
 
         foreach ($funnels as $funnel) {
-            $formIds = is_array($funnel->form_ids) ? $funnel->form_ids : (json_decode($funnel->form_ids ?? '[]', true) ?: []);
+            $formIds = is_array($funnel->form_ids) ? $funnel->form_ids
+                     : (json_decode($funnel->form_ids ?? '[]', true) ?: []);
             $funnel->form_count = count($formIds);
 
-            $submissions = FormSubmission::where('funnel_id', $funnel->id)->get();
-            $completed   = $submissions->where('status', '!=', 'draft')->count();
-            $inProgress  = $submissions->where('status', 'draft')->count();
-            $total       = $submissions->count();
+            // All-time stats
+            $submissions  = FormSubmission::where('funnel_id', $funnel->id)->get();
+            $completed    = $submissions->where('status', '!=', 'draft')->count();
+            $inProgress   = $submissions->where('status', 'draft')->count();
+            $total        = $submissions->count();
+
+            // Period stats
+            $periodSubs   = FormSubmission::where('funnel_id', $funnel->id)
+                            ->whereBetween('created_at', [$fromDate, $toDate])->count();
+
+            // Daily trend for this funnel
+            $dailyRaw = FormSubmission::where('funnel_id', $funnel->id)
+                ->selectRaw('DATE(created_at) as date, COUNT(*) as count')
+                ->whereBetween('created_at', [$fromDate, $toDate])
+                ->groupBy('date')->orderBy('date')
+                ->pluck('count', 'date')->toArray();
+            $dailyTrend = [];
+            $cursor = $fromDate->copy();
+            while ($cursor->lte($toDate)) {
+                $key = $cursor->format('Y-m-d');
+                $dailyTrend[$key] = $dailyRaw[$key] ?? 0;
+                $cursor->addDay();
+            }
 
             $funnel->stats = [
                 'total'        => $total,
                 'completed'    => $completed,
                 'in_progress'  => $inProgress,
-                'not_started'  => 0,
-                'expired'      => 0,
-                'avg_progress' => 0,
+                'period_subs'  => $periodSubs,
+                'rate'         => $total > 0 ? round(($completed / $total) * 100) : 0,
+                'daily_trend'  => $dailyTrend,
             ];
             $funnel->recentSubmissions = $submissions->sortByDesc('created_at')->take(5);
         }
 
-        return view('analytics.funnels', compact('funnels', 'summary'));
+        return view('analytics.funnels', compact('funnels', 'summary', 'from', 'to'));
     }
 
     /**
      * Form Analytics — per-form submission stats
      */
-    public function forms()
+    public function forms(Request $request)
     {
-        $allSubmissions = FormSubmission::count();
-        $allDrafts      = FormSubmission::where('status', 'draft')->count();
+        $from     = $request->input('from', now()->subDays(30)->format('Y-m-d'));
+        $to       = $request->input('to',   now()->format('Y-m-d'));
+        $fromDate = \Carbon\Carbon::parse($from)->startOfDay();
+        $toDate   = \Carbon\Carbon::parse($to)->endOfDay();
+
+        // All-time summary
+        $allSubs   = FormSubmission::count();
+        $allDrafts = FormSubmission::where('status', 'draft')->count();
+        $allCompleted = $allSubs - $allDrafts;
 
         $summary = [
             'total_forms'         => Form::count(),
-            'total_submissions'   => $allSubmissions,
-            'total_drafts'        => $allDrafts,
             'active_forms'        => Form::where('is_active', 1)->count(),
-            'avg_completion_rate' => $allSubmissions > 0
-                ? round((($allSubmissions - $allDrafts) / $allSubmissions) * 100)
+            'total_submissions'   => $allSubs,
+            'total_completed'     => $allCompleted,
+            'total_drafts'        => $allDrafts,
+            'period_submissions'  => FormSubmission::whereBetween('created_at', [$fromDate, $toDate])->count(),
+            'avg_completion_rate' => $allSubs > 0
+                ? round(($allCompleted / $allSubs) * 100)
                 : 0,
         ];
 
-        $forms = Form::orderBy('created_at', 'desc')->get();
+        $forms = Form::withCount('submissions')->orderBy('submissions_count', 'desc')->get();
 
         foreach ($forms as $form) {
-            $fields = is_array($form->fields) ? $form->fields : (json_decode($form->fields ?? '[]', true) ?: []);
-            $form->field_count = count($fields);
+            // Field count
+            $fields = is_array($form->fields) ? $form->fields
+                    : (json_decode($form->fields ?? '[]', true) ?: []);
+            $rows = $fields['rows'] ?? (is_array($fields) ? $fields : []);
+            $fieldCount = 0;
+            foreach ($rows as $row) {
+                foreach (($row['cols'] ?? []) as $col) {
+                    $fieldCount += count($col['fields'] ?? []);
+                }
+            }
+            $form->field_count = $fieldCount;
 
-            $submissions = FormSubmission::where('form_id', $form->id)->get();
-            $completed   = $submissions->where('status', '!=', 'draft')->count();
-            $drafts      = $submissions->where('status', 'draft')->count();
+            // All-time submission stats
+            $submissions  = FormSubmission::where('form_id', $form->id)->get();
+            $completed    = $submissions->where('status', '!=', 'draft')->count();
+            $drafts       = $submissions->where('status', 'draft')->count();
+            $total        = $submissions->count();
+
+            // Period submissions
+            $periodSubs = FormSubmission::where('form_id', $form->id)
+                ->whereBetween('created_at', [$fromDate, $toDate])->count();
+
+            // Daily trend for this form
+            $dailyRaw = FormSubmission::where('form_id', $form->id)
+                ->selectRaw('DATE(created_at) as date, COUNT(*) as count')
+                ->whereBetween('created_at', [$fromDate, $toDate])
+                ->groupBy('date')->orderBy('date')
+                ->pluck('count', 'date')->toArray();
+            $dailyTrend = [];
+            $cursor = $fromDate->copy();
+            while ($cursor->lte($toDate)) {
+                $key = $cursor->format('Y-m-d');
+                $dailyTrend[$key] = $dailyRaw[$key] ?? 0;
+                $cursor->addDay();
+            }
 
             $form->stats = [
-                'total_submissions' => $submissions->count(),
+                'total_submissions' => $total,
                 'completed'         => $completed,
                 'drafts'            => $drafts,
+                'period_subs'       => $periodSubs,
+                'rate'              => $total > 0 ? round(($completed / $total) * 100) : 0,
+                'daily_trend'       => $dailyTrend,
             ];
 
             $form->recentSubmissions = FormSubmission::where('form_id', $form->id)
-                ->orderBy('created_at', 'desc')
-                ->take(5)
-                ->get();
+                ->orderBy('created_at', 'desc')->take(5)->get();
         }
 
-        return view('analytics.forms', compact('forms', 'summary'));
+        return view('analytics.forms', compact('forms', 'summary', 'from', 'to'));
     }
 
     /**
