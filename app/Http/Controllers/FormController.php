@@ -13,7 +13,7 @@ class FormController extends Controller
 {
     public function index(Request $request)
     {
-        $query = Form::with('creator');
+        $query = Form::with('creator')->withCount('submissions');
 
         if ($request->search) {
             $query->where('name', 'like', "%{$request->search}%");

@@ -192,7 +192,7 @@
                             </span>
                         </span>
                     </td>
-                    <td style="font-size:13px; color:#6b7280;">{{ $form->submission_count }}</td>
+                    <td style="font-size:13px; color:#6b7280;">{{ $form->submissions_count ?? 0 }}</td>
                     <td style="font-size:13px; color:#6b7280;">{{ $form->creator->name ?? '—' }}</td>
                     <td style="font-size:12px; color:#6b7280;">{{ $form->created_at->format('M d, Y') }}</td>
                     <td>
