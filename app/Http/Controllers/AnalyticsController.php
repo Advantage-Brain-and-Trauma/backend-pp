@@ -52,7 +52,7 @@ class AnalyticsController extends Controller
             $funnel->form_count = count($formIds);
 
             // All-time stats
-            $submissions  = FormSubmission::where('funnel_id', $funnel->id)->get();
+            $submissions  = FormSubmission::with('user')->where('funnel_id', $funnel->id)->get();
             $completed    = $submissions->where('status', '!=', 'draft')->count();
             $inProgress   = $submissions->where('status', 'draft')->count();
             $total        = $submissions->count();
@@ -167,7 +167,7 @@ class AnalyticsController extends Controller
                 'daily_trend'       => $dailyTrend,
             ];
 
-            $form->recentSubmissions = FormSubmission::where('form_id', $form->id)
+            $form->recentSubmissions = FormSubmission::with('user')->where('form_id', $form->id)
                 ->orderBy('created_at', 'desc')->take(5)->get();
         }
 

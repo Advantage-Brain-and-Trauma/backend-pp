@@ -340,19 +340,17 @@
                 : ['bg'=>'#f0fdf4','text'=>'#16a34a','label'=>'Completed'];
             $subName = $sub->patient_name;
             $subEmail = $sub->patient_email;
+            if (!$subName && $sub->user) {
+                $subName = $sub->user->name;
+            }
+            if (!$subEmail && $sub->user) {
+                $subEmail = $sub->user->email;
+            }
             if (!$subName && is_array($sub->data)) {
                 foreach ($sub->data as $val) {
                     if (is_array($val) && (isset($val['first']) || isset($val['last']))) {
                         $subName = trim(($val['first'] ?? '') . ' ' . ($val['last'] ?? ''));
                         break;
-                    }
-                }
-                if (!$subEmail) {
-                    foreach ($sub->data as $val) {
-                        if (is_string($val) && filter_var($val, FILTER_VALIDATE_EMAIL)) {
-                            $subEmail = $val;
-                            break;
-                        }
                     }
                 }
             }
