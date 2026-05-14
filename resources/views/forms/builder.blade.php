@@ -34,7 +34,7 @@
   --field-border:   #e2e5ec;
   --field-hover:    #f8f9fb;
   --field-selected: #eef0fd;
-  --input-bg:       #f8f9fb;
+  --input-bg:       #ffffff;
   --shadow-sm:      0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.05);
   --shadow:         0 4px 16px rgba(0,0,0,0.08);
   --shadow-lg:      0 8px 32px rgba(0,0,0,0.1);
@@ -1291,8 +1291,8 @@ function renderPreviewField(field) {
       break;
     case 'textarea': wrap.innerHTML = `<label class="preview-label">${label}</label><textarea class="preview-textarea" placeholder="${escHtml(field.placeholder)}"></textarea>`; break;
     case 'dropdown': wrap.innerHTML = `<label class="preview-label">${label}</label><select class="preview-select"><option>Select...</option>${(field.options||[]).map(o=>`<option>${escHtml(o)}</option>`).join('')}</select>`; break;
-    case 'radio': wrap.innerHTML = `<label class="preview-label">${label}</label><div style="display:flex;flex-direction:column;gap:10px;margin-top:4px;">${(field.options||[]).map(o=>`<label style="display:flex;align-items:center;gap:10px;font-size:13px;color:var(--text-secondary);cursor:pointer;"><input type="radio" name="${field.id}" style="width:auto;accent-color:var(--accent);"> ${escHtml(o)}</label>`).join('')}</div>`; break;
-    case 'checkbox': wrap.innerHTML = `<label class="preview-label">${label}</label><div style="display:flex;flex-direction:column;gap:10px;margin-top:4px;">${(field.options||[]).map(o=>`<label style="display:flex;align-items:center;gap:10px;font-size:13px;color:var(--text-secondary);cursor:pointer;"><input type="checkbox" style="width:auto;accent-color:var(--accent);"> ${escHtml(o)}</label>`).join('')}</div>`; break;
+    case 'radio': wrap.innerHTML = `<label class="preview-label">${label}</label><div style="display:flex;flex-direction:column;gap:10px;margin-top:4px;">${(field.options||[]).map(o=>`<label style="display:flex;align-items:center;gap:10px;font-size:13px;color:var(--text-secondary);cursor:pointer;padding:10px 14px;border-radius:9px;border:1.5px solid var(--border);background:#fff;"><input type="radio" name="${field.id}" style="width:auto;accent-color:var(--accent);"> ${escHtml(o)}</label>`).join('')}</div>`; break;
+    case 'checkbox': wrap.innerHTML = `<label class="preview-label">${label}</label><div style="display:flex;flex-direction:column;gap:10px;margin-top:4px;">${(field.options||[]).map(o=>`<label style="display:flex;align-items:center;gap:10px;font-size:13px;color:var(--text-secondary);cursor:pointer;padding:10px 14px;border-radius:9px;border:1.5px solid var(--border);background:#fff;"><input type="checkbox" style="width:auto;accent-color:var(--accent);"> ${escHtml(o)}</label>`).join('')}</div>`; break;
     case 'signature': wrap.innerHTML = `<label class="preview-label">${label}</label><div style="height:110px;border:2px dashed var(--border);border-radius:9px;display:flex;align-items:center;justify-content:center;color:var(--text-muted);font-size:13px;background:var(--input-bg);cursor:crosshair;">✍️ Click to sign</div>`; break;
     case 'file': wrap.innerHTML = `<label class="preview-label">${label}</label><div style="border:2px dashed var(--border);border-radius:9px;padding:28px;text-align:center;color:var(--text-muted);font-size:13px;background:var(--input-bg);cursor:pointer;">📎 Click to upload or drag & drop<br><span style="font-size:11px;">PDF, JPG, PNG up to 10MB</span></div>`; break;
     case 'header': wrap.innerHTML = `<h3 style="font-size:20px;font-weight:700;color:var(--text-primary);padding-bottom:8px;border-bottom:2px solid var(--border);">${escHtml(field.content)}</h3>`; break;
