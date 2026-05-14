@@ -548,6 +548,12 @@ document.getElementById('deleteModal').addEventListener('click', function(e) { i
     var inp = document.getElementById('users-search-input');
     if (!inp) return;
     var timer;
+    inp.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') { e.preventDefault(); }
+    });
+    document.getElementById('users-filter-form').addEventListener('submit', function(e) {
+        if (document.activeElement === inp) { e.preventDefault(); }
+    });
     inp.addEventListener('input', function() {
         clearTimeout(timer);
         timer = setTimeout(function() {

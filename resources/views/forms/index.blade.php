@@ -550,6 +550,15 @@ function toggleFormStatus(formId, wrapEl) {
     var inp = document.getElementById('forms-search-input');
     if (!inp) return;
     var timer;
+    // Prevent Enter key from submitting the form natively (space is already safe with the submit listener below)
+    inp.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') { e.preventDefault(); }
+    });
+    // Block ALL native form submissions from this form; only the debounce timer should navigate
+    document.getElementById('forms-filter-form').addEventListener('submit', function(e) {
+        // Allow status-select and search-button submits only when NOT triggered by keyboard on the text input
+        if (document.activeElement === inp) { e.preventDefault(); }
+    });
     inp.addEventListener('input', function() {
         clearTimeout(timer);
         timer = setTimeout(function() {

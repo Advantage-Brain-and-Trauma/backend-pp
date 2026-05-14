@@ -219,6 +219,12 @@ function copyFunnelUrl(url) {
   var inp = document.getElementById('funnels-search-input');
   if (!inp) return;
   var timer;
+  inp.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') { e.preventDefault(); }
+  });
+  document.getElementById('funnels-filter-form').addEventListener('submit', function(e) {
+    if (document.activeElement === inp) { e.preventDefault(); }
+  });
   inp.addEventListener('input', function() {
     clearTimeout(timer);
     timer = setTimeout(function() {
