@@ -118,6 +118,21 @@
 }
 #bulk-delete-btn:hover { background: #a50e25; }
 #bulk-delete-btn:disabled { opacity: .6; cursor: not-allowed; }
+
+/* ── Sortable Columns ──────────────────────────────────────── */
+.sort-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    color: inherit;
+    text-decoration: none;
+    font-weight: 600;
+    white-space: nowrap;
+}
+.sort-link:hover { color: #C8102E; }
+.sort-arrows { display: inline-flex; flex-direction: column; line-height: 1; gap: 1px; }
+.sort-arrows .arr { font-size: 9px; color: #d1d5db; }
+.sort-arrows .arr.active { color: #C8102E; }
 </style>
 
 <div class="card" style="padding:0;overflow:hidden;">
@@ -163,11 +178,23 @@
                     <th style="width:40px;text-align:center;">
                         <input type="checkbox" id="select-all-checkbox" class="row-checkbox" title="Select all" onchange="toggleSelectAll(this)">
                     </th>
-                    <th>Form Name</th>
-                    <th style="width:90px; text-align:center;">Status</th>
-                    <th>Submissions</th>
-                    <th>Created By</th>
-                    <th>Created</th>
+@php
+                        function formsSortUrl($col, $currentSort, $currentDir) {
+                            $dir = ($currentSort === $col && $currentDir === 'asc') ? 'desc' : 'asc';
+                            return request()->fullUrlWithQuery(['sort' => $col, 'direction' => $dir, 'page' => 1]);
+                        }
+                        function formsSortArrows($col, $currentSort, $currentDir) {
+                            return '<span class="sort-arrows">'
+                                . '<span class="arr' . ($currentSort===$col && $currentDir==='asc' ? ' active' : '') . '">&#9650;</span>'
+                                . '<span class="arr' . ($currentSort===$col && $currentDir==='desc' ? ' active' : '') . '">&#9660;</span>'
+                                . '</span>';
+                        }
+                    @endphp
+                    <th><a href="{{ formsSortUrl('name', $currentSort, $currentDir) }}" class="sort-link">Form Name {!! formsSortArrows('name', $currentSort, $currentDir) !!}</a></th>
+                    <th style="width:90px; text-align:center;"><a href="{{ formsSortUrl('status', $currentSort, $currentDir) }}" class="sort-link">Status {!! formsSortArrows('status', $currentSort, $currentDir) !!}</a></th>
+                    <th><a href="{{ formsSortUrl('submissions', $currentSort, $currentDir) }}" class="sort-link">Submissions {!! formsSortArrows('submissions', $currentSort, $currentDir) !!}</a></th>
+                    <th><a href="{{ formsSortUrl('created_by', $currentSort, $currentDir) }}" class="sort-link">Created By {!! formsSortArrows('created_by', $currentSort, $currentDir) !!}</a></th>
+                    <th><a href="{{ formsSortUrl('created_at', $currentSort, $currentDir) }}" class="sort-link">Created {!! formsSortArrows('created_at', $currentSort, $currentDir) !!}</a></th>
                     <th>Actions</th>
                 </tr>
             </thead>

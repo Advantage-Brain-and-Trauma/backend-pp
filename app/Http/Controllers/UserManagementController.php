@@ -205,10 +205,20 @@ class UserManagementController extends Controller
             });
         }
 
-        $users        = $query->latest()->paginate($perPage)->withQueryString();
+        // Sorting
+        $sortable = ['name' => 'name', 'email' => 'email', 'role' => 'role', 'created_at' => 'created_at'];
+        $sortCol = $request->sort ?? 'created_at';
+        $sortDir = $request->direction === 'asc' ? 'asc' : 'desc';
+        if (isset($sortable[$sortCol])) {
+            $query->orderBy($sortable[$sortCol], $sortDir);
+        } else {
+            $query->latest();
+        }
+        $users        = $query->paginate($perPage)->withQueryString();
         $countryCodes = $this->countryCodes();
-
-        return view('user-management.index', compact('users', 'perPage', 'search', 'countryCodes'));
+        $currentSort  = $sortCol;
+        $currentDir   = $sortDir;
+        return view('user-management.index', compact('users', 'perPage', 'search', 'countryCodes', 'currentSort', 'currentDir'));
     }
 
     /**

@@ -101,11 +101,22 @@
     {{-- Table --}}
     <div class="table-container">
         <table>
+            @php
+            function usersSortUrl($col, $cs, $cd) {
+                $dir = ($cs === $col && $cd === 'asc') ? 'desc' : 'asc';
+                return request()->fullUrlWithQuery(['sort' => $col, 'direction' => $dir, 'page' => 1]);
+            }
+            function usersSortArrows($col, $cs, $cd) {
+                $up   = '<span style="font-size:9px;color:' . ($cs===$col && $cd==='asc'  ? '#C8102E' : '#d1d5db') . ';">&#9650;</span>';
+                $down = '<span style="font-size:9px;color:' . ($cs===$col && $cd==='desc' ? '#C8102E' : '#d1d5db') . ';">&#9660;</span>';
+                return '<span style="display:inline-flex;flex-direction:column;line-height:1;gap:1px;margin-left:4px;">' . $up . $down . '</span>';
+            }
+            @endphp
             <thead>
                 <tr>
-                    <th>Name</th>
-                    <th>Email</th>
-                    <th>Role</th>
+                    <th><a href="{{ usersSortUrl('name', $currentSort, $currentDir) }}" style="display:inline-flex;align-items:center;color:inherit;text-decoration:none;font-weight:inherit;">Name {!! usersSortArrows('name', $currentSort, $currentDir) !!}</a></th>
+                    <th><a href="{{ usersSortUrl('email', $currentSort, $currentDir) }}" style="display:inline-flex;align-items:center;color:inherit;text-decoration:none;font-weight:inherit;">Email {!! usersSortArrows('email', $currentSort, $currentDir) !!}</a></th>
+                    <th><a href="{{ usersSortUrl('role', $currentSort, $currentDir) }}" style="display:inline-flex;align-items:center;color:inherit;text-decoration:none;font-weight:inherit;">Role {!! usersSortArrows('role', $currentSort, $currentDir) !!}</a></th>
                     <th>Status</th>
                     <th style="text-align:center;">Actions</th>
                 </tr>

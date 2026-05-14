@@ -21,14 +21,25 @@ class FunnelController extends Controller
         }
 
         $perPage = $request->per_page ?? 10;
-        $funnels = $query->latest()->paginate($perPage)->withQueryString();
 
+        // Sorting
+        $sortable = ['name' => 'name', 'created_at' => 'created_at'];
+        $sortCol = $request->sort ?? 'created_at';
+        $sortDir = $request->direction === 'asc' ? 'asc' : 'desc';
+        if (isset($sortable[$sortCol])) {
+            $query->orderBy($sortable[$sortCol], $sortDir);
+        } else {
+            $query->latest();
+        }
+
+        $funnels = $query->paginate($perPage)->withQueryString();
         $funnels->getCollection()->transform(function ($funnel) {
             $funnel->forms_count = count($funnel->form_ids ?? []);
             return $funnel;
         });
-
-        return view('funnels.index', compact('funnels'));
+        $currentSort = $sortCol;
+        $currentDir  = $sortDir;
+        return view('funnels.index', compact('funnels', 'currentSort', 'currentDir'));
     }
 
     public function create()

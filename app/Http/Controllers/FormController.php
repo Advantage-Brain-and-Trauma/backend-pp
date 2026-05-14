@@ -26,9 +26,26 @@ class FormController extends Controller
         }
 
         $perPage = in_array((int) $request->per_page, [10, 25, 50, 100]) ? (int) $request->per_page : 10;
-        $forms = $query->latest()->paginate($perPage)->withQueryString();
 
-        return view('forms.index', compact('forms'));
+        // Sorting
+        $sortable = ['name' => 'name', 'status' => 'is_active', 'submissions' => 'submissions_count', 'created_by' => 'created_by', 'created_at' => 'created_at'];
+        $sortCol = $request->sort ?? 'created_at';
+        $sortDir = $request->direction === 'asc' ? 'asc' : 'desc';
+        if (isset($sortable[$sortCol])) {
+            if ($sortCol === 'submissions') {
+                $query->orderBy('submissions_count', $sortDir);
+            } else {
+                $query->orderBy($sortable[$sortCol], $sortDir);
+            }
+        } else {
+            $query->latest();
+        }
+
+        $forms = $query->paginate($perPage)->withQueryString();
+        $currentSort = $sortCol;
+        $currentDir  = $sortDir;
+
+        return view('forms.index', compact('forms', 'currentSort', 'currentDir'));
     }
 
     public function create()

@@ -41,14 +41,26 @@
   <!-- Table -->
   <div style="overflow-x:auto;">
     <table style="width:100%;border-collapse:collapse;">
+@php
+        function funnelsSortUrl($col, $cs, $cd) {
+            $dir = ($cs === $col && $cd === 'asc') ? 'desc' : 'asc';
+            return request()->fullUrlWithQuery(['sort' => $col, 'direction' => $dir, 'page' => 1]);
+        }
+        function funnelsSortArrows($col, $cs, $cd) {
+            $up   = '<span style="font-size:9px;color:' . ($cs===$col && $cd==='asc'  ? '#6366f1' : '#d1d5db') . ';">&#9650;</span>';
+            $down = '<span style="font-size:9px;color:' . ($cs===$col && $cd==='desc' ? '#6366f1' : '#d1d5db') . ';">&#9660;</span>';
+            return '<span style="display:inline-flex;flex-direction:column;line-height:1;gap:1px;margin-left:4px;">' . $up . $down . '</span>';
+        }
+        @endphp
       <thead>
         <tr style="background:#f9fafb;border-bottom:1px solid #e5e7eb;">
           <th style="padding:12px 20px;text-align:left;font-size:12px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:0.05em;width:60px;">NO</th>
           <th style="padding:12px 20px;text-align:left;font-size:12px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:0.05em;">
-            TITLE
-            <svg style="display:inline;vertical-align:middle;margin-left:4px;" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M7 16V4m0 0L3 8m4-4l4 4M17 8v12m0 0l4-4m-4 4l-4-4"/></svg>
+            <a href="{{ funnelsSortUrl('name', $currentSort, $currentDir) }}" style="display:inline-flex;align-items:center;color:inherit;text-decoration:none;font-weight:700;">TITLE {!! funnelsSortArrows('name', $currentSort, $currentDir) !!}</a>
           </th>
-          <th style="padding:12px 20px;text-align:left;font-size:12px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:0.05em;width:180px;">CREATED AT</th>
+          <th style="padding:12px 20px;text-align:left;font-size:12px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:0.05em;width:180px;">
+            <a href="{{ funnelsSortUrl('created_at', $currentSort, $currentDir) }}" style="display:inline-flex;align-items:center;color:inherit;text-decoration:none;font-weight:700;">CREATED AT {!! funnelsSortArrows('created_at', $currentSort, $currentDir) !!}</a>
+          </th>
           <th style="padding:12px 20px;text-align:right;font-size:12px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:0.05em;width:140px;">ACTION</th>
         </tr>
       </thead>
