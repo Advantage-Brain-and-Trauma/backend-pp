@@ -310,6 +310,7 @@ class ClinicalController extends Controller
                                 'updated_at'
                             )
                             ->with('notedBy:id,name')
+                            ->whereNull('deleted_at')
                             ->latest()
                             ->limit(1);
                     }
@@ -317,6 +318,7 @@ class ClinicalController extends Controller
                 ->where('user_id', auth()->id())
                 ->where('status', 'completed')
                 ->orderBy('created_at', 'desc')
+                ->whereNull('deleted_at')
                 ->get()
                 ->filter(function ($item) {
                     return $item->form && $item->funnel;
