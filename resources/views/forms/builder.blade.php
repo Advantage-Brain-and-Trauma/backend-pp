@@ -536,12 +536,20 @@ body {
 .preview-form {
   width: 100%; max-width: 700px;
   background: var(--bg-panel); border: 1px solid var(--border);
-  border-radius: var(--radius-lg); padding: 36px;
+  border-radius: var(--radius-lg); overflow: hidden;
   box-shadow: var(--shadow-lg);
 }
+.preview-form-header { padding: 32px 36px 24px; border-bottom: 1px solid var(--border); }
 .preview-form h2 { font-size: 24px; font-weight: 700; margin-bottom: 6px; color: var(--text-primary); }
-.preview-form p { font-size: 13px; color: var(--text-muted); margin-bottom: 28px; }
-.preview-field { margin-bottom: 20px; }
+.preview-form p { font-size: 13px; color: var(--text-muted); margin-bottom: 0; }
+.preview-form-body { padding: 24px 28px; background: #f3f4f6; }
+[data-theme="dark"] .preview-form-body { background: var(--bg-card); }
+.preview-field {
+  margin-bottom: 16px; background: #fff; border: 1px solid var(--border);
+  border-radius: 10px; padding: 18px 20px; box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+}
+[data-theme="dark"] .preview-field { background: var(--bg-panel); }
+.preview-field-layout { background: transparent; border: none; box-shadow: none; padding: 4px 0; }
 .preview-label { font-size: 13px; font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 7px; }
 .preview-input {
   width: 100%; padding: 10px 13px; background: var(--input-bg);
@@ -746,10 +754,14 @@ body {
 <!-- PREVIEW OVERLAY -->
 <div class="preview-overlay" id="previewOverlay">
   <div class="preview-form" id="previewForm">
-    <h2 id="previewTitle">{{ $form->name ?? 'Form Preview' }}</h2>
-    <p id="previewDesc">{{ $form->description ?? '' }}</p>
-    <div id="previewFields"></div>
-    <button class="preview-submit">Submit Form</button>
+    <div class="preview-form-header">
+      <h2 id="previewTitle">{{ $form->name ?? 'Form Preview' }}</h2>
+      <p id="previewDesc">{{ $form->description ?? '' }}</p>
+    </div>
+    <div class="preview-form-body">
+      <div id="previewFields"></div>
+      <button class="preview-submit">Submit Form</button>
+    </div>
   </div>
 </div>
 
@@ -1291,16 +1303,16 @@ function renderPreviewField(field) {
       break;
     case 'textarea': wrap.innerHTML = `<label class="preview-label">${label}</label><textarea class="preview-textarea" placeholder="${escHtml(field.placeholder)}"></textarea>`; break;
     case 'dropdown': wrap.innerHTML = `<label class="preview-label">${label}</label><select class="preview-select"><option>Select...</option>${(field.options||[]).map(o=>`<option>${escHtml(o)}</option>`).join('')}</select>`; break;
-    case 'radio': wrap.innerHTML = `<label class="preview-label">${label}</label><div style="display:flex;flex-direction:column;gap:0;margin-top:4px;background:#fff;border:1.5px solid var(--border);border-radius:9px;overflow:hidden;">${(field.options||[]).map((o,i,arr)=>`<label style="display:flex;align-items:center;gap:10px;font-size:13px;color:var(--text-secondary);cursor:pointer;padding:10px 14px;${i < arr.length-1 ? 'border-bottom:1px solid var(--border);' : ''}"><input type="radio" name="${field.id}" style="width:auto;accent-color:var(--accent);"> ${escHtml(o)}</label>`).join('')}</div>`; break;
-    case 'checkbox': wrap.innerHTML = `<label class="preview-label">${label}</label><div style="display:flex;flex-direction:column;gap:0;margin-top:4px;background:#fff;border:1.5px solid var(--border);border-radius:9px;overflow:hidden;">${(field.options||[]).map((o,i,arr)=>`<label style="display:flex;align-items:center;gap:10px;font-size:13px;color:var(--text-secondary);cursor:pointer;padding:10px 14px;${i < arr.length-1 ? 'border-bottom:1px solid var(--border);' : ''}"><input type="checkbox" style="width:auto;accent-color:var(--accent);"> ${escHtml(o)}</label>`).join('')}</div>`; break;
+    case 'radio': wrap.innerHTML = `<label class="preview-label">${label}</label><div style="display:flex;flex-direction:column;gap:0;margin-top:4px;">${(field.options||[]).map((o,i,arr)=>`<label style="display:flex;align-items:center;gap:10px;font-size:13px;color:var(--text-secondary);cursor:pointer;padding:10px 14px;${i < arr.length-1 ? 'border-bottom:1px solid var(--border);' : ''}"><input type="radio" name="${field.id}" style="width:auto;accent-color:var(--accent);"> ${escHtml(o)}</label>`).join('')}</div>`; break;
+    case 'checkbox': wrap.innerHTML = `<label class="preview-label">${label}</label><div style="display:flex;flex-direction:column;gap:0;margin-top:4px;">${(field.options||[]).map((o,i,arr)=>`<label style="display:flex;align-items:center;gap:10px;font-size:13px;color:var(--text-secondary);cursor:pointer;padding:10px 14px;${i < arr.length-1 ? 'border-bottom:1px solid var(--border);' : ''}"><input type="checkbox" style="width:auto;accent-color:var(--accent);"> ${escHtml(o)}</label>`).join('')}</div>`; break;
     case 'signature': wrap.innerHTML = `<label class="preview-label">${label}</label><div style="height:110px;border:2px dashed var(--border);border-radius:9px;display:flex;align-items:center;justify-content:center;color:var(--text-muted);font-size:13px;background:var(--input-bg);cursor:crosshair;">✍️ Click to sign</div>`; break;
     case 'file': wrap.innerHTML = `<label class="preview-label">${label}</label><div style="border:2px dashed var(--border);border-radius:9px;padding:28px;text-align:center;color:var(--text-muted);font-size:13px;background:var(--input-bg);cursor:pointer;">📎 Click to upload or drag & drop<br><span style="font-size:11px;">PDF, JPG, PNG up to 10MB</span></div>`; break;
-    case 'header': wrap.innerHTML = `<h3 style="font-size:20px;font-weight:700;color:var(--text-primary);padding-bottom:8px;border-bottom:2px solid var(--border);">${escHtml(field.content)}</h3>`; break;
-    case 'paragraph': wrap.innerHTML = `<p style="font-size:13px;color:var(--text-secondary);line-height:1.7;">${escHtml(field.content)}</p>`; break;
-    case 'divider': wrap.innerHTML = `<hr style="border:none;border-top:1px solid var(--border);margin:8px 0;">`; break;
+    case 'header': wrap.classList.add('preview-field-layout'); wrap.innerHTML = `<h3 style="font-size:20px;font-weight:700;color:var(--text-primary);padding-bottom:8px;border-bottom:2px solid var(--border);">${escHtml(field.content)}</h3>`; break;
+    case 'paragraph': wrap.classList.add('preview-field-layout'); wrap.innerHTML = `<p style="font-size:13px;color:var(--text-secondary);line-height:1.7;">${escHtml(field.content)}</p>`; break;
+    case 'divider': wrap.classList.add('preview-field-layout'); wrap.innerHTML = `<hr style="border:none;border-top:1px solid var(--border);margin:8px 0;">`; break;
     case 'rating': wrap.innerHTML = `<label class="preview-label">${label}</label><div style="display:flex;gap:6px;font-size:28px;color:var(--border);cursor:pointer;">★★★★★</div>`; break;
     case 'toggle': wrap.innerHTML = `<div style="display:flex;align-items:center;justify-content:space-between;padding:4px 0;"><label class="preview-label" style="margin:0;">${label}</label><div style="width:48px;height:26px;border-radius:13px;background:var(--border);position:relative;cursor:pointer;"><div style="width:20px;height:20px;border-radius:50%;background:#fff;position:absolute;top:3px;left:3px;box-shadow:0 1px 3px rgba(0,0,0,0.2);transition:left 0.2s;"></div></div></div>`; break;
-    case 'submit': wrap.innerHTML = `<button class="preview-submit">${escHtml(field.buttonText || 'Submit Form')}</button>`; break;
+    case 'submit': wrap.classList.add('preview-field-layout'); wrap.innerHTML = `<button class="preview-submit">${escHtml(field.buttonText || 'Submit Form')}</button>`; break;
     case 'name': wrap.innerHTML = `<label class="preview-label">${label}</label><div style="display:flex;gap:12px;"><input class="preview-input" placeholder="First Name" style="flex:1;"><input class="preview-input" placeholder="Last Name" style="flex:1;"></div>`; break;
     case 'address': wrap.innerHTML = `<label class="preview-label">${label}</label><div style="display:flex;flex-direction:column;gap:10px;"><input class="preview-input" placeholder="Street Address"><div style="display:flex;gap:10px;"><input class="preview-input" placeholder="City" style="flex:1;"><input class="preview-input" placeholder="State" style="width:80px;"><input class="preview-input" placeholder="ZIP" style="width:90px;"></div></div>`; break;
     default: wrap.innerHTML = `<label class="preview-label">${label}</label><input class="preview-input" placeholder="${escHtml(field.placeholder)}">`;
