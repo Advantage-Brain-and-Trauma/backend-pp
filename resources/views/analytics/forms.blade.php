@@ -154,6 +154,10 @@
         <form method="GET" id="fa-filter-form">
             <div class="fa-filter-inner">
                 <div class="fa-filter-field">
+                    <label>Search Form</label>
+                    <input type="text" name="search" value="{{ $search }}" placeholder="Form name..." style="height:40px;border:1.5px solid #e2e8f0;border-radius:10px;padding:0 12px;font-size:13px;color:#1e293b;background:#f8fafc;outline:none;transition:border .2s;width:180px;">
+                </div>
+                <div class="fa-filter-field">
                     <label>From Date</label>
                     <input type="date" name="from" id="fa-from" value="{{ $from }}">
                 </div>

@@ -41,7 +41,10 @@ class AnalyticsController extends Controller
                                     : 0,
         ];
 
-        $funnels = Funnel::withCount('submissions')->orderBy('submissions_count', 'desc')->paginate(5)->withQueryString();
+        $search = $request->input('search', '');
+        $funnels = Funnel::withCount('submissions')
+            ->when($search, fn($q) => $q->where('name', 'like', '%'.$search.'%'))
+            ->orderBy('submissions_count', 'desc')->paginate(5)->withQueryString();
 
         foreach ($funnels as $funnel) {
             $formIds = is_array($funnel->form_ids) ? $funnel->form_ids
@@ -83,7 +86,7 @@ class AnalyticsController extends Controller
             $funnel->recentSubmissions = $submissions->sortByDesc('created_at')->take(5);
         }
 
-        return view('analytics.funnels', compact('funnels', 'summary', 'from', 'to'));
+        return view('analytics.funnels', compact('funnels', 'summary', 'from', 'to', 'search'));
     }
 
     /**
@@ -113,7 +116,10 @@ class AnalyticsController extends Controller
                 : 0,
         ];
 
-        $forms = Form::withCount('submissions')->orderBy('submissions_count', 'desc')->paginate(5)->withQueryString();
+        $search = $request->input('search', '');
+        $forms = Form::withCount('submissions')
+            ->when($search, fn($q) => $q->where('name', 'like', '%'.$search.'%'))
+            ->orderBy('submissions_count', 'desc')->paginate(5)->withQueryString();
 
         foreach ($forms as $form) {
             // Field count
@@ -165,7 +171,7 @@ class AnalyticsController extends Controller
                 ->orderBy('created_at', 'desc')->take(5)->get();
         }
 
-        return view('analytics.forms', compact('forms', 'summary', 'from', 'to'));
+        return view('analytics.forms', compact('forms', 'summary', 'from', 'to', 'search'));
     }
 
     /**
