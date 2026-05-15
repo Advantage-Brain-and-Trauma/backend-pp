@@ -473,6 +473,12 @@ class FunnelApiController extends Controller
                     'assigned_via' => 'email',
                     'assigned_at'  => now(),
                 ]);
+            } elseif ($existingAssignment->trashed()) {
+                $existingAssignment->restore();
+                $existingAssignment->update([
+                    'assigned_via' => 'email',
+                    'assigned_at'  => now(),
+                ]);
             }
 
             return response()->json([
