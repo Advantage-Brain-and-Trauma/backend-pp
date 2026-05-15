@@ -461,12 +461,18 @@ class FunnelApiController extends Controller
                 new AssignFunnelMail($patientName, $request->funnel_name, $funnel->slug)
             );
 
-            UserFunnel::create([
-                'user_id'     => $user->id,
-                'funnel_id'   => $request->funnel_id,
-                'assigned_via' => 'email',
-                'assigned_at' => now(),
-            ]);
+            $existingAssignment = UserFunnel::where('user_id', $user->id)
+                ->where('funnel_id', $request->funnel_id)
+                ->first();
+
+            if (!$existingAssignment) {
+                UserFunnel::create([
+                    'user_id'      => $user->id,
+                    'funnel_id'    => $request->funnel_id,
+                    'assigned_via' => 'email',
+                    'assigned_at'  => now(),
+                ]);
+            }
 
             return response()->json([
                 'status'  => true,
