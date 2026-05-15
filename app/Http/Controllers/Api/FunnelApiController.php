@@ -475,6 +475,7 @@ class FunnelApiController extends Controller
                 ]);
             }
 
+            
             return response()->json([
                 'status'  => true,
                 'message' => 'Funnel assigned and email sent successfully.',
