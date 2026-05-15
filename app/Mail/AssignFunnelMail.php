@@ -16,11 +16,13 @@ class AssignFunnelMail extends Mailable
     public string $funnelName;
     public string $funnelUrl;
 
-    public function __construct(string $patientName, string $funnelName, string $funnelSlug)
+    // public function __construct(string $patientName, string $funnelName, string $funnelSlug) 
+    public function __construct(string $patientName, string $funnelName, string $funnelId) 
     {
         $this->patientName = $patientName;
         $this->funnelName = $funnelName;
-        $this->funnelUrl = 'https://app.advantagehcs.com/funnel/' . $funnelSlug;
+        // $this->funnelUrl = 'https://app.advantagehcs.com/form/' . $funnelSlug;
+        $this->funnelUrl = 'https://app.advantagehcs.com/form/' . $funnelId;
     }
 
     public function envelope(): Envelope

@@ -458,7 +458,8 @@ class FunnelApiController extends Controller
             $patientName = $patient->name ?? $user->name;
 
             Mail::to($user->email)->send(
-                new AssignFunnelMail($patientName, $request->funnel_name, $funnel->slug)
+                // new AssignFunnelMail($patientName, $request->funnel_name, $funnel->slug) 
+                new AssignFunnelMail($patientName, $request->funnel_name, $request->funnel_id) 
             );
 
             $existingAssignment = UserFunnel::withTrashed()
