@@ -570,16 +570,19 @@ class FunnelApiController extends Controller
                 )
             );
 
-            // Check existing assignment
+            // Check existing assignment by patient_id + funnel_id
             $existingAssignment = UserFunnel::withTrashed()
                 ->where('patient_id', $request->patient_id)
                 ->where('funnel_id', $request->funnel_id)
-                ->when($userId, function ($query) use ($userId) {
-                    $query->where('user_id', $userId);
-                }, function ($query) {
-                    $query->whereNull('user_id');
-                })
                 ->first();
+
+            // Fallback: also check by user_id + funnel_id (covers older records without patient_id)
+            if (!$existingAssignment && $userId) {
+                $existingAssignment = UserFunnel::withTrashed()
+                    ->where('user_id', $userId)
+                    ->where('funnel_id', $request->funnel_id)
+                    ->first();
+            }
 
             if (!$existingAssignment) {
 
@@ -596,8 +599,16 @@ class FunnelApiController extends Controller
                 $existingAssignment->restore();
 
                 $existingAssignment->update([
+                    'user_id'      => $userId,
+                    'patient_id'   => $request->patient_id,
                     'assigned_via' => 'email',
                     'assigned_at'  => now(),
+                ]);
+            } else {
+
+                $existingAssignment->update([
+                    'user_id'      => $userId ?? $existingAssignment->user_id,
+                    'patient_id'   => $request->patient_id,
                 ]);
             }
 

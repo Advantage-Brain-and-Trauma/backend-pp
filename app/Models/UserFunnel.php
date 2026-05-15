@@ -10,6 +10,7 @@ class UserFunnel extends Model
     use SoftDeletes;
     protected $fillable = [
         'user_id',
+        'patient_id',
         'funnel_id',
         'assigned_via',
         'assigned_at',
