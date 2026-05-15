@@ -20,7 +20,7 @@ class AssignFunnelMail extends Mailable
     {
         $this->patientName = $patientName;
         $this->funnelName = $funnelName;
-        $this->funnelUrl = 'https://adm.advantagehcs.com/funnel/' . $funnelSlug;
+        $this->funnelUrl = 'https://app.advantagehcs.com/funnel/' . $funnelSlug;
     }
 
     public function envelope(): Envelope
