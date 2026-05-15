@@ -463,6 +463,7 @@ class FunnelApiController extends Controller
 
             $existingAssignment = UserFunnel::where('user_id', $user->id)
                 ->where('funnel_id', $request->funnel_id)
+                ->whereNull('deleted_at')
                 ->first();
 
             if (!$existingAssignment) {
