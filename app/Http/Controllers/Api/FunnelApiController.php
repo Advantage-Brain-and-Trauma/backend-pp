@@ -556,7 +556,7 @@ class FunnelApiController extends Controller
             $user = User::where('patient_id', $request->patient_id)->first();
 
             $userId = $user?->id;
-            $flag = $user ? '1' : '0';
+            $flag = $user ? 'user_exists' : 'no_user';
 
             $patientName = $patient->name ?? $user?->name ?? 'Patient';
 
