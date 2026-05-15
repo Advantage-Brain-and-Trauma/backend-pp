@@ -455,7 +455,7 @@ class FunnelApiController extends Controller
                 ], 404);
             }
 
-            $patientName = $patient->patient_name ?? $user->name;
+            $patientName = $patient->name ?? $user->name;
 
             Mail::to($user->email)->send(
                 new AssignFunnelMail($patientName, $request->funnel_name, $funnel->slug)
