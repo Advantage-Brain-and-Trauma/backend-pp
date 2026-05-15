@@ -24,7 +24,8 @@ class AssignFunnelMail extends Mailable
         $this->funnelName = $funnelName;
         $this->flag = $flag;
         // $this->funnelUrl = 'https://app.advantagehcs.com/form/' . $funnelSlug;
-        $this->funnelUrl = 'https://app.advantagehcs.com/form/' . $funnelId . '/' . $flag;
+        // $this->funnelUrl = 'https://app.advantagehcs.com/form/' . $funnelId . '/' . $flag;
+        $this->funnelUrl = 'https://app.advantagehcs.com/form/' . $funnelId . '?flag=' . $flag;
     }
 
     public function envelope(): Envelope
