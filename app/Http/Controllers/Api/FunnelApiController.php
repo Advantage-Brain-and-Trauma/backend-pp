@@ -461,9 +461,9 @@ class FunnelApiController extends Controller
                 new AssignFunnelMail($patientName, $request->funnel_name, $funnel->slug)
             );
 
-            $existingAssignment = UserFunnel::withTrashed()
-                ->where('user_id', $user->id)
+            $existingAssignment = UserFunnel::where('user_id', $user->id)
                 ->where('funnel_id', $request->funnel_id)
+                ->whereNull('deleted_at')
                 ->first();
 
             if (!$existingAssignment) {
@@ -475,7 +475,6 @@ class FunnelApiController extends Controller
                 ]);
             }
 
-            
             return response()->json([
                 'status'  => true,
                 'message' => 'Funnel assigned and email sent successfully.',
