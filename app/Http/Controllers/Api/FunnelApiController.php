@@ -14,6 +14,10 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Mail;
+use App\Mail\AssignFunnelMail;
+use App\Models\AhcsPatient;
+use App\Models\AhcsCase;
 
 class FunnelApiController extends Controller
 {
@@ -392,6 +396,89 @@ class FunnelApiController extends Controller
                 'status'  => false,
                 'error' => $e->getMessage(),
                 'message' => 'Something went wrong while fetching forms.',
+            ], 500);
+        }
+    }
+
+    /**
+     * POST /api/assign-funnel
+     *
+     * Assigns a funnel to a patient and sends an email notification.
+     */
+    public function assignFunnel(Request $request)
+    {
+        try {
+            $validator = Validator::make($request->all(), [
+                'patient_id'  => 'required|integer',
+                'case_id'     => 'required|integer',
+                'funnel_name' => 'required|string|max:255',
+                'funnel_id'   => 'required|integer',
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'status'  => false,
+                    'message' => 'Validation failed.',
+                    'errors'  => $validator->errors(),
+                ], 422);
+            }
+
+            $patient = AhcsPatient::find($request->patient_id);
+            if (!$patient) {
+                return response()->json([
+                    'status'  => false,
+                    'message' => 'Patient not found.',
+                ], 404);
+            }
+
+            $case = AhcsCase::find($request->case_id);
+            if (!$case) {
+                return response()->json([
+                    'status'  => false,
+                    'message' => 'Case not found.',
+                ], 404);
+            }
+
+            $funnel = Funnel::find($request->funnel_id);
+            if (!$funnel) {
+                return response()->json([
+                    'status'  => false,
+                    'message' => 'Funnel not found.',
+                ], 404);
+            }
+
+            $user = User::where('patient_id', $request->patient_id)->first();
+            if (!$user || !$user->email) {
+                return response()->json([
+                    'status'  => false,
+                    'message' => 'Patient does not have an associated user account or email.',
+                ], 404);
+            }
+
+            $patientName = $patient->patient_name ?? $user->name;
+
+            Mail::to($user->email)->send(
+                new AssignFunnelMail($patientName, $request->funnel_name, $funnel->slug)
+            );
+
+            return response()->json([
+                'status'  => true,
+                'message' => 'Funnel assigned and email sent successfully.',
+            ], 200);
+
+        } catch (\Throwable $e) {
+            Log::error('Error assigning funnel via email', [
+                'patient_id' => $request->patient_id ?? null,
+                'funnel_id'  => $request->funnel_id ?? null,
+                'message'    => $e->getMessage(),
+                'line'       => $e->getLine(),
+                'file'       => $e->getFile(),
+            ]);
+
+            return response()->json([
+                'status'  => false,
+                'message' => 'Something went wrong while assigning the funnel.',
+                'error'   => $e->getMessage(),
             ], 500);
         }
     }
