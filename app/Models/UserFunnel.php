@@ -11,6 +11,7 @@ class UserFunnel extends Model
     protected $fillable = [
         'user_id',
         'patient_id',
+        'patient_case_id',
         'funnel_id',
         'assigned_via',
         'assigned_at',
