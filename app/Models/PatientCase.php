@@ -13,18 +13,11 @@ class PatientCase extends Model
     protected $table = 'patient_cases';
 
     protected $fillable = [
-        'user_id',
         'patient_id',
         'case_id',
     ];
 
     protected $dates = ['deleted_at'];
 
-    /**
-     * The patient (user) this case belongs to.
-     */
-    public function user()
-    {
-        return $this->belongsTo(User::class, 'user_id');
-    }
+
 }
