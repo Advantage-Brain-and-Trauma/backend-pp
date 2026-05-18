@@ -24,6 +24,7 @@ class AssignFunnelMail extends Mailable
         $this->funnelName = $funnelName;
         $this->flag = $flag;
 
+        $baseUrl = 'https://app.advantagehcs.com';
         $encodedFlag = base64_encode($flag);
         $encodedFunnelId = base64_encode($funnelId);
         $encodedPatientId = base64_encode($patientId);
