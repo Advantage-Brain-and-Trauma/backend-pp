@@ -692,4 +692,28 @@ class FunnelApiController extends Controller
             ], 500);
         }
     }
+
+    public function getAllFunnelList(){
+        try{
+            $funnels = Funnel::where('status', 'active')->get(['id', 'name']);
+
+            return response()->json([
+                'status' => true,
+                'message' => 'Funnels retrieved successfully.',
+                'data' => $funnels,
+            ], 200);
+        }catch(\Throwable $e){
+            Log::error('Error fetching funnel list', [
+                'message'    => $e->getMessage(),
+                'line'       => $e->getLine(),
+                'file'       => $e->getFile(),
+            ]);
+
+            return response()->json([
+                'status' => false,
+                'message' => 'Something went wrong while fetching funnels.',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
 }
