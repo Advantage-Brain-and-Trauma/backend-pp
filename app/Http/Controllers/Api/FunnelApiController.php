@@ -643,7 +643,7 @@ class FunnelApiController extends Controller
                 'name'             => 'required|string|max:255',
                 'email'            => 'required|email|max:255',
                 'phone'            => 'nullable|string|max:20',
-                'password'         => 'required|string|min:6',
+                'password'         => 'required|string|min:8',
                 'confirm_password' => 'required|string|same:password',
             ]);
 
@@ -708,6 +708,9 @@ class FunnelApiController extends Controller
                 'email'      => $request->email,
                 'phone'      => $request->phone,
                 'password'   => bcrypt($request->password),
+                'country_code' => 'US',
+                'email_verified_at' => now(),
+                'phone_verified_at' => now(),
             ]);
 
             // Update funnel assignment
