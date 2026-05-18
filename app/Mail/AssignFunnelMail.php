@@ -21,43 +21,41 @@ class AssignFunnelMail extends Mailable
     public function __construct(string $patientId, string $caseId, string $funnelId, string $funnelName,  string $patientName, string $email, string $phone,  string $flag) 
     {
         $this->patientName = $patientName;
-        $this->funnelName = $funnelName;
-        $this->flag = $flag;
+        $this->funnelName  = $funnelName;
+        $this->flag        = $flag;
 
         $baseUrl = 'https://app.advantagehcs.com';
 
-        // URL SAFE ENCODE
-        $encodedFlag = $this->base64UrlEncode($flag);
-        $encodedFunnelId = $this->base64UrlEncode($funnelId);
+        // ENCODE VALUES
+        $encodedPatientId   = $this->base64UrlEncode($patientId);
+        $encodedCaseId      = $this->base64UrlEncode($caseId);
+        $encodedFunnelId    = $this->base64UrlEncode($funnelId);
+        $encodedFunnelName  = $this->base64UrlEncode($funnelName);
+        $encodedPatientName = $this->base64UrlEncode($patientName);
+        $encodedEmail       = $this->base64UrlEncode($email);
+        $encodedPhone       = $this->base64UrlEncode($phone);
+        $encodedFlag        = $this->base64UrlEncode($flag);
 
-        // USER EXISTS
-        if ($flag === 'user_exists') {
+        // ENCODE PARAMETER NAMES ALSO
+        $params = [];
 
-            $this->funnelUrl =
-                $baseUrl .
-                '?form=' . $encodedFunnelId .
-                '&flag=' . $encodedFlag;
+        $params[$this->base64UrlEncode('form')] = $encodedFunnelId;
+        $params[$this->base64UrlEncode('flag')] = $encodedFlag;
 
-        } else {
+        if ($flag !== 'user_exists') {
 
-            // NO USER
+            $params[$this->base64UrlEncode('patient_id')] = $encodedPatientId;
+            $params[$this->base64UrlEncode('case_id')]    = $encodedCaseId;
+            $params[$this->base64UrlEncode('funnel_name')] = $encodedFunnelName;
+            $params[$this->base64UrlEncode('name')]       = $encodedPatientName;
+            $params[$this->base64UrlEncode('email')]      = $encodedEmail;
+            $params[$this->base64UrlEncode('phone')]      = $encodedPhone;
+        }
 
-            $encodedPatientId = $this->base64UrlEncode($patientId);
-            $encodedCaseId = $this->base64UrlEncode($caseId);
-            $encodedPatientName = $this->base64UrlEncode($patientName);
-            $encodedEmail = $this->base64UrlEncode($email);
-            $encodedPhone = $this->base64UrlEncode($phone);
+        // BUILD QUERY STRING
+        $queryString = http_build_query($params);
 
-            $this->funnelUrl =
-                $baseUrl .
-                '?form=' . $encodedFunnelId .
-                '&patient_id=' . $encodedPatientId .
-                '&case_id=' . $encodedCaseId .
-                '&name=' . $encodedPatientName .
-                '&email=' . $encodedEmail .
-                '&phone=' . $encodedPhone .
-                '&flag=' . $encodedFlag;
-        }       '&flag=' . urlencode($encodedFlag);
+        $this->funnelUrl = $baseUrl . '?' . $queryString;
     }
 
     private function base64UrlEncode($value)
