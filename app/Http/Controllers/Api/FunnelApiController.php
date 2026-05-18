@@ -795,26 +795,53 @@ class FunnelApiController extends Controller
         }
     }
 
-    public function getAllFunnelList(){
-        try{
-            $funnels = Funnel::where('status', 'active')->get(['id', 'name']);
+    public function getAllFunnelList()
+    {
+        try {
+
+            $funnels = Funnel::where('status', 'active')
+                ->get(['id', 'name']);
+
+            $groupedFunnels = [
+                'NPPW' => [],
+                'Consent' => [],
+                'Other' => [],
+            ];
+
+            foreach ($funnels as $funnel) {
+
+                $name = strtolower($funnel->name);
+
+                if (str_contains($name, 'nppw')) {
+
+                    $groupedFunnels['NPPW'][] = $funnel;
+
+                } elseif (str_contains($name, 'consent')) {
+
+                    $groupedFunnels['Consent'][] = $funnel;
+
+                } else {
+
+                    $groupedFunnels['Other'][] = $funnel;
+                }
+            }
 
             return response()->json([
-                'status' => true,
+                'status'  => true,
                 'message' => 'Funnels retrieved successfully.',
-                'data' => $funnels,
+                'data'    => $groupedFunnels,
             ], 200);
-        }catch(\Throwable $e){
-            Log::error('Error fetching funnel list', [
-                'message'    => $e->getMessage(),
-                'line'       => $e->getLine(),
-                'file'       => $e->getFile(),
+
+        } catch (\Throwable $e) {
+
+            Log::channel('patient_funnel')->error('Error fetching all funnels', [
+                'error' => $e->getMessage(),
+                'line'  => $e->getLine()
             ]);
 
             return response()->json([
-                'status' => false,
+                'status'  => false,
                 'message' => 'Something went wrong while fetching funnels.',
-                'error' => $e->getMessage(),
             ], 500);
         }
     }
