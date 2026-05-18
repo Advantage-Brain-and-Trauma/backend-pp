@@ -546,8 +546,8 @@ class FunnelApiController extends Controller
         try {
 
             $validator = Validator::make($request->all(), [
-                'patient_id'  => 'required|integer|exists:ahcs_patients,id',
-                'case_id'     => 'required|integer|exists:ahcs_cases,id',
+                'patient_id'  => 'required|integer|exists:ahcs.ahcs_patients,id',
+                'case_id'     => 'required|integer|exists:ahcs.ahcs_cases,id',
                 'funnel_id'   => 'required|integer|exists:funnels,id',
                 'funnel_name' => 'required|string|max:255',
                 'email'       => 'required|email',
@@ -641,7 +641,7 @@ class FunnelApiController extends Controller
                 )
             );
             DB::commit();
-            
+
             return response()->json([
                 'status'  => true,
                 'message' => 'Funnel assigned and email sent successfully.',
