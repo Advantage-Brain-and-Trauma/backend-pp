@@ -18,6 +18,7 @@ use Illuminate\Support\Facades\Mail;
 use App\Mail\AssignFunnelMail;
 use App\Models\AhcsPatient;
 use App\Models\AhcsCase;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 
 class FunnelApiController extends Controller
 {
@@ -510,8 +511,10 @@ class FunnelApiController extends Controller
             $validator = Validator::make($request->all(), [
                 'patient_id'  => 'required|integer',
                 'case_id'     => 'required|integer',
-                'funnel_name' => 'required|string|max:255',
                 'funnel_id'   => 'required|integer',
+                'funnel_name' => 'required|string|max:255',
+                'email'       => 'required|email',
+                'phone'       => 'nullable|string',
             ]);
 
             if ($validator->fails()) {
@@ -524,7 +527,6 @@ class FunnelApiController extends Controller
 
             // Validate patient
             $patient = AhcsPatient::find($request->patient_id);
-
             if (!$patient) {
                 return response()->json([
                     'status' => false,
@@ -534,7 +536,6 @@ class FunnelApiController extends Controller
 
             // Validate case
             $case = AhcsCase::find($request->case_id);
-
             if (!$case) {
                 return response()->json([
                     'status' => false,
@@ -544,7 +545,6 @@ class FunnelApiController extends Controller
 
             // Validate funnel
             $funnel = Funnel::find($request->funnel_id);
-
             if (!$funnel) {
                 return response()->json([
                     'status' => false,
@@ -554,18 +554,20 @@ class FunnelApiController extends Controller
 
             // Check user
             $user = User::where('patient_id', $request->patient_id)->first();
-
             $userId = $user?->id;
             $flag = $user ? 'user_exists' : 'no_user';
-
-            $patientName = $patient->name ?? $user?->name ?? 'Patient';
+            $patientName = $patient->patient_name ?? $user?->name ?? 'Patient';
 
             // Send mail
             Mail::to($patient->email)->send(
                 new AssignFunnelMail(
-                    $patientName,
-                    $request->funnel_name,
+                    $request->patient_id,
+                    $request->case_id,
                     $request->funnel_id,
+                    $request->funnel_name,
+                    $patientName,
+                    $request->email ?? 'null',
+                    $request->phone ?? 'null',
                     $flag
                 )
             );
@@ -585,7 +587,6 @@ class FunnelApiController extends Controller
             }
 
             if (!$existingAssignment) {
-
                 UserFunnel::create([
                     'user_id'      => $userId,
                     'patient_id'   => $request->patient_id,
@@ -593,11 +594,8 @@ class FunnelApiController extends Controller
                     'assigned_via' => 'email',
                     'assigned_at'  => now(),
                 ]);
-
             } elseif ($existingAssignment->trashed()) {
-
                 $existingAssignment->restore();
-
                 $existingAssignment->update([
                     'user_id'      => $userId,
                     'patient_id'   => $request->patient_id,
@@ -605,7 +603,6 @@ class FunnelApiController extends Controller
                     'assigned_at'  => now(),
                 ]);
             } else {
-
                 $existingAssignment->update([
                     'user_id'      => $userId ?? $existingAssignment->user_id,
                     'patient_id'   => $request->patient_id,
@@ -635,60 +632,120 @@ class FunnelApiController extends Controller
         }
     }
 
-    public function addPatientToFunnel(Request $request){
-        try{
+    public function addPatientToFunnel(Request $request)
+    {
+        try {
+
             $validator = Validator::make($request->all(), [
-                'patient_id'  => 'required|integer',
-                'name'   => 'required|string',
-                'email'  => 'required|email',
-                'phone'  => 'required|string',
-                'password' => 'required|string|min:6',
+                'patient_id'       => 'required|integer',
+                // 'case_id'          => 'required|integer',
+                'funnel_id'        => 'required|integer',
+                'name'             => 'required|string|max:255',
+                'email'            => 'required|email|max:255',
+                'phone'            => 'nullable|string|max:20',
+                'password'         => 'required|string|min:8',
                 'confirm_password' => 'required|string|same:password',
             ]);
 
             if ($validator->fails()) {
                 return response()->json([
-                    'status' => false,
+                    'status'  => false,
                     'message' => 'Validation failed.',
-                    'errors' => $validator->errors(),
+                    'errors'  => $validator->errors(),
                 ], 422);
             }
 
+            // Check patient
             $patient = AhcsPatient::find($request->patient_id);
 
             if (!$patient) {
                 return response()->json([
-                    'status' => false,
+                    'status'  => false,
                     'message' => 'Patient not found.',
                 ], 404);
             }
 
+            // Check funnel
             $funnel = Funnel::find($request->funnel_id);
 
             if (!$funnel) {
                 return response()->json([
-                    'status' => false,
+                    'status'  => false,
                     'message' => 'Funnel not found.',
                 ], 404);
             }
 
-            
+            // Check existing user
+            $existingUser = User::where('email', $request->email)
+                ->orWhere('patient_id', $request->patient_id)
+                ->first();
+
+            if ($existingUser) {
+                return response()->json([
+                    'status'  => false,
+                    'message' => 'User already exists.',
+                ], 409);
+            }
+
+            // Check funnel assignment
+            $userFunnel = UserFunnel::where('patient_id', $request->patient_id)
+                ->where('funnel_id', $request->funnel_id)
+                ->first();
+
+            if (!$userFunnel) {
+                return response()->json([
+                    'status'  => false,
+                    'message' => 'User funnel assignment not found.',
+                ], 404);
+            }
+
+            DB::beginTransaction();
+
+            // Create user
+            $user = User::create([
+                'patient_id' => $request->patient_id,
+                'name'       => $request->name,
+                'email'      => $request->email,
+                'phone'      => $request->phone,
+                'password'   => bcrypt($request->password),
+                'country_code' => 'US',
+                'email_verified_at' => now(),
+                'phone_verified_at' => now(),
+            ]);
+
+            // Update funnel assignment
+            $userFunnel->update([
+                'user_id' => $user->id,
+            ]);
+
+            DB::commit();
 
             return response()->json([
-                'status' => true,
+                'status'  => true,
                 'message' => 'Patient added to funnel successfully.',
+                'data'    => [
+                    'user_id'    => $user->id,
+                    'patient_id' => $user->patient_id,
+                    'funnel_id'  => $request->funnel_id,
+                ]
             ], 200);
-        }catch(\Throwable $e){
+
+        } catch (\Throwable $e) {
+
+            DB::rollBack();
+
             Log::error('Error adding patient to funnel', [
+                'patient_id' => $request->patient_id ?? null,
+                'funnel_id'  => $request->funnel_id ?? null,
                 'message'    => $e->getMessage(),
                 'line'       => $e->getLine(),
                 'file'       => $e->getFile(),
             ]);
 
             return response()->json([
-                'status' => false,
+                'status'  => false,
                 'message' => 'Something went wrong while adding patient to the funnel.',
-                'error' => $e->getMessage(),
+                'error'   => $e->getMessage(),
             ], 500);
         }
     }
