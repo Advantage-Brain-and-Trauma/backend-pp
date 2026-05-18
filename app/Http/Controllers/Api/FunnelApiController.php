@@ -18,6 +18,7 @@ use Illuminate\Support\Facades\Mail;
 use App\Mail\AssignFunnelMail;
 use App\Models\AhcsPatient;
 use App\Models\AhcsCase;
+use App\Models\PatientCase;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 
 class FunnelApiController extends Controller
@@ -483,6 +484,13 @@ class FunnelApiController extends Controller
                     ->where('funnel_id', $request->funnel_id)
                     ->first();
             }
+
+            PatientCase::firstOrCreate(
+                [
+                    'patient_id' => $request->patient_id,
+                    'case_id'    => $request->case_id,
+                ]
+            );
 
             if (!$existingAssignment) {
                 UserFunnel::create([
