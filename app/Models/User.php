@@ -69,6 +69,11 @@ class User extends Authenticatable implements JWTSubject
         return $this->hasMany(Funnel::class, 'created_by');
     }
 
+    public function patientCases()
+    {
+        return $this->hasMany(PatientCase::class, 'user_id');
+    }
+
     public function getJWTIdentifier()
     {
         return $this->getKey();
