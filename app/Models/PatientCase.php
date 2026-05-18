@@ -14,6 +14,7 @@ class PatientCase extends Model
 
     protected $fillable = [
         'user_id',
+        'patient_id',
         'case_id',
     ];
 
