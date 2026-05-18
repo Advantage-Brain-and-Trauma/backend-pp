@@ -634,4 +634,62 @@ class FunnelApiController extends Controller
             ], 500);
         }
     }
+
+    public function addPatientToFunnel(Request $request){
+        try{
+            $validator = Validator::make($request->all(), [
+                'patient_id'  => 'required|integer',
+                'name'   => 'required|string',
+                'email'  => 'required|email',
+                'phone'  => 'required|string',
+                'password' => 'required|string|min:6',
+                'confirm_password' => 'required|string|same:password',
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'status' => false,
+                    'message' => 'Validation failed.',
+                    'errors' => $validator->errors(),
+                ], 422);
+            }
+
+            $patient = AhcsPatient::find($request->patient_id);
+
+            if (!$patient) {
+                return response()->json([
+                    'status' => false,
+                    'message' => 'Patient not found.',
+                ], 404);
+            }
+
+            $funnel = Funnel::find($request->funnel_id);
+
+            if (!$funnel) {
+                return response()->json([
+                    'status' => false,
+                    'message' => 'Funnel not found.',
+                ], 404);
+            }
+
+            
+
+            return response()->json([
+                'status' => true,
+                'message' => 'Patient added to funnel successfully.',
+            ], 200);
+        }catch(\Throwable $e){
+            Log::error('Error adding patient to funnel', [
+                'message'    => $e->getMessage(),
+                'line'       => $e->getLine(),
+                'file'       => $e->getFile(),
+            ]);
+
+            return response()->json([
+                'status' => false,
+                'message' => 'Something went wrong while adding patient to the funnel.',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
 }
