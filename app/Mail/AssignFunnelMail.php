@@ -18,7 +18,7 @@ class AssignFunnelMail extends Mailable
     public string $flag;
 
     // public function __construct(string $patientName, string $funnelName, string $funnelSlug) 
-    public function __construct(string $patientName, string $funnelName, string $funnelId, string $flag) 
+    public function __construct(string $patientId, string $caseId, string $patientName, string $funnelName, string $email, string $phone, string $funnelId, string $flag) 
     {
         $this->patientName = $patientName;
         $this->funnelName = $funnelName;
@@ -26,7 +26,50 @@ class AssignFunnelMail extends Mailable
 
         $encodedFlag = base64_encode($flag);
         $encodedFunnelId = base64_encode($funnelId);
-        $this->funnelUrl = 'https://app.advantagehcs.com/form/' . $encodedFunnelId . '?flag=' . $encodedFlag;
+        $encodedPatientId = base64_encode($patientId);
+        $encodedCaseId = base64_encode($caseId);
+        $encodedPatientName = base64_encode($patientName);
+        $encodedEmail = base64_encode($email);
+        $encodedPhone = base64_encode($phone);
+
+        // IF USER EXISTS
+        if ($flag === 'user_exists') {
+
+            $encodedPatientName = base64_encode($patientName);
+            $encodedFunnelName = base64_encode($funnelName);
+
+            $this->funnelUrl =
+                $baseUrl .
+                '?form=' . urlencode($encodedFunnelId) .
+                '&flag=' . urlencode($encodedFlag);
+
+        } else {
+            // NO USER
+            $encodedPatientId = base64_encode($patientId);
+            $encodedCaseId = base64_encode($caseId);
+            $encodedPatientName = base64_encode($patientName);
+            $encodedEmail = base64_encode($email);
+            $encodedPhone = base64_encode($phone);
+
+            $this->funnelUrl =
+                $baseUrl .
+                '?form=' . urlencode($encodedFunnelId) .
+                '&patient_id=' . urlencode($encodedPatientId) .
+                '&case_id=' . urlencode($encodedCaseId) .
+                '&name=' . urlencode($encodedPatientName) .
+                '&email=' . urlencode($encodedEmail) .
+                '&phone=' . urlencode($encodedPhone) .
+                '&flag=' . urlencode($encodedFlag);
+        }
+    
+
+        // $this->funnelUrl =  'https://app.advantagehcs.com/form/' . $encodedFunnelId .
+        //                     '?patient_id=' . urlencode($encodedPatientId) .
+        //                     '&case_id=' . urlencode($encodedCaseId) .
+        //                     '&name=' . urlencode($encodedPatientName) .
+        //                     '&email=' . urlencode($encodedEmail) .
+        //                     '&phone=' . urlencode($encodedPhone) .
+        //                     '&flag=' . urlencode($encodedFlag);
     }
 
     public function envelope(): Envelope
