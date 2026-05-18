@@ -638,7 +638,7 @@ class FunnelApiController extends Controller
 
             $validator = Validator::make($request->all(), [
                 'patient_id'       => 'required|integer',
-                'case_id'          => 'required|integer',
+                // 'case_id'          => 'required|integer',
                 'funnel_id'        => 'required|integer',
                 'name'             => 'required|string|max:255',
                 'email'            => 'required|email|max:255',
