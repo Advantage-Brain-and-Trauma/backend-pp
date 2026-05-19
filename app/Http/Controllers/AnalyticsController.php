@@ -259,10 +259,9 @@ class AnalyticsController extends Controller
         $activeFunnels = Funnel::where('status', 'active')->count();
 
         // ── Submissions within selected date range ──────────────────────────────
-        $periodSubs     = FormSubmission::whereBetween('created_at', [$fromDate, $toDate]);
-        $periodTotal    = (clone $periodSubs)->count();
-        $periodDrafts   = (clone $periodSubs)->where('status', 'draft')->count();
-        $periodCompleted = $periodTotal - $periodDrafts;   // anything that is NOT draft
+        $periodSubs      = FormSubmission::whereBetween('created_at', [$fromDate, $toDate]);
+        $periodTotal     = (clone $periodSubs)->count();
+        $periodCompleted = (clone $periodSubs)->where('status', 'completed')->count();
 
         // Previous period submissions (for trend arrow)
         $prevTotal = FormSubmission::whereBetween('created_at', [$prevFrom, $prevTo])->count();
@@ -270,19 +269,23 @@ class AnalyticsController extends Controller
 
         // All-time totals for the status breakdown card
         $allSubs      = FormSubmission::count();
-        $allDrafts    = FormSubmission::where('status', 'draft')->count();
-        $allCompleted = $allSubs - $allDrafts;
+        $allCompleted = FormSubmission::where('status', 'completed')->count();
 
-        // Completion rate for selected period
-        $completionRate = $periodTotal > 0
-            ? round(($periodCompleted / $periodTotal) * 100)
+        // Total Patient Assign (all-time) across all funnels via user_funnels
+        $totalPatientAssign = DB::table('user_funnels')->whereNull('deleted_at')->count();
+        $totalPending       = max(0, $totalPatientAssign - $allCompleted);
+
+        // Completion rate: completed / total patient assign
+        $completionRate = $totalPatientAssign > 0
+            ? round(($allCompleted / $totalPatientAssign) * 100)
             : ($allSubs > 0 ? round(($allCompleted / $allSubs) * 100) : 0);
 
-        // ── Submission status breakdown (period-filtered) ───────────────────────
+        // ── Submission status breakdown ─────────────────────────────────────────
         $submissionsByStatus = [
-            'total'     => $periodTotal > 0 ? $periodTotal : $allSubs,
-            'completed' => $periodTotal > 0 ? $periodCompleted : $allCompleted,
-            'drafts'    => $periodTotal > 0 ? $periodDrafts   : $allDrafts,
+            'total'                => max($totalPatientAssign, $allSubs, 1),
+            'total_patient_assign' => $totalPatientAssign,
+            'completed'            => $allCompleted,
+            'pending'              => $totalPending,
         ];
 
         // ── Daily submissions trend for the selected period ─────────────────────

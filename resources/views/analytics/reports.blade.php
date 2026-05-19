@@ -347,20 +347,20 @@
                 @php
                     $sTotal     = max($stats['submissions_by_status']['total'], 1);
                     $sCompleted = $stats['submissions_by_status']['completed'];
-                    $sDrafts    = $stats['submissions_by_status']['drafts'];
+                    $sPending   = $stats['submissions_by_status']['pending'];
                 @endphp
 
                 <div class="ro-status-bar" style="margin-bottom:24px;">
                     @if($sCompleted > 0)<div style="flex:{{ $sCompleted }};background:linear-gradient(90deg,#22c55e,#16a34a);"></div>@endif
-                    @if($sDrafts > 0)<div style="flex:{{ $sDrafts }};background:linear-gradient(90deg,#f59e0b,#d97706);"></div>@endif
-                    @if($sCompleted === 0 && $sDrafts === 0)
+                    @if($sPending > 0)<div style="flex:{{ $sPending }};background:linear-gradient(90deg,#f59e0b,#d97706);"></div>@endif
+                    @if($sCompleted === 0 && $sPending === 0)
                         <div style="flex:1;background:#e2e8f0;"></div>
                     @endif
                 </div>
 
                 @foreach([
-                    ['label' => 'Completed Submissions', 'value' => $sCompleted, 'color' => '#22c55e', 'bg' => '#f0fdf4'],
-                    ['label' => 'Saved as Draft',        'value' => $sDrafts,    'color' => '#f59e0b', 'bg' => '#fffbeb'],
+                    ['label' => 'Total Completed', 'value' => $sCompleted, 'color' => '#22c55e', 'bg' => '#f0fdf4'],
+                    ['label' => 'Total Pending',   'value' => $sPending,   'color' => '#f59e0b', 'bg' => '#fffbeb'],
                 ] as $row)
                 <div class="ro-status-row">
                     <div style="display:flex;align-items:center;gap:10px;">
