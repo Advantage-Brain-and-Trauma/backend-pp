@@ -295,430 +295,282 @@ class ClinicalController extends Controller
         }
     }
 
-    // public function getPatientFormData()
-    // {
-    //     try {
-
-    //         Log::channel('patient_form')->info('Fetching patient form data started', [
-    //             'user_id' => auth()->id()
-    //         ]);
-
-    //         $formSubmission = FormSubmission::with([
-    //                 'form' => function ($query) {
-    //                     $query->whereNull('deleted_at')
-    //                         ->select('id', 'name', 'fields');
-    //                 },
-    //                 'funnel' => function ($query) {
-    //                     $query->whereNull('deleted_at')
-    //                         ->select('id', 'name');
-    //                 },
-    //                 'notes' => function ($query) {
-    //                     $query->select(
-    //                             'id',
-    //                             'form_submission_id',
-    //                             'note',
-    //                             'noted_by',
-    //                             'created_at',
-    //                             'updated_at'
-    //                         )
-    //                         ->with('notedBy:id,name')
-    //                         ->whereNull('deleted_at')
-    //                         ->latest()
-    //                         ->limit(1);
-    //                 }
-    //             ])
-    //             ->where('user_id', auth()->id())
-    //             ->where('status', 'completed')
-    //             ->orderBy('created_at', 'desc')
-    //             ->whereNull('deleted_at')
-    //             ->get()
-    //             ->filter(function ($item) {
-    //                 return $item->form && $item->funnel;
-    //             })
-    //             ->values();
-
-    //         Log::channel('patient_form')->info('Patient form records fetched', [
-    //             'user_id' => auth()->id(),
-    //             'count'   => $formSubmission->count()
-    //         ]);
-
-    //         $data = $formSubmission->map(function ($item) {
-
-    //             $decoded = [];
-
-    //             if (!empty($item->form->fields['rows'])) {
-
-    //                 foreach ($item->form->fields['rows'] as $row) {
-
-    //                     foreach ($row['cols'] as $col) {
-
-    //                         foreach ($col['fields'] as $field) {
-
-    //                             $fieldId = $field['id'];
-
-    //                             $decodedItem = [
-    //                                 'type'     => $field['type'] ?? null,
-    //                                 'label'    => $field['label'] ?? null,
-    //                                 'required' => $field['required'] ?? false,
-    //                                 'value' => (
-    //                                                 in_array($field['type'] ?? '', ['file', 'image']) &&
-    //                                                 !empty($item->data[$fieldId])
-    //                                             )
-    //                                                 ? asset('storage/' . $item->data[$fieldId])
-    //                                                 : ($item->data[$fieldId] ?? null),
-    //                             ];
-
-    //                             if (!empty($field['options'])) {
-    //                                 $decodedItem['options'] = $field['options'];
-    //                             }
-
-    //                             $decoded[] = $decodedItem;
-    //                         }
-    //                     }
-    //                 }
-    //             }
-
-    //             $latestNote = $item->notes->first();
-
-    //             return [
-    //                 'id'                       => $item->id,
-    //                 'form_id'                  => $item->form_id,
-    //                 'funnel_id'                => $item->funnel_id,
-    //                 'form_title'                => $item->form->name ?? null,
-    //                 'funnel_name'              => $item->funnel->name ?? null,
-    //                 'status'                   => $item->status,
-    //                 'created_at'               => $item->created_at,
-    //                 'note_comments'            => $latestNote?->note,
-    //                 'note_comments_update_at'  => $latestNote?->updated_at,
-    //                 'pdf_url'                  => $item->pdf_url,
-    //                 'downloadPdf'              => $item->pdf_url
-    //                     ? url('/storage/form-pdfs/' . $item->pdf_url)
-    //                     : null,
-    //                 'decoded_json'             => $decoded,
-    //             ];
-    //         });
-
-    //         Log::channel('patient_form')->info('Patient form data response prepared', [
-    //             'user_id' => auth()->id(),
-    //             'count'   => count($data)
-    //         ]);
-
-    //         return response()->json([
-    //             'success' => true,
-    //             'data'    => $data
-    //         ], 200);
-
-    //     } catch (\Throwable $e) {
-
-    //         Log::channel('patient_form')->error('Error fetching patient form data', [
-    //             'user_id' => auth()->id(),
-    //             'error'   => $e->getMessage(),
-    //             'line'    => $e->getLine()
-    //         ]);
-
-    //         return response()->json([
-    //             'success' => false,
-    //             'message' => 'Error fetching patient form data'
-    //         ], 500);
-    //     }
-    // }
-
-
-    // public function getPatientFormData()
-    // {
-    //     try {
-
-    //         Log::channel('patient_form')->info('Fetching patient form data started', [
-    //             'user_id' => auth()->id()
-    //         ]);
-
-    //         $formSubmission = FormSubmission::with([
-    //                 'form' => function ($query) {
-    //                     $query->whereNull('deleted_at')
-    //                         ->select('id', 'name', 'fields');
-    //                 },
-    //                 'funnel' => function ($query) {
-    //                     $query->whereNull('deleted_at')
-    //                         ->select('id', 'name');
-    //                 },
-    //                 'notes' => function ($query) {
-    //                     $query->select(
-    //                             'id',
-    //                             'form_submission_id',
-    //                             'note',
-    //                             'noted_by',
-    //                             'created_at',
-    //                             'updated_at'
-    //                         )
-    //                         ->with('notedBy:id,name')
-    //                         ->whereNull('deleted_at')
-    //                         ->latest()
-    //                         ->limit(1);
-    //                 },
-    //                 'userFunnel.patientCase'
-    //             ])
-    //             ->where('user_id', auth()->id())
-    //             ->where('status', 'completed')
-    //             ->orderBy('created_at', 'desc')
-    //             ->whereNull('deleted_at')
-    //             ->get()
-    //             ->filter(function ($item) {
-    //                 return $item->form && $item->funnel;
-    //             })
-    //             ->values();
-
-    //         Log::channel('patient_form')->info('Patient form records fetched', [
-    //             'user_id' => auth()->id(),
-    //             'count'   => $formSubmission->count()
-    //         ]);
-
-    //         $groupedCases = [];
-    //         $data = $formSubmission->map(function ($item) {
-
-    //             $decoded = [];
-
-    //             if (!empty($item->form->fields['rows'])) {
-
-    //                 foreach ($item->form->fields['rows'] as $row) {
-
-    //                     foreach ($row['cols'] as $col) {
-
-    //                         foreach ($col['fields'] as $field) {
-
-    //                             $fieldId = $field['id'];
-
-    //                             $decodedItem = [
-    //                                 'type'     => $field['type'] ?? null,
-    //                                 'label'    => $field['label'] ?? null,
-    //                                 'required' => $field['required'] ?? false,
-    //                                 'value' => (
-    //                                                 in_array($field['type'] ?? '', ['file', 'image']) &&
-    //                                                 !empty($item->data[$fieldId])
-    //                                             )
-    //                                                 ? asset('storage/' . $item->data[$fieldId])
-    //                                                 : ($item->data[$fieldId] ?? null),
-    //                             ];
-
-    //                             if (!empty($field['options'])) {
-    //                                 $decodedItem['options'] = $field['options'];
-    //                             }
-
-    //                             $decoded[] = $decodedItem;
-    //                         }
-    //                     }
-    //                 }
-    //             }
-
-    //             $latestNote = $item->notes->first();
-
-    //             return [
-    //                 'id'                       => $item->id,
-    //                 'form_id'                  => $item->form_id,
-    //                 'funnel_id'                => $item->funnel_id,
-    //                 'form_title'                => $item->form->name ?? null,
-    //                 'funnel_name'              => $item->funnel->name ?? null,
-    //                 'status'                   => $item->status,
-    //                 'created_at'               => $item->created_at,
-    //                 'note_comments'            => $latestNote?->note,
-    //                 'note_comments_update_at'  => $latestNote?->updated_at,
-    //                 'pdf_url'                  => $item->pdf_url,
-    //                 'downloadPdf'              => $item->pdf_url
-    //                     ? url('/storage/form-pdfs/' . $item->pdf_url)
-    //                     : null,
-    //                 'decoded_json'             => $decoded,
-    //             ];
-
-    //             $caseId = optional($item->userFunnel)->patient_case_id ?? 'unknown';
-
-    //             if (!isset($groupedCases[$caseId])) {
-
-    //                 $groupedCases[$caseId] = [
-    //                     'cases'   => [
-    //                         'case_id' => $caseId,
-    //                         'forms' => []
-    //                     ],
-    //                 ];
-    //             }
-
-    //             $groupedCases[$caseId]['cases']['forms'][] = $formData;
-    //         });
-
-    //         $data = array_values($groupedCases);
-
-    //         Log::channel('patient_form')->info('Patient form data response prepared', [
-    //             'user_id' => auth()->id(),
-    //             'count'   => count($data)
-    //         ]);
-
-    //         return response()->json([
-    //             'success' => true,
-    //             'data'    => $data
-    //         ], 200);
-
-    //     } catch (\Throwable $e) {
-
-    //         Log::channel('patient_form')->error('Error fetching patient form data', [
-    //             'user_id' => auth()->id(),
-    //             'error'   => $e->getMessage(),
-    //             'line'    => $e->getLine()
-    //         ]);
-
-    //         return response()->json([
-    //             'success' => false,
-    //             'error' => $e->getMessage(),
-    //             'message' => 'Error fetching patient form data'
-    //         ], 500);
-    //     }
-    // }
-
     public function getPatientFormData()
-{
-    try {
+    {
+        try {
 
-        Log::channel('patient_form')->info('Fetching patient form data started', [
-            'user_id' => auth()->id()
-        ]);
+            Log::channel('patient_form')->info('Fetching patient form data started', [
+                'user_id' => auth()->id()
+            ]);
 
-        $formSubmission = FormSubmission::with([
+            $formSubmission = FormSubmission::with([
+                    'form' => function ($query) {
+                        $query->whereNull('deleted_at')
+                            ->select('id', 'name', 'fields');
+                    },
+                    'funnel' => function ($query) {
+                        $query->whereNull('deleted_at')
+                            ->select('id', 'name');
+                    },
+                    'notes' => function ($query) {
+                        $query->select(
+                                'id',
+                                'form_submission_id',
+                                'note',
+                                'noted_by',
+                                'created_at',
+                                'updated_at'
+                            )
+                            ->with('notedBy:id,name')
+                            ->whereNull('deleted_at')
+                            ->latest()
+                            ->limit(1);
+                    }
+                ])
+                ->where('user_id', auth()->id())
+                ->where('status', 'completed')
+                ->orderBy('created_at', 'desc')
+                ->whereNull('deleted_at')
+                ->get()
+                ->filter(function ($item) {
+                    return $item->form && $item->funnel;
+                })
+                ->values();
 
-            'form' => function ($query) {
-                $query->whereNull('deleted_at')
-                    ->select('id', 'name', 'fields');
-            },
+            Log::channel('patient_form')->info('Patient form records fetched', [
+                'user_id' => auth()->id(),
+                'count'   => $formSubmission->count()
+            ]);
 
-            'funnel' => function ($query) {
-                $query->whereNull('deleted_at')
-                    ->select('id', 'name');
-            },
+            $data = $formSubmission->map(function ($item) {
 
-            'notes' => function ($query) {
-                $query->select(
-                        'id',
-                        'form_submission_id',
-                        'note',
-                        'noted_by',
-                        'created_at',
-                        'updated_at'
-                    )
-                    ->with('notedBy:id,name')
-                    ->whereNull('deleted_at')
-                    ->latest()
-                    ->limit(1);
-            },
+                $decoded = [];
 
-            'userFunnel.patientCase'
+                if (!empty($item->form->fields['rows'])) {
 
-        ])
-        ->where('user_id', auth()->id())
-        ->where('status', 'completed')
-        ->whereNull('deleted_at')
-        ->orderBy('created_at', 'desc')
-        ->get()
-        ->filter(function ($item) {
-            return $item->form && $item->funnel;
-        })
-        ->values();
+                    foreach ($item->form->fields['rows'] as $row) {
 
-        $groupedCases = [];
+                        foreach ($row['cols'] as $col) {
 
-        foreach ($formSubmission as $item) {
+                            foreach ($col['fields'] as $field) {
 
-            $decoded = [];
+                                $fieldId = $field['id'];
 
-            if (!empty($item->form->fields['rows'])) {
+                                $decodedItem = [
+                                    'type'     => $field['type'] ?? null,
+                                    'label'    => $field['label'] ?? null,
+                                    'required' => $field['required'] ?? false,
+                                    'value' => (
+                                                    in_array($field['type'] ?? '', ['file', 'image']) &&
+                                                    !empty($item->data[$fieldId])
+                                                )
+                                                    ? asset('storage/' . $item->data[$fieldId])
+                                                    : ($item->data[$fieldId] ?? null),
+                                ];
 
-                foreach ($item->form->fields['rows'] as $row) {
+                                if (!empty($field['options'])) {
+                                    $decodedItem['options'] = $field['options'];
+                                }
 
-                    foreach ($row['cols'] as $col) {
-
-                        foreach ($col['fields'] as $field) {
-
-                            $fieldId = $field['id'];
-
-                            $decodedItem = [
-                                'type'     => $field['type'] ?? null,
-                                'label'    => $field['label'] ?? null,
-                                'required' => $field['required'] ?? false,
-                                'value' => (
-                                    in_array($field['type'] ?? '', ['file', 'image']) &&
-                                    !empty($item->data[$fieldId])
-                                )
-                                    ? asset('storage/' . $item->data[$fieldId])
-                                    : ($item->data[$fieldId] ?? null),
-                            ];
-
-                            if (!empty($field['options'])) {
-                                $decodedItem['options'] = $field['options'];
+                                $decoded[] = $decodedItem;
                             }
-
-                            $decoded[] = $decodedItem;
                         }
                     }
                 }
-            }
 
-            $latestNote = $item->notes->first();
+                $latestNote = $item->notes->first();
 
-            $formData = [
-                'id'                      => $item->id,
-                'form_id'                 => $item->form_id,
-                'funnel_id'               => $item->funnel_id,
-                'form_title'              => $item->form->name ?? null,
-                'funnel_name'             => $item->funnel->name ?? null,
-                'status'                  => $item->status,
-                'created_at'              => $item->created_at,
-                'note_comments'           => $latestNote?->note,
-                'note_comments_update_at' => $latestNote?->updated_at,
-                'pdf_url'                 => $item->pdf_url,
-                'downloadPdf'             => $item->pdf_url
-                    ? url('/storage/form-pdfs/' . $item->pdf_url)
-                    : null,
-                'decoded_json'            => $decoded,
-            ];
-
-            $caseId = optional($item->userFunnel)->patient_case_id ?? 'unknown';
-
-            if (!isset($groupedCases[$caseId])) {
-
-                $groupedCases[$caseId] = [
-                    'case_id' => $caseId,
-                    'cases'   => [
-                        'forms' => []
-                    ],
+                return [
+                    'id'                       => $item->id,
+                    'form_id'                  => $item->form_id,
+                    'funnel_id'                => $item->funnel_id,
+                    'form_title'                => $item->form->name ?? null,
+                    'funnel_name'              => $item->funnel->name ?? null,
+                    'status'                   => $item->status,
+                    'created_at'               => $item->created_at,
+                    'note_comments'            => $latestNote?->note,
+                    'note_comments_update_at'  => $latestNote?->updated_at,
+                    'pdf_url'                  => $item->pdf_url,
+                    'downloadPdf'              => $item->pdf_url
+                        ? url('/storage/form-pdfs/' . $item->pdf_url)
+                        : null,
+                    'decoded_json'             => $decoded,
                 ];
-            }
+            });
 
-            $groupedCases[$caseId]['cases']['forms'][] = $formData;
+            Log::channel('patient_form')->info('Patient form data response prepared', [
+                'user_id' => auth()->id(),
+                'count'   => count($data)
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'data'    => $data
+            ], 200);
+
+        } catch (\Throwable $e) {
+
+            Log::channel('patient_form')->error('Error fetching patient form data', [
+                'user_id' => auth()->id(),
+                'error'   => $e->getMessage(),
+                'line'    => $e->getLine()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Error fetching patient form data'
+            ], 500);
         }
-
-        $data = array_values($groupedCases);
-
-        Log::channel('patient_form')->info('Patient form data fetched successfully', [
-            'user_id' => auth()->id(),
-            'total_cases' => count($data)
-        ]);
-
-        return response()->json([
-            'success' => true,
-            'data'    => $data
-        ], 200);
-
-    } catch (\Throwable $e) {
-
-        Log::channel('patient_form')->error('Patient form API error', [
-            'user_id' => auth()->id(),
-            'error'   => $e->getMessage(),
-            'line'    => $e->getLine(),
-            'file'    => $e->getFile()
-        ]);
-
-        return response()->json([
-            'success' => false,
-            'error'   => $e->getMessage(),
-            'message' => 'Error fetching patient form data'
-        ], 500);
     }
-}
+
+//     public function getPatientFormData()
+// {
+//     try {
+
+//         Log::channel('patient_form')->info('Fetching patient form data started', [
+//             'user_id' => auth()->id()
+//         ]);
+
+//         $formSubmission = FormSubmission::with([
+
+//             'form' => function ($query) {
+//                 $query->whereNull('deleted_at')
+//                     ->select('id', 'name', 'fields');
+//             },
+
+//             'funnel' => function ($query) {
+//                 $query->whereNull('deleted_at')
+//                     ->select('id', 'name');
+//             },
+
+//             'notes' => function ($query) {
+//                 $query->select(
+//                         'id',
+//                         'form_submission_id',
+//                         'note',
+//                         'noted_by',
+//                         'created_at',
+//                         'updated_at'
+//                     )
+//                     ->with('notedBy:id,name')
+//                     ->whereNull('deleted_at')
+//                     ->latest()
+//                     ->limit(1);
+//             },
+
+//             'userFunnel.patientCase'
+
+//         ])
+//         ->where('user_id', auth()->id())
+//         ->where('status', 'completed')
+//         ->whereNull('deleted_at')
+//         ->orderBy('created_at', 'desc')
+//         ->get()
+//         ->filter(function ($item) {
+//             return $item->form && $item->funnel;
+//         })
+//         ->values();
+
+//         $groupedCases = [];
+
+//         foreach ($formSubmission as $item) {
+
+//             $decoded = [];
+
+//             if (!empty($item->form->fields['rows'])) {
+
+//                 foreach ($item->form->fields['rows'] as $row) {
+
+//                     foreach ($row['cols'] as $col) {
+
+//                         foreach ($col['fields'] as $field) {
+
+//                             $fieldId = $field['id'];
+
+//                             $decodedItem = [
+//                                 'type'     => $field['type'] ?? null,
+//                                 'label'    => $field['label'] ?? null,
+//                                 'required' => $field['required'] ?? false,
+//                                 'value' => (
+//                                     in_array($field['type'] ?? '', ['file', 'image']) &&
+//                                     !empty($item->data[$fieldId])
+//                                 )
+//                                     ? asset('storage/' . $item->data[$fieldId])
+//                                     : ($item->data[$fieldId] ?? null),
+//                             ];
+
+//                             if (!empty($field['options'])) {
+//                                 $decodedItem['options'] = $field['options'];
+//                             }
+
+//                             $decoded[] = $decodedItem;
+//                         }
+//                     }
+//                 }
+//             }
+
+//             $latestNote = $item->notes->first();
+
+//             $formData = [
+//                 'id'                      => $item->id,
+//                 'form_id'                 => $item->form_id,
+//                 'funnel_id'               => $item->funnel_id,
+//                 'form_title'              => $item->form->name ?? null,
+//                 'funnel_name'             => $item->funnel->name ?? null,
+//                 'status'                  => $item->status,
+//                 'created_at'              => $item->created_at,
+//                 'note_comments'           => $latestNote?->note,
+//                 'note_comments_update_at' => $latestNote?->updated_at,
+//                 'pdf_url'                 => $item->pdf_url,
+//                 'downloadPdf'             => $item->pdf_url
+//                     ? url('/storage/form-pdfs/' . $item->pdf_url)
+//                     : null,
+//                 'decoded_json'            => $decoded,
+//             ];
+
+//             $caseId = optional($item->userFunnel)->patient_case_id ?? 'unknown';
+
+//             if (!isset($groupedCases[$caseId])) {
+
+//                 $groupedCases[$caseId] = [
+//                     'case_id' => $caseId,
+//                     'cases'   => [
+//                         'forms' => []
+//                     ],
+//                 ];
+//             }
+
+//             $groupedCases[$caseId]['cases']['forms'][] = $formData;
+//         }
+
+//         $data = array_values($groupedCases);
+
+//         Log::channel('patient_form')->info('Patient form data fetched successfully', [
+//             'user_id' => auth()->id(),
+//             'total_cases' => count($data)
+//         ]);
+
+//         return response()->json([
+//             'success' => true,
+//             'data'    => $data
+//         ], 200);
+
+//     } catch (\Throwable $e) {
+
+//         Log::channel('patient_form')->error('Patient form API error', [
+//             'user_id' => auth()->id(),
+//             'error'   => $e->getMessage(),
+//             'line'    => $e->getLine(),
+//             'file'    => $e->getFile()
+//         ]);
+
+//         return response()->json([
+//             'success' => false,
+//             'error'   => $e->getMessage(),
+//             'message' => 'Error fetching patient form data'
+//         ], 500);
+//     }
+// }
 
     public function downloadPatientFormPdf(Request $request)
     {
