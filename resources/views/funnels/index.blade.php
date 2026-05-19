@@ -79,7 +79,7 @@
             <div style="display:flex;gap:6px;justify-content:flex-end;align-items:center;">
               {{-- Action buttons commented out
               {{-- View / Copy URL --}}
-              @if($funnel->slug && $funnel->status === 'active')
+              {{-- @if($funnel->slug && $funnel->status === 'active')
               <button onclick="copyFunnelUrl('{{ url('/funnel/' . $funnel->slug) }}')" title="Copy Public URL"
                 style="display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:7px;background:#22c55e;color:#fff;border:none;cursor:pointer;">
                 <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
@@ -89,7 +89,7 @@
                 style="display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:7px;background:#d1fae5;color:#6ee7b7;cursor:not-allowed;">
                 <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
               </span>
-              @endif
+              @endif --}}
               {{-- Edit --}}
               <a href="{{ route('funnels.edit', $funnel) }}" title="Edit Funnel"
                 style="display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:7px;background:#6366f1;color:#fff;text-decoration:none;">
