@@ -105,7 +105,7 @@
               <form id="delete-form-{{ $funnel->id }}" method="POST" action="{{ route('funnels.destroy', $funnel) }}" style="display:none;">
                 @csrf @method('DELETE')
               </form>
-              --}}
+              
             </div>
           </td>
         </tr>
