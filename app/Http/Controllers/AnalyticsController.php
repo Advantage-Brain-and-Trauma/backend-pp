@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 use App\Models\Form;
 use App\Models\Funnel;
 use App\Models\FormSubmission;
+use App\Models\UserFunnel;
 use Illuminate\Http\Request;
 
 class AnalyticsController extends Controller
@@ -25,20 +26,35 @@ class AnalyticsController extends Controller
 
         // All-time summary stats
         $allFunnelSubs   = FormSubmission::whereNotNull('funnel_id')->count();
-        $allFunnelDrafts = FormSubmission::whereNotNull('funnel_id')->where('status', 'draft')->count();
         $activeFunnels   = Funnel::where('status', 'active')->count();
+
+        // In-progress = users assigned to any funnel who submitted at least 1 form but not all forms
+        $allFunnels = Funnel::all(['id', 'form_ids']);
+        $totalInProgress = 0;
+        $totalCompleted  = 0;
+        foreach ($allFunnels as $f) {
+            $fIds = is_array($f->form_ids) ? $f->form_ids : (json_decode($f->form_ids ?? '[]', true) ?: []);
+            $totalForms = count($fIds);
+            if ($totalForms === 0) continue;
+            $assignedUserIds = UserFunnel::where('funnel_id', $f->id)->whereNotNull('user_id')->pluck('user_id');
+            foreach ($assignedUserIds as $uid) {
+                $submitted = FormSubmission::where('funnel_id', $f->id)->where('user_id', $uid)->distinct('form_id')->count('form_id');
+                if ($submitted >= $totalForms) $totalCompleted++;
+                elseif ($submitted > 0)        $totalInProgress++;
+            }
+        }
 
         $summary = [
             'total_funnels'     => Funnel::count(),
             'active_funnels'    => $activeFunnels,
             'total_submissions' => $allFunnelSubs,
-            'in_progress'       => $allFunnelDrafts,
-            'completed'         => $allFunnelSubs - $allFunnelDrafts,
+            'in_progress'       => $totalInProgress,
+            'completed'         => $totalCompleted,
             'period_submissions'=> FormSubmission::whereNotNull('funnel_id')
                                     ->whereBetween('created_at', [$fromDate, $toDate])->count(),
-            'completion_rate'   => $allFunnelSubs > 0
-                                    ? round((($allFunnelSubs - $allFunnelDrafts) / $allFunnelSubs) * 100)
-                                    : 0,
+            'completion_rate'   => ($totalCompleted + $totalInProgress) > 0
+                                    ? round(($totalCompleted / ($totalCompleted + $totalInProgress)) * 100)
+                                    : ($allFunnelSubs > 0 ? 100 : 0),
         ];
 
         $search = $request->input('search', '');
@@ -51,11 +67,22 @@ class AnalyticsController extends Controller
                      : (json_decode($funnel->form_ids ?? '[]', true) ?: []);
             $funnel->form_count = count($formIds);
 
-            // All-time stats
+            // All-time stats — per-user completion logic
             $submissions  = FormSubmission::with('user')->where('funnel_id', $funnel->id)->get();
-            $completed    = $submissions->where('status', '!=', 'draft')->count();
-            $inProgress   = $submissions->where('status', 'draft')->count();
             $total        = $submissions->count();
+            $assignedUserIds = UserFunnel::where('funnel_id', $funnel->id)->whereNotNull('user_id')->pluck('user_id');
+            $completed   = 0;
+            $inProgress  = 0;
+            foreach ($assignedUserIds as $uid) {
+                $submitted = FormSubmission::where('funnel_id', $funnel->id)->where('user_id', $uid)->distinct('form_id')->count('form_id');
+                if ($submitted >= $funnel->form_count && $funnel->form_count > 0) $completed++;
+                elseif ($submitted > 0) $inProgress++;
+            }
+            // Fallback: if no user assignments, use submission count as completed
+            if ($assignedUserIds->isEmpty()) {
+                $completed  = $total;
+                $inProgress = 0;
+            }
 
             // Period stats
             $periodSubs   = FormSubmission::where('funnel_id', $funnel->id)
