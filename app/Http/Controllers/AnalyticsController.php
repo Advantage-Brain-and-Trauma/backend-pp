@@ -141,8 +141,8 @@ class AnalyticsController extends Controller
         $allSubs      = FormSubmission::count();
         $allCompleted = FormSubmission::where('status', '!=', 'draft')->count();
 
-        // Total patients assigned across all forms (via patient_funnel_assignments)
-        $totalPatientAssign = DB::table('patient_funnel_assignments')
+        // Total patients assigned across all forms (via user_funnels)
+        $totalPatientAssign = DB::table('user_funnels')
             ->whereNull('deleted_at')->count();
 
         $summary = [
@@ -175,23 +175,19 @@ class AnalyticsController extends Controller
             }
             $form->field_count = $fieldCount;
 
-            // Total Patient Assign: distinct patients assigned to funnels that contain this form
+            // Total Patient Assign: distinct users assigned to funnels that contain this form
             $funnelIdsForForm = $formFunnelMap[$form->id] ?? [];
             if (!empty($funnelIdsForForm)) {
-                $totalPatientAssignForm = DB::table('patient_funnel_assignments')
+                $totalPatientAssignForm = DB::table('user_funnels')
                     ->whereIn('funnel_id', $funnelIdsForForm)
                     ->whereNull('deleted_at')
-                    ->distinct('patient_id')
-                    ->count('patient_id');
+                    ->distinct('user_id')
+                    ->count('user_id');
             } else {
-                // Form not in any funnel — count distinct patients from form_submissions
+                // Form not in any funnel — count distinct users from form_submissions
                 $totalPatientAssignForm = FormSubmission::where('form_id', $form->id)
-                    ->distinct('patient_id')->count('patient_id');
-                // Fallback to user_id if patient_id is null
-                if ($totalPatientAssignForm === 0) {
-                    $totalPatientAssignForm = FormSubmission::where('form_id', $form->id)
-                        ->distinct('user_id')->count('user_id');
-                }
+                    ->whereNull('deleted_at')
+                    ->distinct('user_id')->count('user_id');
             }
 
             // Total Completed: count of submissions for this form
