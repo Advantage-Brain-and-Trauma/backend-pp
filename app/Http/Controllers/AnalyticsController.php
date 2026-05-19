@@ -6,6 +6,7 @@ use App\Models\Funnel;
 use App\Models\FormSubmission;
 use App\Models\UserFunnel;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class AnalyticsController extends Controller
 {
@@ -126,21 +127,34 @@ class AnalyticsController extends Controller
         $fromDate = \Carbon\Carbon::parse($from)->startOfDay();
         $toDate   = \Carbon\Carbon::parse($to)->endOfDay();
 
-        // All-time summary
-        $allSubs   = FormSubmission::count();
-        $allDrafts = FormSubmission::where('status', 'draft')->count();
-        $allCompleted = $allSubs - $allDrafts;
+        // All-time summary — using patient_funnel_assignments for patient assign counts
+        // Build a map: form_id => [funnel_ids that contain this form]
+        $allFunnels = Funnel::all(['id', 'form_ids']);
+        $formFunnelMap = []; // form_id => [funnel_id, ...]
+        foreach ($allFunnels as $f) {
+            $fIds = is_array($f->form_ids) ? $f->form_ids : (json_decode($f->form_ids ?? '[]', true) ?: []);
+            foreach ($fIds as $fid) {
+                $formFunnelMap[$fid][] = $f->id;
+            }
+        }
+
+        $allSubs      = FormSubmission::count();
+        $allCompleted = FormSubmission::where('status', '!=', 'draft')->count();
+
+        // Total patients assigned across all forms (via patient_funnel_assignments)
+        $totalPatientAssign = DB::table('patient_funnel_assignments')
+            ->whereNull('deleted_at')->count();
 
         $summary = [
             'total_forms'         => Form::count(),
             'active_forms'        => Form::where('is_active', 1)->count(),
             'total_submissions'   => $allSubs,
             'total_completed'     => $allCompleted,
-            'total_drafts'        => $allDrafts,
+            'total_patient_assign'=> $totalPatientAssign,
             'period_submissions'  => FormSubmission::whereBetween('created_at', [$fromDate, $toDate])->count(),
-            'avg_completion_rate' => $allSubs > 0
-                ? round(($allCompleted / $allSubs) * 100)
-                : 0,
+            'avg_completion_rate' => $totalPatientAssign > 0
+                ? round(($allCompleted / $totalPatientAssign) * 100)
+                : ($allSubs > 0 ? 100 : 0),
         ];
 
         $search = $request->input('search', '');
@@ -161,11 +175,32 @@ class AnalyticsController extends Controller
             }
             $form->field_count = $fieldCount;
 
-            // All-time submission stats
+            // Total Patient Assign: distinct patients assigned to funnels that contain this form
+            $funnelIdsForForm = $formFunnelMap[$form->id] ?? [];
+            if (!empty($funnelIdsForForm)) {
+                $totalPatientAssignForm = DB::table('patient_funnel_assignments')
+                    ->whereIn('funnel_id', $funnelIdsForForm)
+                    ->whereNull('deleted_at')
+                    ->distinct('patient_id')
+                    ->count('patient_id');
+            } else {
+                // Form not in any funnel — count distinct patients from form_submissions
+                $totalPatientAssignForm = FormSubmission::where('form_id', $form->id)
+                    ->distinct('patient_id')->count('patient_id');
+                // Fallback to user_id if patient_id is null
+                if ($totalPatientAssignForm === 0) {
+                    $totalPatientAssignForm = FormSubmission::where('form_id', $form->id)
+                        ->distinct('user_id')->count('user_id');
+                }
+            }
+
+            // Total Completed: count of submissions for this form
             $submissions  = FormSubmission::where('form_id', $form->id)->get();
             $completed    = $submissions->where('status', '!=', 'draft')->count();
-            $drafts       = $submissions->where('status', 'draft')->count();
             $total        = $submissions->count();
+
+            // Total Pending = Total Patient Assign - Total Completed
+            $pending = max(0, $totalPatientAssignForm - $completed);
 
             // Period submissions
             $periodSubs = FormSubmission::where('form_id', $form->id)
@@ -186,12 +221,15 @@ class AnalyticsController extends Controller
             }
 
             $form->stats = [
-                'total_submissions' => $total,
-                'completed'         => $completed,
-                'drafts'            => $drafts,
-                'period_subs'       => $periodSubs,
-                'rate'              => $total > 0 ? round(($completed / $total) * 100) : 0,
-                'daily_trend'       => $dailyTrend,
+                'total_patient_assign' => $totalPatientAssignForm,
+                'total_submissions'    => $total,
+                'completed'            => $completed,
+                'pending'              => $pending,
+                'period_subs'          => $periodSubs,
+                'rate'                 => $totalPatientAssignForm > 0
+                                            ? round(($completed / $totalPatientAssignForm) * 100)
+                                            : ($total > 0 ? round(($completed / $total) * 100) : 0),
+                'daily_trend'          => $dailyTrend,
             ];
 
             $form->recentSubmissions = FormSubmission::with('user')->where('form_id', $form->id)

@@ -223,13 +223,14 @@
     <div id="fa-cards-container">
     @forelse($forms as $form)
     @php
-        $total     = $form->stats['total_submissions'];
-        $completed = $form->stats['completed'];
-        $drafts    = $form->stats['drafts'];
-        $rate      = $form->stats['rate'];
-        $trend     = array_values($form->stats['daily_trend']);
-        $maxTrend  = !empty($trend) ? max(max($trend), 1) : 1;
-        $rateColor = $rate >= 75 ? '#22c55e' : ($rate >= 40 ? '#f59e0b' : '#ef4444');
+        $patientAssign = $form->stats['total_patient_assign'];
+        $total         = $form->stats['total_submissions'];
+        $completed     = $form->stats['completed'];
+        $pending       = $form->stats['pending'];
+        $rate          = $form->stats['rate'];
+        $trend         = array_values($form->stats['daily_trend']);
+        $maxTrend      = !empty($trend) ? max(max($trend), 1) : 1;
+        $rateColor     = $rate >= 75 ? '#22c55e' : ($rate >= 40 ? '#f59e0b' : '#ef4444');
     @endphp
     <div class="fa-form-card">
 
@@ -277,16 +278,16 @@
         {{-- Metrics row --}}
         <div class="fa-metrics">
             <div class="fa-metric-cell">
-                <div class="fa-metric-val">{{ $total }}</div>
-                <div class="fa-metric-label">Total Submissions</div>
+                <div class="fa-metric-val">{{ $patientAssign }}</div>
+                <div class="fa-metric-label">Total Patient Assign</div>
             </div>
             <div class="fa-metric-cell">
                 <div class="fa-metric-val" style="color:#22c55e;">{{ $completed }}</div>
-                <div class="fa-metric-label">Completed</div>
+                <div class="fa-metric-label">Total Completed</div>
             </div>
             <div class="fa-metric-cell">
-                <div class="fa-metric-val" style="color:#f59e0b;">{{ $drafts }}</div>
-                <div class="fa-metric-label">Saved as Draft</div>
+                <div class="fa-metric-val" style="color:#f59e0b;">{{ $pending }}</div>
+                <div class="fa-metric-label">Total Pending</div>
             </div>
             <div class="fa-metric-cell">
                 <div class="fa-metric-val" style="color:{{ $rateColor }};">{{ $rate }}%</div>
@@ -294,19 +295,20 @@
             </div>
         </div>
 
-        @if($total > 0)
+        @if($patientAssign > 0 || $total > 0)
         {{-- Breakdown bar --}}
+        @php $barTotal = max($patientAssign, $total, 1); @endphp
         <div style="padding:16px 24px;border-bottom:1px solid #f1f5f9;">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-                <span style="font-size:12px;font-weight:600;color:#64748b;">Submission Breakdown</span>
-                <span style="font-size:12px;color:#94a3b8;">{{ $total }} total</span>
+                <span style="font-size:12px;font-weight:600;color:#64748b;">Patient Assignment Breakdown</span>
+                <span style="font-size:12px;color:#94a3b8;">{{ $patientAssign }} total assigned</span>
             </div>
             <div class="fa-breakdown-bar">
                 @if($completed > 0)
-                <div style="width:{{ ($completed/$total)*100 }}%;background:linear-gradient(90deg,#22c55e,#16a34a);height:100%;" title="{{ $completed }} Completed"></div>
+                <div style="width:{{ ($completed/$barTotal)*100 }}%;background:linear-gradient(90deg,#22c55e,#16a34a);height:100%;" title="{{ $completed }} Completed"></div>
                 @endif
-                @if($drafts > 0)
-                <div style="width:{{ ($drafts/$total)*100 }}%;background:linear-gradient(90deg,#f59e0b,#d97706);height:100%;" title="{{ $drafts }} Drafts"></div>
+                @if($pending > 0)
+                <div style="width:{{ ($pending/$barTotal)*100 }}%;background:linear-gradient(90deg,#f59e0b,#d97706);height:100%;" title="{{ $pending }} Pending"></div>
                 @endif
             </div>
             <div style="display:flex;gap:16px;margin-top:8px;">
@@ -316,7 +318,7 @@
                 </span>
                 <span style="font-size:11px;color:#f59e0b;display:flex;align-items:center;gap:5px;">
                     <span style="width:8px;height:8px;background:#f59e0b;border-radius:2px;display:inline-block;"></span>
-                    Draft ({{ $drafts }})
+                    Pending ({{ $pending }})
                 </span>
             </div>
         </div>
