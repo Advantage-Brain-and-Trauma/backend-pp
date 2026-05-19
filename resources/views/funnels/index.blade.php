@@ -77,7 +77,6 @@
           <td style="padding:14px 20px;font-size:13px;color:#6b7280;">{{ $funnel->created_at->format('M d, Y g:i A') }}</td>
           <td style="padding:14px 20px;text-align:right;">
             <div style="display:flex;gap:6px;justify-content:flex-end;align-items:center;">
-              {{-- Action buttons commented out
               {{-- View / Copy URL --}}
               @if($funnel->slug && $funnel->status === 'active')
               <button onclick="copyFunnelUrl('{{ url('/funnel/' . $funnel->slug) }}')" title="Copy Public URL"
@@ -105,7 +104,6 @@
               <form id="delete-form-{{ $funnel->id }}" method="POST" action="{{ route('funnels.destroy', $funnel) }}" style="display:none;">
                 @csrf @method('DELETE')
               </form>
-              --}}
             </div>
           </td>
         </tr>
