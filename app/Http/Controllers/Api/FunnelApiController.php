@@ -558,7 +558,7 @@ class FunnelApiController extends Controller
                 return response()->json([
                     'status'  => false,
                     'message' => 'Validation failed.',
-                    'errors'  => $validator->errors(),
+                    'errors'  => $validator->errors()->first(),
                 ], 422);
             }
 
