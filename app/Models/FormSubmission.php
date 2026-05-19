@@ -35,4 +35,10 @@ class FormSubmission extends Model
     {
         return $this->hasMany(FormSubmissionNote::class, 'form_submission_id');
     }
+
+    public function userFunnel()
+    {
+        return $this->belongsTo(UserFunnel::class, 'funnel_id', 'funnel_id')
+            ->where('patient_id', auth()->user()->patient_id);
+    }
 }
