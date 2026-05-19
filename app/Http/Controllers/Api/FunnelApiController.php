@@ -734,12 +734,27 @@ class FunnelApiController extends Controller
 
             DB::beginTransaction();
 
-            // Find existing user by email or patient_id; create only if none found
-            $user = User::where('email', $request->email)
+            // Find existing user by email or patient_id (including soft-deleted records)
+            $user = User::withTrashed()
+                ->where('email', $request->email)
                 ->orWhere('patient_id', $request->patient_id)
                 ->first();
 
-            if (!$user) {
+            if ($user) {
+                // Restore soft-deleted user if needed and update their details
+                if ($user->trashed()) {
+                    $user->restore();
+                }
+                $user->update([
+                    'patient_id'        => $request->patient_id,
+                    'name'              => $request->name,
+                    'phone'             => $request->phone,
+                    'password'          => bcrypt($request->password),
+                    'country_code'      => 'US',
+                    'email_verified_at' => now(),
+                    'phone_verified_at' => now(),
+                ]);
+            } else {
                 $user = User::create([
                     'patient_id'        => $request->patient_id,
                     'name'              => $request->name,
