@@ -455,10 +455,7 @@ class ClinicalController extends Controller
                             ->latest()
                             ->limit(1);
                     },
-                    'userFunnel.patientCase' => function ($query) {
-                        $query->select('id', 'patient_id', 'case_id')
-                            ->with('patientCase:id,case_id,patient_id');
-                    }
+                    'userFunnel.patientCase'
                 ])
                 ->where('user_id', auth()->id())
                 ->where('status', 'completed')
