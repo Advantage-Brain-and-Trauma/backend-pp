@@ -720,18 +720,6 @@ class FunnelApiController extends Controller
                 ], 404);
             }
 
-            // Check existing user
-            $existingUser = User::where('email', $request->email)
-                ->orWhere('patient_id', $request->patient_id)
-                ->first();
-
-            if ($existingUser) {
-                return response()->json([
-                    'status'  => false,
-                    'message' => 'User already exists.',
-                ], 409);
-            }
-
             // Check funnel assignment
             $userFunnel = UserFunnel::where('patient_id', $request->patient_id)
                 ->where('funnel_id', $request->funnel_id)
@@ -746,19 +734,25 @@ class FunnelApiController extends Controller
 
             DB::beginTransaction();
 
-            // Create user
-            $user = User::create([
-                'patient_id' => $request->patient_id,
-                'name'       => $request->name,
-                'email'      => $request->email,
-                'phone'      => $request->phone,
-                'password'   => bcrypt($request->password),
-                'country_code' => 'US',
-                'email_verified_at' => now(),
-                'phone_verified_at' => now(),
-            ]);
+            // Find existing user by email or patient_id; create only if none found
+            $user = User::where('email', $request->email)
+                ->orWhere('patient_id', $request->patient_id)
+                ->first();
 
-            // Update funnel assignment
+            if (!$user) {
+                $user = User::create([
+                    'patient_id'        => $request->patient_id,
+                    'name'              => $request->name,
+                    'email'             => $request->email,
+                    'phone'             => $request->phone,
+                    'password'          => bcrypt($request->password),
+                    'country_code'      => 'US',
+                    'email_verified_at' => now(),
+                    'phone_verified_at' => now(),
+                ]);
+            }
+
+            // Update funnel assignment with the resolved user id
             $userFunnel->update([
                 'user_id' => $user->id,
             ]);
