@@ -295,6 +295,135 @@ class ClinicalController extends Controller
         }
     }
 
+    // public function getPatientFormData()
+    // {
+    //     try {
+
+    //         Log::channel('patient_form')->info('Fetching patient form data started', [
+    //             'user_id' => auth()->id()
+    //         ]);
+
+    //         $formSubmission = FormSubmission::with([
+    //                 'form' => function ($query) {
+    //                     $query->whereNull('deleted_at')
+    //                         ->select('id', 'name', 'fields');
+    //                 },
+    //                 'funnel' => function ($query) {
+    //                     $query->whereNull('deleted_at')
+    //                         ->select('id', 'name');
+    //                 },
+    //                 'notes' => function ($query) {
+    //                     $query->select(
+    //                             'id',
+    //                             'form_submission_id',
+    //                             'note',
+    //                             'noted_by',
+    //                             'created_at',
+    //                             'updated_at'
+    //                         )
+    //                         ->with('notedBy:id,name')
+    //                         ->whereNull('deleted_at')
+    //                         ->latest()
+    //                         ->limit(1);
+    //                 }
+    //             ])
+    //             ->where('user_id', auth()->id())
+    //             ->where('status', 'completed')
+    //             ->orderBy('created_at', 'desc')
+    //             ->whereNull('deleted_at')
+    //             ->get()
+    //             ->filter(function ($item) {
+    //                 return $item->form && $item->funnel;
+    //             })
+    //             ->values();
+
+    //         Log::channel('patient_form')->info('Patient form records fetched', [
+    //             'user_id' => auth()->id(),
+    //             'count'   => $formSubmission->count()
+    //         ]);
+
+    //         $data = $formSubmission->map(function ($item) {
+
+    //             $decoded = [];
+
+    //             if (!empty($item->form->fields['rows'])) {
+
+    //                 foreach ($item->form->fields['rows'] as $row) {
+
+    //                     foreach ($row['cols'] as $col) {
+
+    //                         foreach ($col['fields'] as $field) {
+
+    //                             $fieldId = $field['id'];
+
+    //                             $decodedItem = [
+    //                                 'type'     => $field['type'] ?? null,
+    //                                 'label'    => $field['label'] ?? null,
+    //                                 'required' => $field['required'] ?? false,
+    //                                 'value' => (
+    //                                                 in_array($field['type'] ?? '', ['file', 'image']) &&
+    //                                                 !empty($item->data[$fieldId])
+    //                                             )
+    //                                                 ? asset('storage/' . $item->data[$fieldId])
+    //                                                 : ($item->data[$fieldId] ?? null),
+    //                             ];
+
+    //                             if (!empty($field['options'])) {
+    //                                 $decodedItem['options'] = $field['options'];
+    //                             }
+
+    //                             $decoded[] = $decodedItem;
+    //                         }
+    //                     }
+    //                 }
+    //             }
+
+    //             $latestNote = $item->notes->first();
+
+    //             return [
+    //                 'id'                       => $item->id,
+    //                 'form_id'                  => $item->form_id,
+    //                 'funnel_id'                => $item->funnel_id,
+    //                 'form_title'                => $item->form->name ?? null,
+    //                 'funnel_name'              => $item->funnel->name ?? null,
+    //                 'status'                   => $item->status,
+    //                 'created_at'               => $item->created_at,
+    //                 'note_comments'            => $latestNote?->note,
+    //                 'note_comments_update_at'  => $latestNote?->updated_at,
+    //                 'pdf_url'                  => $item->pdf_url,
+    //                 'downloadPdf'              => $item->pdf_url
+    //                     ? url('/storage/form-pdfs/' . $item->pdf_url)
+    //                     : null,
+    //                 'decoded_json'             => $decoded,
+    //             ];
+    //         });
+
+    //         Log::channel('patient_form')->info('Patient form data response prepared', [
+    //             'user_id' => auth()->id(),
+    //             'count'   => count($data)
+    //         ]);
+
+    //         return response()->json([
+    //             'success' => true,
+    //             'data'    => $data
+    //         ], 200);
+
+    //     } catch (\Throwable $e) {
+
+    //         Log::channel('patient_form')->error('Error fetching patient form data', [
+    //             'user_id' => auth()->id(),
+    //             'error'   => $e->getMessage(),
+    //             'line'    => $e->getLine()
+    //         ]);
+
+    //         return response()->json([
+    //             'success' => false,
+    //             'message' => 'Error fetching patient form data'
+    //         ], 500);
+    //     }
+    // }
+
+
     public function getPatientFormData()
     {
         try {
@@ -325,6 +454,10 @@ class ClinicalController extends Controller
                             ->whereNull('deleted_at')
                             ->latest()
                             ->limit(1);
+                    },
+                    'userFunnel.patientCase' => function ($query) {
+                        $query->select('id', 'patient_id', 'case_id')
+                            ->with('patientCase:id,case_id,patient_id');
                     }
                 ])
                 ->where('user_id', auth()->id())
@@ -342,6 +475,7 @@ class ClinicalController extends Controller
                 'count'   => $formSubmission->count()
             ]);
 
+            $groupedCases = [];
             $data = $formSubmission->map(function ($item) {
 
                 $decoded = [];
@@ -396,7 +530,23 @@ class ClinicalController extends Controller
                         : null,
                     'decoded_json'             => $decoded,
                 ];
+
+                $caseId = optional($item->userFunnel)->patient_case_id ?? 'unknown';
+
+                if (!isset($groupedCases[$caseId])) {
+
+                    $groupedCases[$caseId] = [
+                        'cases'   => [
+                            'case_id' => $caseId,
+                            'forms' => []
+                        ],
+                    ];
+                }
+
+                $groupedCases[$caseId]['cases']['forms'][] = $formData;
             });
+
+            $data = array_values($groupedCases);
 
             Log::channel('patient_form')->info('Patient form data response prepared', [
                 'user_id' => auth()->id(),
