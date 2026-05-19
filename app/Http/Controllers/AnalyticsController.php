@@ -68,21 +68,22 @@ class AnalyticsController extends Controller
                      : (json_decode($funnel->form_ids ?? '[]', true) ?: []);
             $funnel->form_count = count($formIds);
 
-            // All-time stats — per-user completion logic
+            // Per-funnel patient assignment stats
             $submissions  = FormSubmission::with('user')->where('funnel_id', $funnel->id)->get();
-            $total        = $submissions->count();
-            $assignedUserIds = UserFunnel::where('funnel_id', $funnel->id)->whereNotNull('user_id')->pluck('user_id');
-            $completed   = 0;
-            $inProgress  = 0;
+            $assignedUserIds = UserFunnel::where('funnel_id', $funnel->id)->whereNotNull('user_id')->pluck('user_id')->unique();
+            $totalPatientAssign = $assignedUserIds->count();
+            $totalCompleted = 0;
             foreach ($assignedUserIds as $uid) {
                 $submitted = FormSubmission::where('funnel_id', $funnel->id)->where('user_id', $uid)->distinct('form_id')->count('form_id');
-                if ($submitted >= $funnel->form_count && $funnel->form_count > 0) $completed++;
-                elseif ($submitted > 0) $inProgress++;
+                if ($submitted >= $funnel->form_count && $funnel->form_count > 0) $totalCompleted++;
             }
-            // Fallback: if no user assignments, use submission count as completed
+            $totalPending = max(0, $totalPatientAssign - $totalCompleted);
+
+            // Fallback: if no user assignments, use submission count
             if ($assignedUserIds->isEmpty()) {
-                $completed  = $total;
-                $inProgress = 0;
+                $totalPatientAssign = $submissions->count();
+                $totalCompleted     = $totalPatientAssign;
+                $totalPending       = 0;
             }
 
             // Period stats
@@ -104,12 +105,12 @@ class AnalyticsController extends Controller
             }
 
             $funnel->stats = [
-                'total'        => $total,
-                'completed'    => $completed,
-                'in_progress'  => $inProgress,
-                'period_subs'  => $periodSubs,
-                'rate'         => $total > 0 ? round(($completed / $total) * 100) : 0,
-                'daily_trend'  => $dailyTrend,
+                'total_patient_assign' => $totalPatientAssign,
+                'total_completed'      => $totalCompleted,
+                'total_pending'        => $totalPending,
+                'period_subs'          => $periodSubs,
+                'rate'                 => $totalPatientAssign > 0 ? round(($totalCompleted / $totalPatientAssign) * 100) : 0,
+                'daily_trend'          => $dailyTrend,
             ];
             $funnel->recentSubmissions = $submissions->sortByDesc('created_at')->take(5);
         }

@@ -219,14 +219,14 @@
     <div id="fna-cards-container">
     @forelse($funnels as $funnel)
     @php
-        $total      = $funnel->stats['total'];
-        $completed  = $funnel->stats['completed'];
-        $inProgress = $funnel->stats['in_progress'];
-        $rate       = $funnel->stats['rate'];
-        $trend      = array_values($funnel->stats['daily_trend']);
-        $maxTrend   = !empty($trend) ? max(max($trend), 1) : 1;
-        $rateColor  = $rate >= 75 ? '#22c55e' : ($rate >= 40 ? '#f59e0b' : '#ef4444');
-        $steps      = is_array($funnel->steps) ? $funnel->steps : (json_decode($funnel->steps ?? '[]', true) ?: []);
+        $totalPatientAssign = $funnel->stats['total_patient_assign'];
+        $totalCompleted     = $funnel->stats['total_completed'];
+        $totalPending       = $funnel->stats['total_pending'];
+        $rate               = $funnel->stats['rate'];
+        $trend              = array_values($funnel->stats['daily_trend']);
+        $maxTrend           = !empty($trend) ? max(max($trend), 1) : 1;
+        $rateColor          = $rate >= 75 ? '#22c55e' : ($rate >= 40 ? '#f59e0b' : '#ef4444');
+        $steps              = is_array($funnel->steps) ? $funnel->steps : (json_decode($funnel->steps ?? '[]', true) ?: []);
     @endphp
     <div class="fna-funnel-card">
 
@@ -268,16 +268,16 @@
         {{-- Metrics row --}}
         <div class="fna-metrics">
             <div class="fna-metric-cell">
-                <div class="fna-metric-val">{{ $total }}</div>
-                <div class="fna-metric-label">Total Submissions</div>
+                <div class="fna-metric-val">{{ $totalPatientAssign }}</div>
+                <div class="fna-metric-label">Total Patient Assign</div>
             </div>
             <div class="fna-metric-cell">
-                <div class="fna-metric-val" style="color:#22c55e;">{{ $completed }}</div>
-                <div class="fna-metric-label">Completed</div>
+                <div class="fna-metric-val" style="color:#22c55e;">{{ $totalCompleted }}</div>
+                <div class="fna-metric-label">Total Completed</div>
             </div>
             <div class="fna-metric-cell">
-                <div class="fna-metric-val" style="color:#3b82f6;">{{ $inProgress }}</div>
-                <div class="fna-metric-label">In Progress</div>
+                <div class="fna-metric-val" style="color:#f59e0b;">{{ $totalPending }}</div>
+                <div class="fna-metric-label">Total Pending</div>
             </div>
             <div class="fna-metric-cell">
                 <div class="fna-metric-val" style="color:{{ $rateColor }};">{{ $rate }}%</div>
@@ -285,29 +285,29 @@
             </div>
         </div>
 
-        @if($total > 0)
+        @if($totalPatientAssign > 0)
         {{-- Breakdown bar --}}
         <div style="padding:16px 24px;border-bottom:1px solid #f1f5f9;">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-                <span style="font-size:12px;font-weight:600;color:#64748b;">Submission Distribution</span>
-                <span style="font-size:12px;color:#94a3b8;">{{ $total }} total</span>
+                <span style="font-size:12px;font-weight:600;color:#64748b;">Patient Distribution</span>
+                <span style="font-size:12px;color:#94a3b8;">{{ $totalPatientAssign }} total</span>
             </div>
             <div class="fna-breakdown-bar">
-                @if($completed > 0)
-                <div style="width:{{ ($completed/$total)*100 }}%;background:linear-gradient(90deg,#22c55e,#16a34a);height:100%;" title="{{ $completed }} Completed"></div>
+                @if($totalCompleted > 0)
+                <div style="width:{{ ($totalCompleted/$totalPatientAssign)*100 }}%;background:linear-gradient(90deg,#22c55e,#16a34a);height:100%;" title="{{ $totalCompleted }} Completed"></div>
                 @endif
-                @if($inProgress > 0)
-                <div style="width:{{ ($inProgress/$total)*100 }}%;background:linear-gradient(90deg,#3b82f6,#1d4ed8);height:100%;" title="{{ $inProgress }} In Progress"></div>
+                @if($totalPending > 0)
+                <div style="width:{{ ($totalPending/$totalPatientAssign)*100 }}%;background:linear-gradient(90deg,#f59e0b,#d97706);height:100%;" title="{{ $totalPending }} Pending"></div>
                 @endif
             </div>
             <div style="display:flex;gap:16px;margin-top:8px;">
                 <span style="font-size:11px;color:#22c55e;display:flex;align-items:center;gap:5px;">
                     <span style="width:8px;height:8px;background:#22c55e;border-radius:2px;display:inline-block;"></span>
-                    Completed ({{ $completed }})
+                    Completed ({{ $totalCompleted }})
                 </span>
-                <span style="font-size:11px;color:#3b82f6;display:flex;align-items:center;gap:5px;">
-                    <span style="width:8px;height:8px;background:#3b82f6;border-radius:2px;display:inline-block;"></span>
-                    In Progress ({{ $inProgress }})
+                <span style="font-size:11px;color:#f59e0b;display:flex;align-items:center;gap:5px;">
+                    <span style="width:8px;height:8px;background:#f59e0b;border-radius:2px;display:inline-block;"></span>
+                    Pending ({{ $totalPending }})
                 </span>
             </div>
         </div>
