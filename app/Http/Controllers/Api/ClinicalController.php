@@ -12,6 +12,7 @@ use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Storage;
 use ZipArchive;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\DB;
 
 class ClinicalController extends Controller
 {
@@ -25,6 +26,17 @@ class ClinicalController extends Controller
                 'user_id'    => auth()->id(),
                 'patient_id' => $patientId
             ]);
+
+            $patient = DB::connection('patient_portal')
+                ->table('users')
+                ->where('patient_id', $patientId)
+                ->first();
+
+            if(!$patient){
+                return response()->json([
+                    'message' => 'Patient submited form not found for the patient',
+                ]);
+            }
 
             $url = "https://ptp.advantagehcs.com/api/submittedData/" . $patientId;
 
