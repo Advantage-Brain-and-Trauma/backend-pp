@@ -33,6 +33,7 @@ class PatientAppointmentController extends Controller
             Log::channel('appointment')->info('Fetching patient appointments - Start');
             $user = auth()->user();
             $patientId = $user->patient_id;
+            $caseId = $user->case_id;
 
             if (!$patientId) {
                 throw new \Exception("Patient ID is required", 400);
@@ -42,8 +43,13 @@ class PatientAppointmentController extends Controller
             AhcsPatient::findOrFail($patientId);
             Log::channel('appointment')->info('Patient found', ['patient_id' => $patientId]);
 
-            // ✅ Get all case IDs of patient
-            $caseIds = AhcsCase::where('patient_id', $patientId)->pluck('id');
+            $caseQuery = AhcsCase::where('patient_id', $patientId);
+
+            if (!empty($caseId)) {
+                $caseQuery->where('id', $caseId);
+            }
+
+            $caseIds = $caseQuery->pluck('id');
 
             if ($caseIds->isEmpty()) {
                 throw new \Exception("No cases found for this patient", 404);
