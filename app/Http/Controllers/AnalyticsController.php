@@ -207,22 +207,18 @@ class AnalyticsController extends Controller
         $fromDate = \Carbon\Carbon::parse($from)->startOfDay();
         $toDate   = \Carbon\Carbon::parse($to)->endOfDay();
 
-        // Previous period of equal length (for % change comparison)
-        $periodDays  = max(1, $fromDate->diffInDays($toDate));
-        $prevFrom    = $fromDate->copy()->subDays($periodDays);
-        $prevTo      = $fromDate->copy()->subSecond();
+        // ── Submission status breakdown — date-filtered ────────────────────────────
+        $totalPatientAssign = DB::table('user_funnels')
+            ->whereNull('deleted_at')
+            ->whereBetween('created_at', [$fromDate, $toDate])
+            ->count();
+        $allCompleted = FormSubmission::where('status', 'completed')
+            ->whereBetween('created_at', [$fromDate, $toDate])
+            ->count();
+        $totalPending = max(0, $totalPatientAssign - $allCompleted);
 
-        // ── Submissions within selected date range ────────────────────────────
-        $allSubs      = FormSubmission::count();
-        $allCompleted = FormSubmission::where('status', 'completed')->count();
-
-        // Total Patient Assign (all-time) across all funnels via user_funnels
-        $totalPatientAssign = DB::table('user_funnels')->whereNull('deleted_at')->count();
-        $totalPending       = max(0, $totalPatientAssign - $allCompleted);
-
-        // ── Submission status breakdown ─────────────────────────────────────────
         $submissionsByStatus = [
-            'total'                => max($totalPatientAssign, $allSubs, 1),
+            'total'                => max($totalPatientAssign, 1),
             'total_patient_assign' => $totalPatientAssign,
             'completed'            => $allCompleted,
             'pending'              => $totalPending,
@@ -253,14 +249,6 @@ class AnalyticsController extends Controller
             ->take(5)
             ->get();
 
-        // Fall back to all-time if no period submissions exist
-        if ($topForms->sum('submissions_count') === 0) {
-            $topForms = Form::withCount('submissions')
-                ->orderBy('submissions_count', 'desc')
-                ->take(5)
-                ->get();
-        }
-
         // ── Top funnels — filtered by period ───────────────────────────────────
         $topFunnels = Funnel::withCount(['submissions' => function ($q) use ($fromDate, $toDate) {
                 $q->whereBetween('created_at', [$fromDate, $toDate]);
@@ -269,26 +257,12 @@ class AnalyticsController extends Controller
             ->take(5)
             ->get();
 
-        if ($topFunnels->sum('submissions_count') === 0) {
-            $topFunnels = Funnel::withCount('submissions')
-                ->orderBy('submissions_count', 'desc')
-                ->take(5)
-                ->get();
-        }
-
         // ── Recent submissions (last 10 in period) ──────────────────────────────
         $recentSubmissions = FormSubmission::with('form')
             ->whereBetween('created_at', [$fromDate, $toDate])
             ->orderBy('created_at', 'desc')
             ->take(10)
             ->get();
-
-        if ($recentSubmissions->isEmpty()) {
-            $recentSubmissions = FormSubmission::with('form')
-                ->orderBy('created_at', 'desc')
-                ->take(10)
-                ->get();
-        }
 
         $stats = [
             'submissions_by_status' => $submissionsByStatus,
