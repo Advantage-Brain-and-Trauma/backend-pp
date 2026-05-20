@@ -269,23 +269,7 @@
                     </div>
                 @endif
 
-                <div class="ro-period-row">
-                    <div class="ro-period-cell">
-                        <div class="ro-period-num" style="color:#6366f1;">{{ $stats['period_submissions'] }}</div>
-                        <div class="ro-period-label">This Period</div>
-                    </div>
-                    <div class="ro-period-cell">
-                        @php $ch = $stats['period_change']; @endphp
-                        <div class="ro-period-num" style="color:{{ $ch >= 0 ? '#22c55e' : '#ef4444' }};">
-                            {{ $ch >= 0 ? '+' : '' }}{{ $ch }}
-                        </div>
-                        <div class="ro-period-label">vs Prev Period</div>
-                    </div>
-                    <div class="ro-period-cell">
-                        <div class="ro-period-num" style="color:#f59e0b;">{{ $stats['completion_rate'] }}%</div>
-                        <div class="ro-period-label">Completion</div>
-                    </div>
-                </div>
+
             </div>
         </div>
 
