@@ -534,8 +534,8 @@ class ClinicalController extends Controller
                 if (!isset($groupedCases[$caseId])) {
 
                     $groupedCases[$caseId] = [
+                        'case_id' => $caseId,
                         'cases'   => [
-                            'case_id' => $caseId,
                             'forms' => []
                         ],
                     ];
