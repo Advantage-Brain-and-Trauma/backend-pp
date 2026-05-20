@@ -8,7 +8,7 @@ use App\Models\AhcsCase;
 use App\Models\AhcsIntake;
 use App\Models\AhcsMedAuth;
 use App\Models\AhcsWorkComp;
-use App\Modles\PatientCases;
+use App\Models\PatientCases;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
