@@ -8,9 +8,13 @@
 .fa-page { display:flex; flex-direction:column; gap:28px; }
 
 /* Header */
-.fa-header { display:flex; align-items:flex-start; justify-content:space-between; flex-wrap:wrap; gap:12px; }
+.fa-header { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; }
+.fa-header-main { display:block; margin:0; padding:0; min-width:0; }
 .fa-header-title { font-size:26px; font-weight:800; color:#0f172a; margin:0; letter-spacing:-.4px; }
 .fa-header-sub   { font-size:13px; color:#64748b; margin:4px 0 0; }
+.fa-header-main > i,
+.fa-header-main > .fa-header-icon,
+.fa-header-main > .page-title-icon { display:none !important; }
 
 /* Filter card */
 .fa-filter-card {
@@ -65,6 +69,7 @@
 .fa-stat-label { font-size:12px; color:#64748b; margin-top:4px; font-weight:500; }
 
 /* Form card */
+#fa-cards-container { display:flex; flex-direction:column; gap:24px; }
 .fa-form-card {
     background:#fff; border-radius:16px; border:1px solid #e2e8f0;
     box-shadow:0 1px 4px rgba(0,0,0,.04); overflow:hidden;
@@ -135,7 +140,7 @@
 
     {{-- ── Header ──────────────────────────────────────────────────── --}}
     <div class="fa-header">
-        <div>
+        <div class="fa-header-main">
             <h1 class="fa-header-title">Form Analytics</h1>
             <p class="fa-header-sub">Submission statistics for every form — track completions, drafts, and trends</p>
         </div>
