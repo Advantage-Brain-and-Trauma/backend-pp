@@ -105,4 +105,33 @@ class PatientController extends Controller
             ],500);
         }
     }
+
+    public function getCaseIdsByPatientId(): JsonResponse
+    {
+        try {
+            $userDetails = auth()->user();
+            $patient_id = $userDetails->patient_id;
+
+            if (!$patient_id) {
+                throw new \Exception("Patient ID is required", 400);
+            }
+
+            $caseIds = PatientCases::where('patient_id', $patient_id)
+                ->pluck('case_id')
+                ->toArray();
+
+            return response()->json([
+                'success' => true,
+                'case_ids' => $caseIds
+            ], 200);
+
+        } catch (\Throwable $e) {
+            Log::channel('patient')->error("Error fetching case IDs: " . $e->getMessage());
+
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage()
+            ],500);
+        }
+    }
 }

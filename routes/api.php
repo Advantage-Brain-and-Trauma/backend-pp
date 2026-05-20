@@ -52,6 +52,8 @@ Route::middleware(['auth:api', 'role.api:User'])->group(function (){
     Route::put('form-submissions/{submissionId}/notes/{noteId}',    [FormSubmissionNoteController::class, 'update']);
     Route::delete('form-submissions/{submissionId}/notes/{noteId}', [FormSubmissionNoteController::class, 'destroy']);
 
+    Route::get('get-case-ids-by-patient-id', [PatientController::class, 'getCaseIdsByPatientId']);
+
 });
 
     Route::get('get-all-old-forms', [FunnelApiController::class, 'getAllOldForms']); // get all olds form data
