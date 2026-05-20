@@ -123,32 +123,34 @@ class AnalyticsController extends Controller
             }
             $form->field_count = $fieldCount;
 
-            // Total Patient Assign: distinct users assigned to funnels that contain this form
+            // Total Patient Assign: distinct users assigned to funnels that contain this form (date-filtered)
             $funnelIdsForForm = $formFunnelMap[$form->id] ?? [];
             if (!empty($funnelIdsForForm)) {
                 $totalPatientAssignForm = DB::table('user_funnels')
                     ->whereIn('funnel_id', $funnelIdsForForm)
                     ->whereNull('deleted_at')
+                    ->whereBetween('created_at', [$fromDate, $toDate])
                     ->distinct('user_id')
                     ->count('user_id');
             } else {
-                // Form not in any funnel — count distinct users from form_submissions
+                // Form not in any funnel — count distinct users from form_submissions in period
                 $totalPatientAssignForm = FormSubmission::where('form_id', $form->id)
                     ->whereNull('deleted_at')
+                    ->whereBetween('created_at', [$fromDate, $toDate])
                     ->distinct('user_id')->count('user_id');
             }
 
-            // Total Completed: count of submissions with status 'completed' for this form
-            $submissions  = FormSubmission::where('form_id', $form->id)->get();
+            // Total Completed: submissions with status 'completed' for this form in the date range
+            $submissions  = FormSubmission::where('form_id', $form->id)
+                ->whereBetween('created_at', [$fromDate, $toDate])->get();
             $completed    = $submissions->where('status', 'completed')->count();
             $total        = $submissions->count();
 
             // Total Pending = Total Patient Assign - Total Completed
             $pending = max(0, $totalPatientAssignForm - $completed);
 
-            // Period submissions
-            $periodSubs = FormSubmission::where('form_id', $form->id)
-                ->whereBetween('created_at', [$fromDate, $toDate])->count();
+            // Period submissions (same as $total now)
+            $periodSubs = $total;
 
             // Daily trend for this form
             $dailyRaw = FormSubmission::where('form_id', $form->id)
@@ -180,6 +182,7 @@ class AnalyticsController extends Controller
             ];
 
             $form->recentSubmissions = FormSubmission::with('user')->where('form_id', $form->id)
+                ->whereBetween('created_at', [$fromDate, $toDate])
                 ->orderBy('created_at', 'desc')->take(5)->get();
         }
 
