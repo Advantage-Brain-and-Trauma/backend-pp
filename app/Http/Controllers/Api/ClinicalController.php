@@ -529,7 +529,7 @@ class ClinicalController extends Controller
                 ];
 
                 // $caseId = optional($item->userFunnel)->patient_case_id ?? 'unknown';
-                $caseId = optional(optional($item->userFunnel)->patientCase)->case_id ?? 'unknown';
+                $caseId = optional(optional($item->userFunnel)->patientCase)->case_id ?? null;
 
                 if (!isset($groupedCases[$caseId])) {
 
