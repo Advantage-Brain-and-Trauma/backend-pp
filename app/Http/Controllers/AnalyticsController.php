@@ -202,33 +202,13 @@ class AnalyticsController extends Controller
         $prevFrom    = $fromDate->copy()->subDays($periodDays);
         $prevTo      = $fromDate->copy()->subSecond();
 
-        // ── All-time totals (not date-filtered — shown in stat cards) ───────────
-        $totalForms   = Form::count();
-        $activeForms  = Form::where('is_active', 1)->count();
-        $totalFunnels = Funnel::count();
-        $activeFunnels = Funnel::where('status', 'active')->count();
-
-        // ── Submissions within selected date range ──────────────────────────────
-        $periodSubs      = FormSubmission::whereBetween('created_at', [$fromDate, $toDate]);
-        $periodTotal     = (clone $periodSubs)->count();
-        $periodCompleted = (clone $periodSubs)->where('status', 'completed')->count();
-
-        // Previous period submissions (for trend arrow)
-        $prevTotal = FormSubmission::whereBetween('created_at', [$prevFrom, $prevTo])->count();
-        $periodChange = $periodTotal - $prevTotal;
-
-        // All-time totals for the status breakdown card
+        // ── Submissions within selected date range ────────────────────────────
         $allSubs      = FormSubmission::count();
         $allCompleted = FormSubmission::where('status', 'completed')->count();
 
         // Total Patient Assign (all-time) across all funnels via user_funnels
         $totalPatientAssign = DB::table('user_funnels')->whereNull('deleted_at')->count();
         $totalPending       = max(0, $totalPatientAssign - $allCompleted);
-
-        // Completion rate: completed / total patient assign
-        $completionRate = $totalPatientAssign > 0
-            ? round(($allCompleted / $totalPatientAssign) * 100)
-            : ($allSubs > 0 ? round(($allCompleted / $allSubs) * 100) : 0);
 
         // ── Submission status breakdown ─────────────────────────────────────────
         $submissionsByStatus = [
@@ -301,14 +281,6 @@ class AnalyticsController extends Controller
         }
 
         $stats = [
-            'total_forms'           => $totalForms,
-            'active_forms'          => $activeForms,
-            'total_funnels'         => $totalFunnels,
-            'active_funnels'        => $activeFunnels,
-            'total_submissions'     => $allSubs,
-            'period_submissions'    => $periodTotal,
-            'period_change'         => $periodChange,
-            'completion_rate'       => $completionRate,
             'submissions_by_status' => $submissionsByStatus,
             'daily_trend'           => $dailyTrend,
             'top_forms'             => $topForms,

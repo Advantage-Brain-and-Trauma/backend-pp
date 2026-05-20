@@ -224,51 +224,6 @@
         </form>
     </div>
 
-    {{-- ── Stat Cards ──────────────────────────────────────────────────── --}}
-    <div class="ro-stats-grid">
-
-        <div class="ro-stat-card blue">
-            <div class="ro-stat-icon blue"><i class="fas fa-wpforms"></i></div>
-            <div>
-                <div class="ro-stat-value">{{ number_format($stats['total_forms']) }}</div>
-                <div class="ro-stat-label">Total Forms</div>
-                <div class="ro-stat-sub" style="color:#94a3b8;">{{ $stats['active_forms'] }} active</div>
-            </div>
-        </div>
-
-        <div class="ro-stat-card indigo">
-            <div class="ro-stat-icon indigo"><i class="fas fa-filter"></i></div>
-            <div>
-                <div class="ro-stat-value">{{ number_format($stats['total_funnels']) }}</div>
-                <div class="ro-stat-label">Total Funnels</div>
-                <div class="ro-stat-sub" style="color:#94a3b8;">{{ $stats['active_funnels'] }} active</div>
-            </div>
-        </div>
-
-        <div class="ro-stat-card green">
-            <div class="ro-stat-icon green"><i class="fas fa-check-circle"></i></div>
-            <div>
-                <div class="ro-stat-value">{{ number_format($stats['total_submissions']) }}</div>
-                <div class="ro-stat-label">Total Submissions</div>
-                @php $ch = $stats['period_change']; @endphp
-                <div class="ro-stat-sub" style="color:{{ $ch >= 0 ? '#22c55e' : '#ef4444' }};">
-                    <i class="fas fa-arrow-{{ $ch >= 0 ? 'up' : 'down' }}" style="font-size:9px;"></i>
-                    {{ $ch >= 0 ? '+' : '' }}{{ $ch }} this period
-                </div>
-            </div>
-        </div>
-
-        <div class="ro-stat-card amber">
-            <div class="ro-stat-icon amber"><i class="fas fa-chart-pie"></i></div>
-            <div>
-                <div class="ro-stat-value">{{ $stats['completion_rate'] }}%</div>
-                <div class="ro-stat-label">Completion Rate</div>
-                <div class="ro-stat-sub" style="color:#94a3b8;">Across all forms</div>
-            </div>
-        </div>
-
-    </div>
-
     {{-- ── Trend + Status ──────────────────────────────────────────────── --}}
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;">
 
