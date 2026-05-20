@@ -129,7 +129,8 @@ class AnalyticsController extends Controller
         $toDate   = \Carbon\Carbon::parse($to)->endOfDay();
 
         // Build a map: form_id => [funnel_ids that contain this form]
-        $allFunnels = Funnel::all(['id', 'form_ids']);
+        // Fetch all columns so the model's array cast on form_ids works correctly
+        $allFunnels = Funnel::all();
         $formFunnelMap = []; // form_id => [funnel_id, ...]
         foreach ($allFunnels as $f) {
             $fIds = is_array($f->form_ids) ? $f->form_ids : (json_decode($f->form_ids ?? '[]', true) ?: []);
@@ -175,16 +176,16 @@ class AnalyticsController extends Controller
             if ($totalFormsInFunnel === 0) continue;
 
             // Count distinct forms submitted by this patient/user for this funnel
-            $subQuery = DB::table('form_submissions')
-                ->where('funnel_id', $uf->funnel_id)
-                ->whereNull('deleted_at');
-            if ($uf->user_id) {
-                $subQuery->where('user_id', $uf->user_id);
-            } elseif ($uf->patient_id) {
-                // match by patient_id via users table if needed — fallback: no user_id means 0 subs
-                $subQuery->whereNull('user_id'); // won't match any real submission
+            if (!$uf->user_id) {
+                // No user_id (e.g. patient assigned via email with no account yet) => pending
+                continue;
             }
-            $submittedForms = $subQuery->distinct('form_id')->count('form_id');
+            $submittedForms = DB::table('form_submissions')
+                ->where('funnel_id', $uf->funnel_id)
+                ->where('user_id', $uf->user_id)
+                ->whereNull('deleted_at')
+                ->distinct('form_id')
+                ->count('form_id');
 
             if ($submittedForms >= $totalFormsInFunnel) {
                 $completedCount++;
