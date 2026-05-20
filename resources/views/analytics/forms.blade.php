@@ -210,6 +210,13 @@
                 <div class="fa-stat-label">Total Completed</div>
             </div>
         </div>
+        <div class="fa-stat-card orange" style="border-left:4px solid #f97316;">
+            <div class="fa-stat-icon" style="background:linear-gradient(135deg,#f97316,#fb923c);color:#fff;"><i class="fas fa-hourglass-half"></i></div>
+            <div>
+                <div class="fa-stat-val" style="color:#f97316;">{{ $summary['total_pending'] }}</div>
+                <div class="fa-stat-label">Total Pending</div>
+            </div>
+        </div>
         <div class="fa-stat-card rose">
             <div class="fa-stat-icon rose"><i class="fas fa-chart-pie"></i></div>
             <div>

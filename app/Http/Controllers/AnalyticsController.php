@@ -146,16 +146,21 @@ class AnalyticsController extends Controller
         $totalPatientAssign = DB::table('user_funnels')
             ->whereNull('deleted_at')->count();
 
-        // Completion rate capped at 100%
-        $avgCompletionRate = $totalPatientAssign > 0
-            ? min(100, round(($allCompleted / $totalPatientAssign) * 100))
-            : ($allSubs > 0 ? min(100, round(($allCompleted / max($allSubs, 1)) * 100)) : 0);
+        // Total Pending = Total Patient Assign - Total Completed
+        $totalPending = max(0, $totalPatientAssign - $allCompleted);
+
+        // Completion rate = Total Completed / (Total Completed + Total Pending) * 100, capped at 100%
+        $completedPlusPending = $allCompleted + $totalPending;
+        $avgCompletionRate = $completedPlusPending > 0
+            ? min(100, round(($allCompleted / $completedPlusPending) * 100))
+            : 0;
 
         $summary = [
             'total_forms'         => Form::count(),
             'active_forms'        => Form::where('is_active', 1)->count(),
             'total_submissions'   => $allSubs,
             'total_completed'     => $allCompleted,
+            'total_pending'       => $totalPending,
             'total_patient_assign'=> $totalPatientAssign,
             'period_submissions'  => FormSubmission::whereBetween('created_at', [$fromDate, $toDate])->count(),
             'avg_completion_rate' => $avgCompletionRate,
