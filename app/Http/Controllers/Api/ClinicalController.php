@@ -274,27 +274,6 @@ class ClinicalController extends Controller
         }
     }
 
-    public function viewPatientSubmitedFormPdf($formValueId)
-    {
-        try {
-
-            if (!$formValueId) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Form value ID is required'
-                ], 400);
-            }
-
-            
-
-        } catch (\Throwable $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Error fetching PDF data'
-            ], 500);
-        }
-    }
-
     // public function getPatientFormData()
     // {
     //     try {
