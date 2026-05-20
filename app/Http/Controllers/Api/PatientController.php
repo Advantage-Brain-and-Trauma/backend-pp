@@ -14,6 +14,10 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
+use Illuminate\Support\Facades\Validator;
+use Tymon\JWTAuth\Facades\JWTAuth;
+use Illuminate\Support\Facades\Auth;
+use App\Models\UserSession;
 
 class PatientController extends Controller
 {
@@ -136,35 +140,141 @@ class PatientController extends Controller
         }
     }
 
+    // public function changePatientCase(Request $request): JsonResponse
+    // {
+    //     try {
+
+    //         $validator = Validator::make($request->all(), [
+    //             'case_id' => 'required|integer|exists:patient_cases,case_id',
+    //         ]);
+    //         if ($validator->fails()) {
+    //             return response()->json([
+    //                 'success' => false,
+    //                 'message' => $validator->errors()->first()
+    //             ], 422);
+    //         }
+
+    //         $oldToken = JWTAuth::getToken();
+
+    //         if (!$oldToken) {
+    //             return response()->json([
+    //                 'success' => false,
+    //                 'message' => 'Token not provided'
+    //             ], 401);
+    //         }
+
+    //         $oldPayload = JWTAuth::setToken($oldToken)->getPayload();
+    //         $oldJwtId = $oldPayload->get('jti');
+
+    //         $newToken = Auth::guard('api')->refresh();
+
+    //         $newPayload = JWTAuth::setToken($newToken)->getPayload();
+    //         $newJwtId = $newPayload->get('jti');
+
+    //         $user = Auth::guard('api')->setToken($newToken)->user();
+
+    //         UserSession::where('user_id', $user->id)
+    //             ->where('jwt_id', $oldJwtId)
+    //             ->where('is_active', 1)
+    //             ->update([
+    //                 'jwt_id' => $newJwtId,
+    //                 'token' => $newToken,
+    //                 'ip_address' => $request->ip(),
+    //                 'user_agent' => $request->userAgent(),
+    //                 'last_activity' => now(),
+    //                 'updated_at' => now(),
+    //             ]);
+
+    //         return response()->json([
+    //             'success' => true,
+    //             'message' => 'Token refreshed successfully',
+    //             'token' => $newToken,
+    //         ], 200);
+
+    //     } catch (\Throwable $e) {
+    //         Log::channel('auth')->error('Token refresh failed', [
+    //             'message' => $e->getMessage()
+    //         ]);
+
+    //         return response()->json([
+    //             'success' => false,
+    //             'message' => 'Token refresh failed'
+    //         ], 401);
+    //     }
+    // }
+
     public function changePatientCase(Request $request): JsonResponse
     {
         try {
             $validator = Validator::make($request->all(), [
-                'case_id' => 'required|integer',
+                'case_id' => 'required|integer|exists:patient_cases,case_id',
             ]);
 
             if ($validator->fails()) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Validation error',
-                    'errors' => $validator->errors()
+                    'message' => $validator->errors()->first()
                 ], 422);
             }
 
-            $userDetails = auth()->user();
-            $patient_id = $userDetails->patient_id;
-            $case_id = $request->case_id;
+            $oldToken = JWTAuth::getToken();
 
-            
+            if (!$oldToken) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Token not provided'
+                ], 401);
+            }
 
+            $oldPayload = JWTAuth::setToken($oldToken)->getPayload();
+            $oldJwtId = $oldPayload->get('jti');
+
+            $user = Auth::guard('api')->user();
+
+            if (!$user) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Unauthenticated user'
+                ], 401);
+            }
+
+            $caseId = $request->case_id;
+
+            // Create new token with selected case_id
+            $newToken = JWTAuth::claims([
+                'case_id' => $caseId
+            ])->fromUser($user);
+
+            $newPayload = JWTAuth::setToken($newToken)->getPayload();
+            $newJwtId = $newPayload->get('jti');
+
+            UserSession::where('user_id', $user->id)
+                ->where('jwt_id', $oldJwtId)
+                ->where('is_active', 1)
+                ->update([
+                    'jwt_id' => $newJwtId,
+                    'token' => $newToken,
+                    'ip_address' => $request->ip(),
+                    'user_agent' => $request->userAgent(),
+                    'last_activity' => now(),
+                    'updated_at' => now(),
+                ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Patient case changed successfully',
+                'token' => $newToken,
+            ], 200);
 
         } catch (\Throwable $e) {
-            Log::channel('patient')->error("Error changing patient case: " . $e->getMessage());
+            Log::channel('auth')->error('Change patient case failed', [
+                'message' => $e->getMessage()
+            ]);
 
             return response()->json([
                 'success' => false,
-                'message' => $e->getMessage()
-            ],500);
+                'message' => 'Patient case change failed'
+            ], 401);
         }
     }
 }
