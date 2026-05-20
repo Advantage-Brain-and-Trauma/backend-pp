@@ -197,17 +197,17 @@
             </div>
         </div>
         <div class="fa-stat-card violet">
-            <div class="fa-stat-icon violet"><i class="fas fa-paper-plane"></i></div>
+            <div class="fa-stat-icon violet"><i class="fas fa-user-check"></i></div>
             <div>
-                <div class="fa-stat-val">{{ $summary['total_submissions'] }}</div>
-                <div class="fa-stat-label">All-Time Submissions</div>
+                <div class="fa-stat-val">{{ $summary['total_patient_assign'] }}</div>
+                <div class="fa-stat-label">Total Patient Assign</div>
             </div>
         </div>
         <div class="fa-stat-card amber">
-            <div class="fa-stat-icon amber"><i class="fas fa-calendar-check"></i></div>
+            <div class="fa-stat-icon amber"><i class="fas fa-check-circle"></i></div>
             <div>
-                <div class="fa-stat-val">{{ $summary['period_submissions'] }}</div>
-                <div class="fa-stat-label">Period Submissions</div>
+                <div class="fa-stat-val">{{ $summary['total_completed'] }}</div>
+                <div class="fa-stat-label">Total Completed</div>
             </div>
         </div>
         <div class="fa-stat-card rose">
