@@ -25,39 +25,6 @@ class AnalyticsController extends Controller
         $fromDate = \Carbon\Carbon::parse($from)->startOfDay();
         $toDate   = \Carbon\Carbon::parse($to)->endOfDay();
 
-        // All-time summary stats
-        $allFunnelSubs   = FormSubmission::whereNotNull('funnel_id')->count();
-        $activeFunnels   = Funnel::where('status', 'active')->count();
-
-        // In-progress = users assigned to any funnel who submitted at least 1 form but not all forms
-        $allFunnels = Funnel::all(['id', 'form_ids']);
-        $totalInProgress = 0;
-        $totalCompleted  = 0;
-        foreach ($allFunnels as $f) {
-            $fIds = is_array($f->form_ids) ? $f->form_ids : (json_decode($f->form_ids ?? '[]', true) ?: []);
-            $totalForms = count($fIds);
-            if ($totalForms === 0) continue;
-            $assignedUserIds = UserFunnel::where('funnel_id', $f->id)->whereNotNull('user_id')->pluck('user_id');
-            foreach ($assignedUserIds as $uid) {
-                $submitted = FormSubmission::where('funnel_id', $f->id)->where('user_id', $uid)->distinct('form_id')->count('form_id');
-                if ($submitted >= $totalForms) $totalCompleted++;
-                elseif ($submitted > 0)        $totalInProgress++;
-            }
-        }
-
-        $summary = [
-            'total_funnels'     => Funnel::count(),
-            'active_funnels'    => $activeFunnels,
-            'total_submissions' => $allFunnelSubs,
-            'in_progress'       => $totalInProgress,
-            'completed'         => $totalCompleted,
-            'period_submissions'=> FormSubmission::whereNotNull('funnel_id')
-                                    ->whereBetween('created_at', [$fromDate, $toDate])->count(),
-            'completion_rate'   => ($totalCompleted + $totalInProgress) > 0
-                                    ? round(($totalCompleted / ($totalCompleted + $totalInProgress)) * 100)
-                                    : ($allFunnelSubs > 0 ? 100 : 0),
-        ];
-
         $search = $request->input('search', '');
         $funnels = Funnel::withCount('submissions')
             ->when($search, fn($q) => $q->where('name', 'like', '%'.$search.'%'))
@@ -115,7 +82,7 @@ class AnalyticsController extends Controller
             $funnel->recentSubmissions = $submissions->sortByDesc('created_at')->take(5);
         }
 
-        return view('analytics.funnels', compact('funnels', 'summary', 'from', 'to', 'search'));
+        return view('analytics.funnels', compact('funnels', 'from', 'to', 'search'));
     }
 
     /**

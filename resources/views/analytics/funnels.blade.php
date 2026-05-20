@@ -176,45 +176,6 @@
         </form>
     </div>
 
-    {{-- ── Summary Stats ───────────────────────────────────────────── --}}
-    <div class="fna-stats">
-        <div class="fna-stat-card indigo">
-            <div class="fna-stat-icon indigo"><i class="fas fa-filter"></i></div>
-            <div>
-                <div class="fna-stat-val">{{ $summary['total_funnels'] }}</div>
-                <div class="fna-stat-label">Total Funnels</div>
-            </div>
-        </div>
-        <div class="fna-stat-card green">
-            <div class="fna-stat-icon green"><i class="fas fa-toggle-on"></i></div>
-            <div>
-                <div class="fna-stat-val">{{ $summary['active_funnels'] }}</div>
-                <div class="fna-stat-label">Active Funnels</div>
-            </div>
-        </div>
-        <div class="fna-stat-card violet">
-            <div class="fna-stat-icon violet"><i class="fas fa-paper-plane"></i></div>
-            <div>
-                <div class="fna-stat-val">{{ $summary['total_submissions'] }}</div>
-                <div class="fna-stat-label">All-Time Submissions</div>
-            </div>
-        </div>
-        <div class="fna-stat-card amber">
-            <div class="fna-stat-icon amber"><i class="fas fa-calendar-check"></i></div>
-            <div>
-                <div class="fna-stat-val">{{ $summary['period_submissions'] }}</div>
-                <div class="fna-stat-label">Period Submissions</div>
-            </div>
-        </div>
-        <div class="fna-stat-card blue">
-            <div class="fna-stat-icon blue"><i class="fas fa-chart-pie"></i></div>
-            <div>
-                <div class="fna-stat-val">{{ $summary['completion_rate'] }}%</div>
-                <div class="fna-stat-label">Completion Rate</div>
-            </div>
-        </div>
-    </div>
-
     {{-- ── Per-Funnel Cards ────────────────────────────────────────── --}}
     <div id="fna-cards-container">
     @forelse($funnels as $funnel)
