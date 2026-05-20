@@ -35,27 +35,34 @@ class AnalyticsController extends Controller
                      : (json_decode($funnel->form_ids ?? '[]', true) ?: []);
             $funnel->form_count = count($formIds);
 
-            // Per-funnel patient assignment stats
-            $submissions  = FormSubmission::with('user')->where('funnel_id', $funnel->id)->get();
-            $assignedUserIds = UserFunnel::where('funnel_id', $funnel->id)->whereNotNull('user_id')->pluck('user_id')->unique();
+            // Per-funnel patient assignment stats — date-filtered
+            $assignedUserIds = UserFunnel::where('funnel_id', $funnel->id)
+                ->whereNotNull('user_id')
+                ->whereNull('deleted_at')
+                ->whereBetween('created_at', [$fromDate, $toDate])
+                ->pluck('user_id')->unique();
             $totalPatientAssign = $assignedUserIds->count();
             $totalCompleted = 0;
             foreach ($assignedUserIds as $uid) {
-                $submitted = FormSubmission::where('funnel_id', $funnel->id)->where('user_id', $uid)->distinct('form_id')->count('form_id');
+                $submitted = FormSubmission::where('funnel_id', $funnel->id)
+                    ->where('user_id', $uid)
+                    ->whereBetween('created_at', [$fromDate, $toDate])
+                    ->distinct('form_id')->count('form_id');
                 if ($submitted >= $funnel->form_count && $funnel->form_count > 0) $totalCompleted++;
             }
             $totalPending = max(0, $totalPatientAssign - $totalCompleted);
 
-            // Fallback: if no user assignments, use submission count
-            if ($assignedUserIds->isEmpty()) {
-                $totalPatientAssign = $submissions->count();
-                $totalCompleted     = $totalPatientAssign;
-                $totalPending       = 0;
-            }
+            // Period submissions
+            $submissions = FormSubmission::with('user')->where('funnel_id', $funnel->id)
+                ->whereBetween('created_at', [$fromDate, $toDate])->get();
+            $periodSubs  = $submissions->count();
 
-            // Period stats
-            $periodSubs   = FormSubmission::where('funnel_id', $funnel->id)
-                            ->whereBetween('created_at', [$fromDate, $toDate])->count();
+            // Fallback: if no user assignments in period, use submission count
+            if ($assignedUserIds->isEmpty()) {
+                $totalPatientAssign = $periodSubs;
+                $totalCompleted     = $submissions->where('status', 'completed')->count();
+                $totalPending       = max(0, $totalPatientAssign - $totalCompleted);
+            }
 
             // Daily trend for this funnel
             $dailyRaw = FormSubmission::where('funnel_id', $funnel->id)
