@@ -140,11 +140,16 @@ class AnalyticsController extends Controller
         }
 
         $allSubs      = FormSubmission::count();
-        $allCompleted = FormSubmission::where('status', '!=', 'draft')->count();
+        $allCompleted = FormSubmission::where('status', 'completed')->count();
 
         // Total patients assigned across all forms (via user_funnels)
         $totalPatientAssign = DB::table('user_funnels')
             ->whereNull('deleted_at')->count();
+
+        // Completion rate capped at 100%
+        $avgCompletionRate = $totalPatientAssign > 0
+            ? min(100, round(($allCompleted / $totalPatientAssign) * 100))
+            : ($allSubs > 0 ? min(100, round(($allCompleted / max($allSubs, 1)) * 100)) : 0);
 
         $summary = [
             'total_forms'         => Form::count(),
@@ -153,9 +158,7 @@ class AnalyticsController extends Controller
             'total_completed'     => $allCompleted,
             'total_patient_assign'=> $totalPatientAssign,
             'period_submissions'  => FormSubmission::whereBetween('created_at', [$fromDate, $toDate])->count(),
-            'avg_completion_rate' => $totalPatientAssign > 0
-                ? round(($allCompleted / $totalPatientAssign) * 100)
-                : ($allSubs > 0 ? 100 : 0),
+            'avg_completion_rate' => $avgCompletionRate,
         ];
 
         $search = $request->input('search', '');
@@ -191,9 +194,9 @@ class AnalyticsController extends Controller
                     ->distinct('user_id')->count('user_id');
             }
 
-            // Total Completed: count of submissions for this form
+            // Total Completed: count of submissions with status 'completed' for this form
             $submissions  = FormSubmission::where('form_id', $form->id)->get();
-            $completed    = $submissions->where('status', '!=', 'draft')->count();
+            $completed    = $submissions->where('status', 'completed')->count();
             $total        = $submissions->count();
 
             // Total Pending = Total Patient Assign - Total Completed
@@ -217,15 +220,18 @@ class AnalyticsController extends Controller
                 $cursor->addDay();
             }
 
+            // Completion rate capped at 100%
+            $formRate = $totalPatientAssignForm > 0
+                ? min(100, round(($completed / $totalPatientAssignForm) * 100))
+                : ($total > 0 ? min(100, round(($completed / $total) * 100)) : 0);
+
             $form->stats = [
                 'total_patient_assign' => $totalPatientAssignForm,
                 'total_submissions'    => $total,
                 'completed'            => $completed,
                 'pending'              => $pending,
                 'period_subs'          => $periodSubs,
-                'rate'                 => $totalPatientAssignForm > 0
-                                            ? round(($completed / $totalPatientAssignForm) * 100)
-                                            : ($total > 0 ? round(($completed / $total) * 100) : 0),
+                'rate'                 => $formRate,
                 'daily_trend'          => $dailyTrend,
             ];
 
