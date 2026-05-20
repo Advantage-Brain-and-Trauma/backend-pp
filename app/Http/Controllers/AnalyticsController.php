@@ -128,7 +128,6 @@ class AnalyticsController extends Controller
         $fromDate = \Carbon\Carbon::parse($from)->startOfDay();
         $toDate   = \Carbon\Carbon::parse($to)->endOfDay();
 
-        // All-time summary — using patient_funnel_assignments for patient assign counts
         // Build a map: form_id => [funnel_ids that contain this form]
         $allFunnels = Funnel::all(['id', 'form_ids']);
         $formFunnelMap = []; // form_id => [funnel_id, ...]
@@ -139,30 +138,41 @@ class AnalyticsController extends Controller
             }
         }
 
-        $allSubs      = FormSubmission::count();
-        $allCompleted = FormSubmission::where('status', 'completed')->count();
+        // ── Summary stats — all date-range filtered ──────────────────────────────
 
-        // Total patients assigned across all forms (via user_funnels)
+        // Total Forms & Active Forms within date range
+        $totalForms  = Form::whereBetween('created_at', [$fromDate, $toDate])->count();
+        $activeForms = Form::where('is_active', 1)->whereBetween('created_at', [$fromDate, $toDate])->count();
+
+        // Total Patient Assign: distinct patients assigned to any funnel within date range (no duplicates)
         $totalPatientAssign = DB::table('user_funnels')
-            ->whereNull('deleted_at')->count();
+            ->whereNull('deleted_at')
+            ->whereBetween('created_at', [$fromDate, $toDate])
+            ->distinct('patient_id')
+            ->count('patient_id');
+
+        // Total Completed: distinct patients who have at least one completed submission within date range
+        $totalCompleted = DB::table('form_submissions')
+            ->where('status', 'completed')
+            ->whereBetween('created_at', [$fromDate, $toDate])
+            ->whereNotNull('user_id')
+            ->distinct('user_id')
+            ->count('user_id');
 
         // Total Pending = Total Patient Assign - Total Completed
-        $totalPending = max(0, $totalPatientAssign - $allCompleted);
+        $totalPending = max(0, $totalPatientAssign - $totalCompleted);
 
-        // Completion rate = Total Completed / (Total Completed + Total Pending) * 100, capped at 100%
-        $completedPlusPending = $allCompleted + $totalPending;
-        $avgCompletionRate = $completedPlusPending > 0
-            ? min(100, round(($allCompleted / $completedPlusPending) * 100))
+        // Completion Rate = Total Completed / Total Patient Assign * 100, capped at 100%
+        $avgCompletionRate = $totalPatientAssign > 0
+            ? min(100, round(($totalCompleted / $totalPatientAssign) * 100))
             : 0;
 
         $summary = [
-            'total_forms'         => Form::count(),
-            'active_forms'        => Form::where('is_active', 1)->count(),
-            'total_submissions'   => $allSubs,
-            'total_completed'     => $allCompleted,
+            'total_forms'         => $totalForms,
+            'active_forms'        => $activeForms,
+            'total_completed'     => $totalCompleted,
             'total_pending'       => $totalPending,
             'total_patient_assign'=> $totalPatientAssign,
-            'period_submissions'  => FormSubmission::whereBetween('created_at', [$fromDate, $toDate])->count(),
             'avg_completion_rate' => $avgCompletionRate,
         ];
 
