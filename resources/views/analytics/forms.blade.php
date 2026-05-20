@@ -8,20 +8,20 @@
 .fa-page { display:flex; flex-direction:column; gap:28px; }
 
 /* Header */
-.fa-header { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:flex-start; gap:12px; }
-.fa-header-main { display:block; margin:0 !important; padding:0 !important; min-width:0; text-indent:0 !important; transform:none !important; }
-.fa-header-title { font-size:26px; font-weight:800; color:#0f172a; margin:0 !important; padding:0 !important; letter-spacing:-.4px; text-indent:0 !important; }
-.fa-header-sub   { font-size:13px; color:#64748b; margin:4px 0 0 !important; padding:0 !important; text-indent:0 !important; }
+.fa-header { display:flex !important; align-items:flex-start !important; justify-content:space-between !important; flex-wrap:wrap; gap:12px; }
+.fa-header-main { display:block; margin:0 !important; padding:0 !important; min-width:0; order:0; }
+.fa-header-title { font-size:26px; font-weight:800; color:#0f172a; margin:0 !important; padding:0 !important; letter-spacing:-.4px; }
+.fa-header-sub   { font-size:13px; color:#64748b; margin:4px 0 0 !important; padding:0 !important; }
+.fa-header-actions { display:flex !important; gap:10px; align-items:center; order:1; }
+.fa-header::before,
+.fa-header::after { content:none !important; display:none !important; }
 .fa-header > i,
 .fa-header > .fas,
 .fa-header > .far,
 .fa-header > .fab,
-.fa-header-main > i,
-.fa-header-main > .fas,
-.fa-header-main > .far,
-.fa-header-main > .fab,
-.fa-header-main > .fa-header-icon,
-.fa-header-main > .page-title-icon { display:none !important; width:0 !important; margin:0 !important; padding:0 !important; }
+.fa-header > .fa,
+.fa-header > .fa-header-icon,
+.fa-header > .page-title-icon { display:none !important; width:0 !important; height:0 !important; margin:0 !important; padding:0 !important; overflow:hidden !important; }
 
 /* Filter card */
 .fa-filter-card {
@@ -151,7 +151,7 @@
             <h1 class="fa-header-title">Form Analytics</h1>
             <p class="fa-header-sub">Submission statistics for every form — track completions, drafts, and trends</p>
         </div>
-        <div class="fa-header-actions" style="display:flex;gap:10px;">
+        <div class="fa-header-actions">
             <a href="{{ route('analytics.funnels') }}" class="btn btn-secondary">
                 <i class="fas fa-filter" style="margin-right:6px;"></i>Funnel Analytics
             </a>
