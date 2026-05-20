@@ -129,7 +129,6 @@ class AnalyticsController extends Controller
         $toDate   = \Carbon\Carbon::parse($to)->endOfDay();
 
         // Build a map: form_id => [funnel_ids that contain this form]
-        // Fetch all columns so the model's array cast on form_ids works correctly
         $allFunnels = Funnel::all();
         $formFunnelMap = []; // form_id => [funnel_id, ...]
         foreach ($allFunnels as $f) {
@@ -138,76 +137,6 @@ class AnalyticsController extends Controller
                 $formFunnelMap[$fid][] = $f->id;
             }
         }
-
-        // ── Summary stats — all date-range filtered ──────────────────────────────
-
-        // Total Forms & Active Forms within date range
-        $totalForms  = Form::whereBetween('created_at', [$fromDate, $toDate])->count();
-        $activeForms = Form::where('is_active', 1)->whereBetween('created_at', [$fromDate, $toDate])->count();
-
-        // Total Patient Assign: distinct patients (patient_id or user_id) assigned within date range
-        // Use COALESCE(patient_id, user_id) to avoid counting same patient twice
-        $assignedRows = DB::table('user_funnels')
-            ->whereNull('deleted_at')
-            ->whereBetween('created_at', [$fromDate, $toDate])
-            ->select('id', 'user_id', 'funnel_id', 'patient_id')
-            ->get();
-
-        // Distinct patients (prefer patient_id, fallback to user_id)
-        $distinctPatients = $assignedRows->map(fn($r) => $r->patient_id ?? $r->user_id)
-            ->filter()->unique()->count();
-        $totalPatientAssign = $distinctPatients;
-
-        // Total Completed & Total Pending:
-        // For each (user_funnel) assignment, check if patient submitted ALL forms in that funnel.
-        // Total Completed = count of assignments where submitted_forms >= total_forms_in_funnel
-        // Total Pending   = total assignments - Total Completed
-        $totalAssignments = $assignedRows->count();
-        $completedCount   = 0;
-
-        foreach ($assignedRows as $uf) {
-            // Get form count for this funnel
-            $funnel = $allFunnels->firstWhere('id', $uf->funnel_id);
-            if (!$funnel) continue;
-            $fIds = is_array($funnel->form_ids)
-                ? $funnel->form_ids
-                : (json_decode($funnel->form_ids ?? '[]', true) ?: []);
-            $totalFormsInFunnel = count($fIds);
-            if ($totalFormsInFunnel === 0) continue;
-
-            // Count distinct forms submitted by this patient/user for this funnel
-            if (!$uf->user_id) {
-                // No user_id (e.g. patient assigned via email with no account yet) => pending
-                continue;
-            }
-            $submittedForms = DB::table('form_submissions')
-                ->where('funnel_id', $uf->funnel_id)
-                ->where('user_id', $uf->user_id)
-                ->whereNull('deleted_at')
-                ->distinct('form_id')
-                ->count('form_id');
-
-            if ($submittedForms >= $totalFormsInFunnel) {
-                $completedCount++;
-            }
-        }
-
-        $totalCompleted = $completedCount;
-        $totalPending   = max(0, $totalAssignments - $totalCompleted);
-
-        // Completion Rate = Total Completed / Total Assignments * 100, capped at 100%
-        $avgCompletionRate = $totalAssignments > 0
-            ? min(100, round(($totalCompleted / $totalAssignments) * 100))
-            : 0;
-
-        $summary = [
-            'total_forms'         => $totalForms,
-            'active_forms'        => $activeForms,
-            'total_completed'     => $totalCompleted,
-            'total_pending'       => $totalPending,
-            'total_patient_assign'=> $totalPatientAssign,
-            'avg_completion_rate' => $avgCompletionRate,
-        ];
 
         $search = $request->input('search', '');
         $forms = Form::withCount('submissions')
@@ -287,7 +216,7 @@ class AnalyticsController extends Controller
                 ->orderBy('created_at', 'desc')->take(5)->get();
         }
 
-        return view('analytics.forms', compact('forms', 'summary', 'from', 'to', 'search'));
+        return view('analytics.forms', compact('forms', 'from', 'to', 'search'));
     }
 
     /**
