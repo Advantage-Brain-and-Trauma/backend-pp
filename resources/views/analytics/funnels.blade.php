@@ -64,6 +64,7 @@
 .fna-stat-label { font-size:12px; color:#64748b; margin-top:4px; font-weight:500; }
 
 /* Funnel card */
+#fna-cards-container { display:flex; flex-direction:column; gap:24px; }
 .fna-funnel-card {
     background:#fff; border-radius:16px; border:1px solid #e2e8f0;
     box-shadow:0 1px 4px rgba(0,0,0,.04); overflow:hidden; transition:box-shadow .2s;
