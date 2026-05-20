@@ -144,27 +144,59 @@ class AnalyticsController extends Controller
         $totalForms  = Form::whereBetween('created_at', [$fromDate, $toDate])->count();
         $activeForms = Form::where('is_active', 1)->whereBetween('created_at', [$fromDate, $toDate])->count();
 
-        // Total Patient Assign: distinct patients assigned to any funnel within date range (no duplicates)
-        $totalPatientAssign = DB::table('user_funnels')
+        // Total Patient Assign: distinct patients (patient_id or user_id) assigned within date range
+        // Use COALESCE(patient_id, user_id) to avoid counting same patient twice
+        $assignedRows = DB::table('user_funnels')
             ->whereNull('deleted_at')
             ->whereBetween('created_at', [$fromDate, $toDate])
-            ->distinct('patient_id')
-            ->count('patient_id');
+            ->select('id', 'user_id', 'funnel_id', 'patient_id')
+            ->get();
 
-        // Total Completed: distinct patients who have at least one completed submission within date range
-        $totalCompleted = DB::table('form_submissions')
-            ->where('status', 'completed')
-            ->whereBetween('created_at', [$fromDate, $toDate])
-            ->whereNotNull('user_id')
-            ->distinct('user_id')
-            ->count('user_id');
+        // Distinct patients (prefer patient_id, fallback to user_id)
+        $distinctPatients = $assignedRows->map(fn($r) => $r->patient_id ?? $r->user_id)
+            ->filter()->unique()->count();
+        $totalPatientAssign = $distinctPatients;
 
-        // Total Pending = Total Patient Assign - Total Completed
-        $totalPending = max(0, $totalPatientAssign - $totalCompleted);
+        // Total Completed & Total Pending:
+        // For each (user_funnel) assignment, check if patient submitted ALL forms in that funnel.
+        // Total Completed = count of assignments where submitted_forms >= total_forms_in_funnel
+        // Total Pending   = total assignments - Total Completed
+        $totalAssignments = $assignedRows->count();
+        $completedCount   = 0;
 
-        // Completion Rate = Total Completed / Total Patient Assign * 100, capped at 100%
-        $avgCompletionRate = $totalPatientAssign > 0
-            ? min(100, round(($totalCompleted / $totalPatientAssign) * 100))
+        foreach ($assignedRows as $uf) {
+            // Get form count for this funnel
+            $funnel = $allFunnels->firstWhere('id', $uf->funnel_id);
+            if (!$funnel) continue;
+            $fIds = is_array($funnel->form_ids)
+                ? $funnel->form_ids
+                : (json_decode($funnel->form_ids ?? '[]', true) ?: []);
+            $totalFormsInFunnel = count($fIds);
+            if ($totalFormsInFunnel === 0) continue;
+
+            // Count distinct forms submitted by this patient/user for this funnel
+            $subQuery = DB::table('form_submissions')
+                ->where('funnel_id', $uf->funnel_id)
+                ->whereNull('deleted_at');
+            if ($uf->user_id) {
+                $subQuery->where('user_id', $uf->user_id);
+            } elseif ($uf->patient_id) {
+                // match by patient_id via users table if needed — fallback: no user_id means 0 subs
+                $subQuery->whereNull('user_id'); // won't match any real submission
+            }
+            $submittedForms = $subQuery->distinct('form_id')->count('form_id');
+
+            if ($submittedForms >= $totalFormsInFunnel) {
+                $completedCount++;
+            }
+        }
+
+        $totalCompleted = $completedCount;
+        $totalPending   = max(0, $totalAssignments - $totalCompleted);
+
+        // Completion Rate = Total Completed / Total Assignments * 100, capped at 100%
+        $avgCompletionRate = $totalAssignments > 0
+            ? min(100, round(($totalCompleted / $totalAssignments) * 100))
             : 0;
 
         $summary = [
