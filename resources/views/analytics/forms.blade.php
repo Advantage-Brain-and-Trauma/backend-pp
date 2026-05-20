@@ -180,52 +180,6 @@
         </form>
     </div>
 
-    {{-- ── Summary Stats ───────────────────────────────────────────── --}}
-    <div class="fa-stats">
-        <div class="fa-stat-card blue">
-            <div class="fa-stat-icon blue"><i class="fas fa-wpforms"></i></div>
-            <div>
-                <div class="fa-stat-val">{{ $summary['total_forms'] }}</div>
-                <div class="fa-stat-label">Total Forms</div>
-            </div>
-        </div>
-        <div class="fa-stat-card green">
-            <div class="fa-stat-icon green"><i class="fas fa-toggle-on"></i></div>
-            <div>
-                <div class="fa-stat-val">{{ $summary['active_forms'] }}</div>
-                <div class="fa-stat-label">Active Forms</div>
-            </div>
-        </div>
-        <div class="fa-stat-card violet">
-            <div class="fa-stat-icon violet"><i class="fas fa-user-check"></i></div>
-            <div>
-                <div class="fa-stat-val">{{ $summary['total_patient_assign'] }}</div>
-                <div class="fa-stat-label">Total Patient Assign</div>
-            </div>
-        </div>
-        <div class="fa-stat-card amber">
-            <div class="fa-stat-icon amber"><i class="fas fa-check-circle"></i></div>
-            <div>
-                <div class="fa-stat-val">{{ $summary['total_completed'] }}</div>
-                <div class="fa-stat-label">Total Completed</div>
-            </div>
-        </div>
-        <div class="fa-stat-card orange" style="border-left:4px solid #f97316;">
-            <div class="fa-stat-icon" style="background:linear-gradient(135deg,#f97316,#fb923c);color:#fff;"><i class="fas fa-hourglass-half"></i></div>
-            <div>
-                <div class="fa-stat-val" style="color:#f97316;">{{ $summary['total_pending'] }}</div>
-                <div class="fa-stat-label">Total Pending</div>
-            </div>
-        </div>
-        <div class="fa-stat-card rose">
-            <div class="fa-stat-icon rose"><i class="fas fa-chart-pie"></i></div>
-            <div>
-                <div class="fa-stat-val">{{ $summary['avg_completion_rate'] }}%</div>
-                <div class="fa-stat-label">Completion Rate</div>
-            </div>
-        </div>
-    </div>
-
     {{-- ── Per-Form Cards ──────────────────────────────────────────── --}}
     <div id="fa-cards-container">
     @forelse($forms as $form)
