@@ -327,7 +327,7 @@
             <div style="display:flex;align-items:center;gap:16px;flex-shrink:0;">
                 <span class="fa-badge" style="background:{{ $sc['bg'] }};color:{{ $sc['text'] }};">{{ $sc['label'] }}</span>
                 <span style="font-size:12px;color:#94a3b8;">{{ $sub->created_at->format('M d, Y g:i A') }}</span>
-                <a href="{{ route('forms.show', $form->id) }}" style="font-size:12px;color:#3b82f6;font-weight:600;">View →</a>
+                <a href="{{ route('forms.submissions.show', [$form->id, $sub->id]) }}" style="font-size:12px;color:#3b82f6;font-weight:600;">View →</a>
             </div>
         </div>
         @empty

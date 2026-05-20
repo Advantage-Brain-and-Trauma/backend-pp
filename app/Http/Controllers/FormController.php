@@ -7,6 +7,7 @@ use App\Models\FormSubmission;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 class FormController extends Controller
@@ -99,6 +100,125 @@ class FormController extends Controller
     {
         $form->load(['creator', 'submissions']);
         return view('forms.show', compact('form'));
+    }
+
+    public function showSubmission(Form $form, FormSubmission $submission)
+    {
+        abort_if((int) $submission->form_id !== (int) $form->id, 404);
+
+        $submission->load(['user', 'funnel']);
+        $fields = $this->buildSubmissionDisplayFields($form, $submission);
+
+        return view('forms.submission-show', compact('form', 'submission', 'fields'));
+    }
+
+    private function buildSubmissionDisplayFields(Form $form, FormSubmission $submission): array
+    {
+        $schema = is_array($form->fields) ? $form->fields : (json_decode($form->fields ?? '[]', true) ?: []);
+        $rows = $schema['rows'] ?? (is_array($schema) ? $schema : []);
+        $submittedData = is_array($submission->data) ? $submission->data : (json_decode($submission->data ?? '[]', true) ?: []);
+        $displayFields = [];
+        $knownFieldIds = [];
+
+        foreach ($rows as $row) {
+            foreach (($row['cols'] ?? []) as $col) {
+                foreach (($col['fields'] ?? []) as $field) {
+                    $fieldId = $field['id'] ?? $field['name'] ?? null;
+                    $fieldType = $field['type'] ?? 'text';
+                    $label = $field['label'] ?? $field['title'] ?? $field['placeholder'] ?? $this->humanizeFieldKey($fieldId ?: $fieldType);
+
+                    if ($fieldId) {
+                        $knownFieldIds[] = (string) $fieldId;
+                    }
+
+                    $value = $fieldId && array_key_exists($fieldId, $submittedData) ? $submittedData[$fieldId] : null;
+
+                    $displayFields[] = [
+                        'id' => $fieldId,
+                        'label' => $label,
+                        'type' => $fieldType,
+                        'required' => (bool) ($field['required'] ?? false),
+                        'value' => $this->formatSubmissionValue($value, $fieldType),
+                    ];
+                }
+            }
+        }
+
+        foreach ($submittedData as $key => $value) {
+            if (in_array((string) $key, $knownFieldIds, true)) {
+                continue;
+            }
+
+            $displayFields[] = [
+                'id' => $key,
+                'label' => $this->humanizeFieldKey($key),
+                'type' => 'text',
+                'required' => false,
+                'value' => $this->formatSubmissionValue($value, 'text'),
+            ];
+        }
+
+        return $displayFields;
+    }
+
+    private function formatSubmissionValue($value, string $fieldType): array
+    {
+        if ($value === null || $value === '') {
+            return ['kind' => 'empty', 'text' => '—'];
+        }
+
+        if (in_array($fieldType, ['file', 'image', 'signature'], true)) {
+            if (is_array($value)) {
+                $files = array_values(array_filter($value, fn ($item) => $item !== null && $item !== ''));
+                return [
+                    'kind' => 'files',
+                    'files' => array_map(fn ($item) => $this->submissionFilePayload((string) $item), $files),
+                ];
+            }
+
+            if (is_string($value) && str_starts_with($value, 'data:image')) {
+                return ['kind' => 'image', 'url' => $value, 'text' => 'Signature'];
+            }
+
+            return ['kind' => 'files', 'files' => [$this->submissionFilePayload((string) $value)]];
+        }
+
+        if (is_bool($value)) {
+            return ['kind' => 'text', 'text' => $value ? 'Yes' : 'No'];
+        }
+
+        if (is_array($value)) {
+            $flattened = [];
+            foreach ($value as $key => $item) {
+                if ($item === null || $item === '') {
+                    continue;
+                }
+                $label = is_string($key) ? $this->humanizeFieldKey($key) . ': ' : '';
+                $flattened[] = $label . (is_array($item) ? implode(', ', array_filter($item)) : $item);
+            }
+
+            return ['kind' => 'text', 'text' => !empty($flattened) ? implode("\n", $flattened) : '—'];
+        }
+
+        return ['kind' => 'text', 'text' => (string) $value];
+    }
+
+    private function submissionFilePayload(string $path): array
+    {
+        $url = (str_starts_with($path, 'http://') || str_starts_with($path, 'https://') || str_starts_with($path, 'data:'))
+            ? $path
+            : Storage::disk('public')->url($path);
+
+        return [
+            'name' => basename(parse_url($path, PHP_URL_PATH) ?: $path),
+            'url' => $url,
+            'is_image' => preg_match('/\.(png|jpe?g|gif|webp|svg)$/i', parse_url($path, PHP_URL_PATH) ?: $path) === 1 || str_starts_with($path, 'data:image'),
+        ];
+    }
+
+    private function humanizeFieldKey($key): string
+    {
+        return Str::headline(str_replace(['-', '_'], ' ', (string) $key));
     }
 
     public function builder(Form $form)
