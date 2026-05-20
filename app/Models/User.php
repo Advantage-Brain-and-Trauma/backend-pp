@@ -90,7 +90,15 @@ class User extends Authenticatable implements JWTSubject
             'email' => $this->email,
             'phone' => $this->phone,
             'role'  => $this->role,
+            'case_id' => $this->patient_id && $this->patient
+                    ? optional($this->patient->cases()->latest()->first())->case_id
+                    : null,
         ];
+    }
+
+    public function cases()
+    {
+        return $this->hasMany(PatientCase::class, 'patient_id', 'patient_id');
     }
 
 }
