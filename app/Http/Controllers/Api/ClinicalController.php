@@ -528,13 +528,14 @@ class ClinicalController extends Controller
                     'decoded_json'            => $decoded,
                 ];
 
-                $caseId = optional($item->userFunnel)->patient_case_id ?? 'unknown';
+                // $caseId = optional($item->userFunnel)->patient_case_id ?? 'unknown';
+                $caseId = optional(optional($item->userFunnel)->patientCase)->case_id ?? 'unknown';
 
                 if (!isset($groupedCases[$caseId])) {
 
                     $groupedCases[$caseId] = [
-                        'case_id' => $caseId,
                         'cases'   => [
+                            'case_id' => $caseId,
                             'forms' => []
                         ],
                     ];
