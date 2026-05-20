@@ -8,7 +8,7 @@ use App\Models\AhcsCase;
 use App\Models\AhcsIntake;
 use App\Models\AhcsMedAuth;
 use App\Models\AhcsWorkComp;
-use App\Models\PatientCases;
+use App\Models\PatientCase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -117,7 +117,7 @@ class PatientController extends Controller
                 throw new \Exception("Patient ID is required", 400);
             }
 
-            $caseIds = PatientCases::where('patient_id', $patient_id)
+            $caseIds = PatientCase::where('patient_id', $patient_id)
                 ->pluck('case_id')
                 ->toArray();
 
@@ -128,6 +128,38 @@ class PatientController extends Controller
 
         } catch (\Throwable $e) {
             Log::channel('patient')->error("Error fetching case IDs: " . $e->getMessage());
+
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage()
+            ],500);
+        }
+    }
+
+    public function changePatientCase(Request $request): JsonResponse
+    {
+        try {
+            $validator = Validator::make($request->all(), [
+                'case_id' => 'required|integer',
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Validation error',
+                    'errors' => $validator->errors()
+                ], 422);
+            }
+
+            $userDetails = auth()->user();
+            $patient_id = $userDetails->patient_id;
+            $case_id = $request->case_id;
+
+            
+
+
+        } catch (\Throwable $e) {
+            Log::channel('patient')->error("Error changing patient case: " . $e->getMessage());
 
             return response()->json([
                 'success' => false,
