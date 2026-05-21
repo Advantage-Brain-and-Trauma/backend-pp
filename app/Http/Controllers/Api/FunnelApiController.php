@@ -317,241 +317,241 @@ class FunnelApiController extends Controller
     // }
 
     public function getPatientFunnelSubmissionDetails($funnelId)
-{
-    try {
-        $userId = auth()->id();
-        $caseId = auth()->payload()->get('case_id');
-        $patientId = auth()->user()->patient_id;
+    {
+        try {
+            $userId = auth()->id();
+            $caseId = auth()->payload()->get('case_id');
+            $patientId = auth()->user()->patient_id;
 
-        $fieldMapping = [
-            "first_name" => "First Name:",
-            "last_name" => "Last Name:",
-            "middle_name" => "Middle Name:",
-            "suffix" => "Suffix",
-            "dob" => "Date of Birth:",
-            "ssn" => "SSN:",
-            "driver_license" => "Driver’s License Number:",
-            "dl_state" => "DL State",
-            "sex" => "Sex:",
-            "address1" => "Physical Address:",
-            "address2" => "Apartment/Suite Number:",
-            "city" => "City:",
-            "state" => "State:",
-            "zip" => "Zip Code:",
-            "mailing_address" => "Mailing Address (if different from physical address):",
-            "mailing_address2" => "Apt/Suite # (Mailing)",
-            "city2" => "City (Mailing)",
-            "state2" => "State (Mailing)",
-            "zip2" => "Zip (Mailing)",
-            "home_ph" => "Phone Number:",
-            "work_ph" => "Work Phone:",
-            "work_ext" => "Work Extension:",
-            "cell_no" => "Mobile",
-            "wireless_carrier" => "Wireless Carrier",
-            "textmsg_consent" => "Text Messages?",
-            "fax_no" => "Fax Number:",
-            "email" => "Email :",
-            "marital_status" => "Marital Status:",
-            "children" => "Number of Children:",
-            "ethnicity" => "Ethnicity:",
-            "language" => "Primary Language:",
-            "education" => "Education:",
-            "hand_dom" => "Hand Dominance",
-            "emerg_contact" => "Name",
-            "emerg_address" => "Address",
-            "emerg_city" => "City",
-            "emerg_state" => "State",
-            "emerg_zip" => "Zip",
-            "emerg_phone" => "Phone",
-            "emerg_cell" => "Mobile",
-            "emerg_relation" => "Relationship",
-            "allergy" => "Allergies"
-        ];
+            $fieldMapping = [
+                "first_name" => "First Name:",
+                "last_name" => "Last Name:",
+                "middle_name" => "Middle Name:",
+                "suffix" => "Suffix",
+                "dob" => "Date of Birth:",
+                "ssn" => "SSN:",
+                "driver_license" => "Driver’s License Number:",
+                "dl_state" => "DL State",
+                "sex" => "Sex:",
+                "address1" => "Physical Address:",
+                "address2" => "Apartment/Suite Number:",
+                "city" => "City:",
+                "state" => "State:",
+                "zip" => "Zip Code:",
+                "mailing_address" => "Mailing Address (if different from physical address):",
+                "mailing_address2" => "Apt/Suite # (Mailing)",
+                "city2" => "City (Mailing)",
+                "state2" => "State (Mailing)",
+                "zip2" => "Zip (Mailing)",
+                "home_ph" => "Phone Number:",
+                "work_ph" => "Work Phone:",
+                "work_ext" => "Work Extension:",
+                "cell_no" => "Mobile",
+                "wireless_carrier" => "Wireless Carrier",
+                "textmsg_consent" => "Text Messages?",
+                "fax_no" => "Fax Number:",
+                "email" => "Email:",
+                "marital_status" => "Marital Status:",
+                "children" => "Number of Children:",
+                "ethnicity" => "Ethnicity:",
+                "language" => "Primary Language:",
+                "education" => "Education:",
+                "hand_dom" => "Hand Dominance",
+                "emerg_contact" => "Name",
+                "emerg_address" => "Address",
+                "emerg_city" => "City",
+                "emerg_state" => "State",
+                "emerg_zip" => "Zip",
+                "emerg_phone" => "Phone",
+                "emerg_cell" => "Mobile",
+                "emerg_relation" => "Relationship",
+                "allergy" => "Allergies"
+            ];
 
-        $translationMap = [
-            "First Name:" => "El Nombre de Pila:",
-            "Middle Name:" => "El Segundo Nombre:",
-            "Last Name:" => "El Apellido:",
-            "Date of Birth:" => "La Fecha de Nacimiento:",
-            "SSN:" => "El Numero de Seguridad Social:",
-            "Sex:" => "Sex:",
-            "Physical Address:" => "Le Direccion Fisica:",
-            "Apartment/Suite Number:" => "El Apartamento/Numero de Suite:",
-            "City:" => "La Ciudad:",
-            "State:" => "El Estado:",
-            "Zip Code:" => "El Codigo Postal:",
-            "Mailing Address (if different from physical address):" => "Dirección postal (si es diferente de la dirección física):",
-            "Phone Number:" => "numero de telefono:",
-            "Work Phone:" => "telefono del trabajo",
-            "Work Extension:" => "Extensión de trabajo:",
-            "Mobile" => "Número de teléfono móvil:",
-            "Fax Number:" => "El numero de fax:",
-            "Email:" => "El correo electronico:",
-            "Driver’s License Number:" => "Número de licencia de conducir:",
-            "Marital Status:" => "El estado civil:",
-            "Number of Children:" => "Número de niños:",
-            "Ethnicity:" => "la etnia:",
-            "Education:" => "educacion:",
-            "Hand Dominance" => "Dominación de la mano",
-            "Primary Language:" => "Idioma principal:",
-            "Name" => "Nombre",
-            "Address" => "La Direccion",
-            "City" => "Ciudad",
-            "Phone" => "Telephono",
-            "Relationship" => "relacion",
-            "Allergies" => "Alergias"
-        ];
+            $translationMap = [
+                "First Name:" => "El Nombre de Pila:",
+                "Middle Name:" => "El Segundo Nombre:",
+                "Last Name:" => "El Apellido:",
+                "Date of Birth:" => "La Fecha de Nacimiento:",
+                "SSN:" => "El Numero de Seguridad Social:",
+                "Sex:" => "Sex:",
+                "Physical Address:" => "Le Direccion Fisica:",
+                "Apartment/Suite Number:" => "El Apartamento/Numero de Suite:",
+                "City:" => "La Ciudad:",
+                "State:" => "El Estado:",
+                "Zip Code:" => "El Codigo Postal:",
+                "Mailing Address (if different from physical address):" => "Dirección postal (si es diferente de la dirección física):",
+                "Phone Number:" => "numero de telefono:",
+                "Work Phone:" => "telefono del trabajo",
+                "Work Extension:" => "Extensión de trabajo:",
+                "Mobile" => "Número de teléfono móvil:",
+                "Fax Number:" => "El numero de fax:",
+                "Email:" => "El correo electronico:",
+                "Driver’s License Number:" => "Número de licencia de conducir:",
+                "Marital Status:" => "El estado civil:",
+                "Number of Children:" => "Número de niños:",
+                "Ethnicity:" => "la etnia:",
+                "Education:" => "educacion:",
+                "Hand Dominance" => "Dominación de la mano",
+                "Primary Language:" => "Idioma principal:",
+                "Name" => "Nombre",
+                "Address" => "La Direccion",
+                "City" => "Ciudad",
+                "Phone" => "Telephono",
+                "Relationship" => "relacion",
+                "Allergies" => "Alergias"
+            ];
 
-        $patient = AhcsPatient::where('id', $patientId)->first();
+            $patient = AhcsPatient::where('id', $patientId)->first();
 
-        if (!$patient) {
-            return response()->json([
-                'status'  => false,
-                'message' => 'Patient not found',
-            ], 404);
-        }
-
-        $patientValues = [];
-
-        foreach ($fieldMapping as $patientColumn => $englishLabel) {
-            $patientValues[trim($englishLabel)] = $patient->{$patientColumn} ?? null;
-
-            if (isset($translationMap[$englishLabel])) {
-                $patientValues[trim($translationMap[$englishLabel])] = $patient->{$patientColumn} ?? null;
+            if (!$patient) {
+                return response()->json([
+                    'status'  => false,
+                    'message' => 'Patient not found',
+                ], 404);
             }
-        }
 
-        Log::channel('patient_form')->info('Fetching patient funnel submission details', [
-            'user_id'    => $userId,
-            'funnel_id'  => $funnelId,
-            'patient_id' => $patientId,
-            'case_id'    => $caseId,
-        ]);
+            $patientValues = [];
 
-        $userFunnelQuery = UserFunnel::where('user_id', $userId)
-            ->where('funnel_id', $funnelId);
+            foreach ($fieldMapping as $patientColumn => $englishLabel) {
+                $patientValues[trim($englishLabel)] = $patient->{$patientColumn} ?? null;
 
-        if (!empty($caseId)) {
-            $userFunnelQuery->whereHas('patientCase', function ($q) use ($caseId, $patientId) {
-                $q->where('case_id', $caseId)
-                  ->where('patient_id', $patientId);
+                if (isset($translationMap[$englishLabel])) {
+                    $patientValues[trim($translationMap[$englishLabel])] = $patient->{$patientColumn} ?? null;
+                }
+            }
+
+            Log::channel('patient_form')->info('Fetching patient funnel submission details', [
+                'user_id'    => $userId,
+                'funnel_id'  => $funnelId,
+                'patient_id' => $patientId,
+                'case_id'    => $caseId,
+            ]);
+
+            $userFunnelQuery = UserFunnel::where('user_id', $userId)
+                ->where('funnel_id', $funnelId);
+
+            if (!empty($caseId)) {
+                $userFunnelQuery->whereHas('patientCase', function ($q) use ($caseId, $patientId) {
+                    $q->where('case_id', $caseId)
+                    ->where('patient_id', $patientId);
+                });
+            }
+
+            $userFunnel = $userFunnelQuery->first();
+
+            if (!$userFunnel) {
+                return response()->json([
+                    'status'  => false,
+                    'message' => 'Funnel not found for this patient case',
+                ], 404);
+            }
+
+            $funnelDetails = Funnel::where('id', $funnelId)
+                ->where('status', 'active')
+                ->first(['id', 'name', 'form_ids']);
+
+            if (!$funnelDetails) {
+                return response()->json([
+                    'status'  => false,
+                    'message' => 'Funnel not found',
+                ], 404);
+            }
+
+            $formIds = is_array($funnelDetails->form_ids)
+                ? $funnelDetails->form_ids
+                : json_decode($funnelDetails->form_ids ?? '[]', true);
+
+            $formIds = is_array($formIds) ? $formIds : [];
+
+            if (empty($formIds)) {
+                return response()->json([
+                    'status'  => true,
+                    'message' => 'Funnel submission details retrieved successfully.',
+                    'data'    => [
+                        'id'          => $funnelDetails->id,
+                        'funnel_name' => $funnelDetails->name,
+                        'forms'       => [],
+                    ],
+                ], 200);
+            }
+
+            $formDetails = Form::whereIn('id', $formIds)
+                ->orderByRaw("FIELD(id, " . implode(',', $formIds) . ")")
+                ->get(['id', 'name', 'description', 'fields']);
+
+            $submissions = FormSubmission::whereIn('form_id', $formIds)
+                ->where('user_id', $userId)
+                ->where('funnel_id', $funnelId)
+                ->get(['form_id', 'status']);
+
+            $forms = $formDetails->map(function ($form) use ($submissions, $patientValues) {
+                $submission = $submissions->where('form_id', $form->id)->first();
+
+                $fields = is_array($form->fields)
+                    ? $form->fields
+                    : json_decode($form->fields ?? '[]', true);
+
+                $onlyFields = collect($fields['rows'] ?? [])
+                    ->flatMap(function ($row) use ($patientValues) {
+                        return collect($row['cols'] ?? [])
+                            ->flatMap(function ($col) use ($patientValues) {
+                                return collect($col['fields'] ?? [])->map(function ($field) use ($patientValues) {
+
+                                    $label = trim($field['label'] ?? '');
+                                    $value = $patientValues[$label] ?? null;
+
+                                    $newField = [];
+
+                                    foreach ($field as $key => $item) {
+
+                                        $newField[$key] = $item;
+
+                                        if ($key === 'label') {
+                                            $newField['value'] = $value;
+                                        }
+                                    }
+
+                                    return $newField;
+                                });
+                            });
+                    })
+                    ->values();
+
+                return [
+                    'id'                => $form->id,
+                    'name'              => $form->name,
+                    'description'       => $form->description,
+                    'submission_status' => $submission ? $submission->status : null,
+                    'fields'            => $onlyFields,
+                ];
             });
-        }
 
-        $userFunnel = $userFunnelQuery->first();
-
-        if (!$userFunnel) {
-            return response()->json([
-                'status'  => false,
-                'message' => 'Funnel not found for this patient case',
-            ], 404);
-        }
-
-        $funnelDetails = Funnel::where('id', $funnelId)
-            ->where('status', 'active')
-            ->first(['id', 'name', 'form_ids']);
-
-        if (!$funnelDetails) {
-            return response()->json([
-                'status'  => false,
-                'message' => 'Funnel not found',
-            ], 404);
-        }
-
-        $formIds = is_array($funnelDetails->form_ids)
-            ? $funnelDetails->form_ids
-            : json_decode($funnelDetails->form_ids ?? '[]', true);
-
-        $formIds = is_array($formIds) ? $formIds : [];
-
-        if (empty($formIds)) {
             return response()->json([
                 'status'  => true,
                 'message' => 'Funnel submission details retrieved successfully.',
                 'data'    => [
                     'id'          => $funnelDetails->id,
                     'funnel_name' => $funnelDetails->name,
-                    'forms'       => [],
+                    'forms'       => $forms,
                 ],
             ], 200);
+
+        } catch (\Throwable $e) {
+            Log::channel('patient_form')->error('Error fetching patient funnel submission details', [
+                'funnel_id' => $funnelId,
+                'message'   => $e->getMessage(),
+                'line'      => $e->getLine(),
+                'file'      => $e->getFile(),
+            ]);
+
+            return response()->json([
+                'status'  => false,
+                'error'   => $e->getMessage(),
+                'message' => 'Error fetching patient form data',
+            ], 500);
         }
-
-        $formDetails = Form::whereIn('id', $formIds)
-            ->orderByRaw("FIELD(id, " . implode(',', $formIds) . ")")
-            ->get(['id', 'name', 'description', 'fields']);
-
-        $submissions = FormSubmission::whereIn('form_id', $formIds)
-            ->where('user_id', $userId)
-            ->where('funnel_id', $funnelId)
-            ->get(['form_id', 'status']);
-
-        $forms = $formDetails->map(function ($form) use ($submissions, $patientValues) {
-            $submission = $submissions->where('form_id', $form->id)->first();
-
-            $fields = is_array($form->fields)
-                ? $form->fields
-                : json_decode($form->fields ?? '[]', true);
-
-            $onlyFields = collect($fields['rows'] ?? [])
-                ->flatMap(function ($row) use ($patientValues) {
-                    return collect($row['cols'] ?? [])
-                        ->flatMap(function ($col) use ($patientValues) {
-                            return collect($col['fields'] ?? [])->map(function ($field) use ($patientValues) {
-
-                                $label = trim($field['label'] ?? '');
-                                $value = $patientValues[$label] ?? null;
-
-                                $newField = [];
-
-                                foreach ($field as $key => $item) {
-
-                                    $newField[$key] = $item;
-
-                                    if ($key === 'label') {
-                                        $newField['value'] = $value;
-                                    }
-                                }
-
-                                return $newField;
-                            });
-                        });
-                })
-                ->values();
-
-            return [
-                'id'                => $form->id,
-                'name'              => $form->name,
-                'description'       => $form->description,
-                'submission_status' => $submission ? $submission->status : null,
-                'fields'            => $onlyFields,
-            ];
-        });
-
-        return response()->json([
-            'status'  => true,
-            'message' => 'Funnel submission details retrieved successfully.',
-            'data'    => [
-                'id'          => $funnelDetails->id,
-                'funnel_name' => $funnelDetails->name,
-                'forms'       => $forms,
-            ],
-        ], 200);
-
-    } catch (\Throwable $e) {
-        Log::channel('patient_form')->error('Error fetching patient funnel submission details', [
-            'funnel_id' => $funnelId,
-            'message'   => $e->getMessage(),
-            'line'      => $e->getLine(),
-            'file'      => $e->getFile(),
-        ]);
-
-        return response()->json([
-            'status'  => false,
-            'error'   => $e->getMessage(),
-            'message' => 'Error fetching patient form data',
-        ], 500);
     }
-}
 
     /**
      * POST /api/patient-forms/{formId}/submit
