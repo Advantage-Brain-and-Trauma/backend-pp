@@ -33,7 +33,7 @@ class PatientAppointmentController extends Controller
             Log::channel('appointment')->info('Fetching patient appointments - Start');
             $user = auth()->user();
             $patientId = $user->patient_id;
-            $caseId = $user->case_id;
+            $caseId = auth()->payload()->get('case_id');
 
             if (!$patientId) {
                 throw new \Exception("Patient ID is required", 400);

@@ -33,6 +33,6 @@ class UserFunnel extends Model
 
     public function patientCase()
     {
-        return $this->belongsTo(PatientCase::class, 'patient_case_id');
+        return $this->belongsTo(PatientCase::class, 'patient_case_id','id');
     }
 }

@@ -18,6 +18,7 @@ use Illuminate\Support\Facades\Validator;
 use Tymon\JWTAuth\Facades\JWTAuth;
 use Illuminate\Support\Facades\Auth;
 use App\Models\UserSession;
+use Tymon\JWTAuth\Token;
 
 class PatientController extends Controller
 {
@@ -121,8 +122,12 @@ class PatientController extends Controller
                 throw new \Exception("Patient ID is required", 400);
             }
 
-            $caseIds = PatientCase::where('patient_id', $patient_id)
-                ->pluck('case_id')
+            // $caseIds = PatientCase::where('patient_id', $patient_id)
+            //     ->pluck('case_id')
+            //     ->toArray();
+
+            $caseIds = AhcsCase::where('patient_id', $patient_id)
+                ->pluck('id')
                 ->toArray();
 
             return response()->json([
@@ -207,7 +212,7 @@ class PatientController extends Controller
     {
         try {
             $validator = Validator::make($request->all(), [
-                'case_id' => 'required|integer|exists:patient_cases,case_id',
+                'case_id' => 'required|integer',
             ]);
 
             if ($validator->fails()) {
@@ -217,7 +222,7 @@ class PatientController extends Controller
                 ], 422);
             }
 
-            $oldToken = JWTAuth::getToken();
+            $oldToken = JWTAuth::parseToken()->getToken();
 
             if (!$oldToken) {
                 return response()->json([
@@ -226,7 +231,7 @@ class PatientController extends Controller
                 ], 401);
             }
 
-            $oldPayload = JWTAuth::setToken($oldToken)->getPayload();
+            $oldPayload = JWTAuth::parseToken()->getPayload();
             $oldJwtId = $oldPayload->get('jti');
 
             $user = Auth::guard('api')->user();
@@ -239,13 +244,23 @@ class PatientController extends Controller
             }
 
             $caseId = $request->case_id;
+            
+            $checkCaseId = AhcsCase::where('patient_id', $user->patient_id)
+                ->where('id', $caseId)
+                ->exists();
 
-            // Create new token with selected case_id
+            if (!$checkCaseId) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Invalid Case Id'
+                ], 404);
+            }
+
             $newToken = JWTAuth::claims([
                 'case_id' => $caseId
             ])->fromUser($user);
 
-            $newPayload = JWTAuth::setToken($newToken)->getPayload();
+            $newPayload = JWTAuth::manager()->decode(new Token($newToken));
             $newJwtId = $newPayload->get('jti');
 
             UserSession::where('user_id', $user->id)
@@ -268,7 +283,9 @@ class PatientController extends Controller
 
         } catch (\Throwable $e) {
             Log::channel('auth')->error('Change patient case failed', [
-                'message' => $e->getMessage()
+                'message' => $e->getMessage(),
+                'line' => $e->getLine(),
+                'file' => $e->getFile(),
             ]);
 
             return response()->json([
