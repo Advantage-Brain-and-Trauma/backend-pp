@@ -280,7 +280,6 @@ class FunnelApiController extends Controller
     //                         });
     //                 })
     //                 ->values();
-
     //             return [
     //                 'id'                => $form->id,
     //                 'name'              => $form->name,
@@ -566,46 +565,217 @@ class FunnelApiController extends Controller
      *
      * Example JSON body:
      * {
-     *   "funnel_id": 1,
-     *   "fields": {
-     *     "f1": "John Doe",
-     *     "f2": "john@example.com",
-     *     "f3": "5551234567",
-     *     "f4": ["Option 1", "Option 3"]
+     *  "f1": {
+     *       "label": "First Name:",
+     *       "value": "John"
+     *   },
+     *   "f2": {
+     *       "label": "Email:",
+     *       "value": "abc@gmail.com"
+     *   },
+     *   "f3": {
+     *       "label": "Phone Number:",
+     *       "value": "1234567890"
+     *   }
      *   }
      * }
      */
+    // public function PatientSubmitForm(Request $request, int $formId)
+    // {
+    //     try {
+    //         Log::channel('patient_form')->info('Patient form submission started', [
+    //             'user_id'   => auth()->id(),
+    //             'form_id'   => $formId,
+    //             'funnel_id' => $request->input('funnel_id'),
+    //             'patient_id' => auth()->user()->patient_id,
+    //             'case_id' => auth()->payload()->get('case_id'),
+    //         ]);
+
+    //         // ── 1. Validate request ──────────────────────────────────────────
+    //         $validator = Validator::make($request->all(), [
+    //             'funnel_id' => 'required|integer|exists:funnels,id',
+    //             'fields'    => 'required|array',
+    //         ]);
+
+    //         if ($validator->fails()) {
+    //             Log::channel('patient_form')->warning('Patient form validation failed', [
+    //                 'errors' => $validator->errors()
+    //             ]);
+
+    //             return response()->json([
+    //                 'status'  => false,
+    //                 'message' => 'Validation failed.',
+    //                 'errors'  => $validator->errors(),
+    //             ], 422);
+    //         }
+
+    //         $patientId = auth()->user()->patient_id;
+    //         $caseId = auth()->payload()->get('case_id');
+
+    //         $checkPatientCase = AhcsCase::where('id', $caseId)
+    //             ->where('patient_id', $patientId)
+    //             ->exists();
+
+    //         if (!$checkPatientCase) {
+    //             return response()->json([
+    //                 'status'  => false,
+    //                 'message' => 'Invalid patient or case'
+    //             ], 403);
+    //         }
+
+    //         $alreadySubmitted = FormSubmission::where('user_id', auth()->id())
+    //             ->where('form_id', $formId)
+    //             ->where('funnel_id', $request->funnel_id)
+    //             ->whereNull('deleted_at')
+    //             ->exists();
+
+    //         if ($alreadySubmitted) {
+
+    //             return response()->json([
+    //                 'success' => false,
+    //                 'message' => 'Form already submitted.'
+    //             ], 409);
+    //         }
+
+    //         // ── 2. Validate form exists ──────────────────────────────────────
+    //         $form = Form::find($formId);
+    //         if (!$form) {
+    //             Log::channel('patient_form')->warning('Form not found', [
+    //                 'form_id' => $formId
+    //             ]);
+
+    //             return response()->json([
+    //                 'status'  => false,
+    //                 'message' => 'Form not found.',
+    //             ], 404);
+    //         }
+
+    //         // ── 3. Collect field data ────────────────────────────────────────
+    //         $formData = $request->input('fields', []);
+
+    //         // Handle file uploads (multipart/form-data)
+    //         if ($request->hasFile('fields')) {
+    //             foreach ($request->file('fields') as $fieldId => $file) {
+    //                 if ($file && $file->isValid()) {
+                        
+    //                     $originalName = pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME);
+    //                     $extension    = $file->getClientOriginalExtension();
+
+    //                     $filename = $originalName . '_' . time() . '.' . $extension;
+
+    //                     $path = $file->storeAs('form-uploads/' . $formId, $filename, 'public');
+    //                     $formData[$fieldId] = $path;
+
+    //                     Log::channel('patient_form')->info('File uploaded for form submission', [
+    //                         'field_id' => $fieldId,
+    //                         'file_path' => $path
+    //                     ]);
+    //                 }
+    //             }
+    //         }else{
+    //             Log::channel('patient_form')->info('No file uploads received', [
+    //                 'fields' => $formData
+    //             ]);
+    //         }
+
+    //         // ── 4. Determine submission status ───────────────────────────────
+    //         $hasData = collect($formData)
+    //             ->filter(fn($v) => $v !== null && $v !== '' && $v !== [])
+    //             ->isNotEmpty();
+
+    //         // ── 5. Save submission ───────────────────────────────────────────
+    //         $submission = FormSubmission::create([
+    //             'user_id'    => auth()->id(),
+    //             'form_id'    => $formId,
+    //             'funnel_id'  => $request->input('funnel_id'),
+    //             'data'       => $formData,
+    //             'ip_address' => $request->ip(),
+    //             'user_agent' => $request->userAgent(),
+    //             'status'     => $hasData ? 'completed' : 'draft',
+    //         ]);
+
+    //         Log::channel('patient_form')->info('Patient form submitted successfully', [
+    //             'submission_id' => $submission->id,
+    //             'form_id'       => $submission->form_id,
+    //             'funnel_id'     => $submission->funnel_id,
+    //             'status'        => $submission->status
+    //         ]);
+
+    //         // ── 6. Generate PDF and save filename ────────────────────────────
+    //         $pdfFilename = null;
+    //         try {
+    //             /** @var User|null $user */
+    //             $user        = Auth::user();
+    //             $pdfService  = new FormSubmissionPdfService();
+    //             $pdfFilename = $pdfService->generate($submission, $form, $user);
+
+    //             $submission->pdf_url = $pdfFilename;
+    //             $submission->save();
+
+    //             Log::channel('patient_form')->info('PDF generated for submission', [
+    //                 'submission_id' => $submission->id,
+    //                 'pdf_url'       => $pdfFilename,
+    //             ]);
+
+    //         } catch (\Throwable $e) {
+    //             // PDF generation failure must NOT block the submission response
+    //             Log::channel('patient_form')->error('PDF generation failed for submission #' . $submission->id, [
+    //                 'error' => $e->getMessage(),
+    //                 'line'  => $e->getLine(),
+    //                 'file'  => $e->getFile(),
+    //                 'trace' => $e->getTraceAsString(),
+    //             ]);
+    //         }
+
+    //         // ── 7. Return response ───────────────────────────────────────────
+    //         return response()->json([
+    //             'status'  => true,
+    //             'message' => 'Form submitted successfully.',
+    //             'data'    => [
+    //                 'submission_id' => $submission->id,
+    //                 'form_id'       => $submission->form_id,
+    //                 'funnel_id'     => $submission->funnel_id,
+    //                 'status'        => $submission->status,
+    //                 'pdf_url'       => $pdfFilename,
+    //                 'submitted_at'  => $submission->created_at->toISOString(),
+    //             ],
+    //         ], 201);
+
+    //     } catch (\Throwable $e) {
+    //         Log::channel('patient_form')->error('Patient form submission failed', [
+    //             'form_id' => $formId,
+    //             'error'   => $e->getMessage(),
+    //             'line'    => $e->getLine()
+    //         ]);
+
+    //         return response()->json([
+    //             'status'  => false,
+    //             'error' => $e->getMessage(),
+    //             'message' => 'Something went wrong while submitting the form.',
+    //         ], 500);
+    //     }
+    // }
+
+
     public function PatientSubmitForm(Request $request, int $formId)
     {
         try {
-            Log::channel('patient_form')->info('Patient form submission started', [
-                'user_id'   => auth()->id(),
-                'form_id'   => $formId,
-                'funnel_id' => $request->input('funnel_id'),
-                'patient_id' => auth()->user()->patient_id,
-                'case_id' => auth()->payload()->get('case_id'),
-            ]);
+            $userId    = auth()->id();
+            $patientId = auth()->user()->patient_id;
+            $caseId    = auth()->payload()->get('case_id');
 
-            // ── 1. Validate request ──────────────────────────────────────────
             $validator = Validator::make($request->all(), [
                 'funnel_id' => 'required|integer|exists:funnels,id',
                 'fields'    => 'required|array',
             ]);
 
             if ($validator->fails()) {
-                Log::channel('patient_form')->warning('Patient form validation failed', [
-                    'errors' => $validator->errors()
-                ]);
-
                 return response()->json([
                     'status'  => false,
                     'message' => 'Validation failed.',
                     'errors'  => $validator->errors(),
                 ], 422);
             }
-
-            $patientId = auth()->user()->patient_id;
-            $caseId = auth()->payload()->get('case_id');
 
             $checkPatientCase = AhcsCase::where('id', $caseId)
                 ->where('patient_id', $patientId)
@@ -614,115 +784,221 @@ class FunnelApiController extends Controller
             if (!$checkPatientCase) {
                 return response()->json([
                     'status'  => false,
-                    'message' => 'Invalid patient or case'
+                    'message' => 'Invalid patient or case',
                 ], 403);
             }
 
-            $alreadySubmitted = FormSubmission::where('user_id', auth()->id())
+            $alreadySubmitted = FormSubmission::where('user_id', $userId)
                 ->where('form_id', $formId)
                 ->where('funnel_id', $request->funnel_id)
                 ->whereNull('deleted_at')
                 ->exists();
 
             if ($alreadySubmitted) {
-
                 return response()->json([
-                    'success' => false,
-                    'message' => 'Form already submitted.'
+                    'status'  => false,
+                    'message' => 'Form already submitted.',
                 ], 409);
             }
 
-            // ── 2. Validate form exists ──────────────────────────────────────
             $form = Form::find($formId);
-            if (!$form) {
-                Log::channel('patient_form')->warning('Form not found', [
-                    'form_id' => $formId
-                ]);
 
+            if (!$form) {
                 return response()->json([
                     'status'  => false,
                     'message' => 'Form not found.',
                 ], 404);
             }
 
-            // ── 3. Collect field data ────────────────────────────────────────
-            $formData = $request->input('fields', []);
+            $submission = null;
+            $pdfFilename = null;
 
-            // Handle file uploads (multipart/form-data)
-            if ($request->hasFile('fields')) {
-                foreach ($request->file('fields') as $fieldId => $file) {
-                    if ($file && $file->isValid()) {
-                        
-                        $originalName = pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME);
-                        $extension    = $file->getClientOriginalExtension();
+            DB::beginTransaction();
 
-                        $filename = $originalName . '_' . time() . '.' . $extension;
+            try {
+                $fieldsInput = $request->input('fields', []);
+                $formData = [];
 
-                        $path = $file->storeAs('form-uploads/' . $formId, $filename, 'public');
-                        $formData[$fieldId] = $path;
-
-                        Log::channel('patient_form')->info('File uploaded for form submission', [
-                            'field_id' => $fieldId,
-                            'file_path' => $path
-                        ]);
+                foreach ($fieldsInput as $fieldId => $fieldValue) {
+                    if (is_array($fieldValue)) {
+                        $formData[$fieldId] = $fieldValue['value'] ?? null;
+                    } else {
+                        $formData[$fieldId] = $fieldValue;
                     }
                 }
-            }else{
-                Log::channel('patient_form')->info('No file uploads received', [
-                    'fields' => $formData
+
+                if ($request->hasFile('fields')) {
+                    foreach ($request->file('fields') as $fieldId => $file) {
+                        if ($file && $file->isValid()) {
+                            $originalName = pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME);
+                            $extension    = $file->getClientOriginalExtension();
+                            $filename     = $originalName . '_' . time() . '.' . $extension;
+
+                            $path = $file->storeAs(
+                                'form-uploads/' . $formId,
+                                $filename,
+                                'public'
+                            );
+
+                            $formData[$fieldId] = $path;
+                        }
+                    }
+                }
+
+                $fieldMapping = [
+                    "first_name" => "First Name:",
+                    "last_name" => "Last Name:",
+                    "middle_name" => "Middle Name:",
+                    "suffix" => "Suffix",
+                    "dob" => "Date of Birth:",
+                    "ssn" => "SSN:",
+                    "driver_license" => "Driver’s License Number:",
+                    "dl_state" => "DL State",
+                    "sex" => "Sex:",
+                    "address1" => "Physical Address:",
+                    "address2" => "Apartment/Suite Number:",
+                    "city" => "City:",
+                    "state" => "State:",
+                    "zip" => "Zip Code:",
+                    "mailing_address" => "Mailing Address (if different from physical address):",
+                    "mailing_address2" => "Apt/Suite # (Mailing)",
+                    "city2" => "City (Mailing)",
+                    "state2" => "State (Mailing)",
+                    "zip2" => "Zip (Mailing)",
+                    "home_ph" => "Phone Number:",
+                    "work_ph" => "Work Phone:",
+                    "work_ext" => "Work Extension:",
+                    "cell_no" => "Mobile",
+                    "wireless_carrier" => "Wireless Carrier",
+                    "textmsg_consent" => "Text Messages?",
+                    "fax_no" => "Fax Number:",
+                    "email" => "Email:",
+                    "marital_status" => "Marital Status:",
+                    "children" => "Number of Children:",
+                    "ethnicity" => "Ethnicity:",
+                    "language" => "Primary Language:",
+                    "education" => "Education:",
+                    "hand_dom" => "Hand Dominance",
+                    "emerg_contact" => "Name",
+                    "emerg_address" => "Address",
+                    "emerg_city" => "City",
+                    "emerg_state" => "State",
+                    "emerg_zip" => "Zip",
+                    "emerg_phone" => "Phone",
+                    "emerg_cell" => "Mobile",
+                    "emerg_relation" => "Relationship",
+                    "allergy" => "Allergies",
+                ];
+
+                $translationMap = [
+                    "First Name:" => "El Nombre de Pila:",
+                    "Middle Name:" => "El Segundo Nombre:",
+                    "Last Name:" => "El Apellido:",
+                    "Date of Birth:" => "La Fecha de Nacimiento:",
+                    "SSN:" => "El Numero de Seguridad Social:",
+                    "Sex:" => "Sex:",
+                    "Physical Address:" => "Le Direccion Fisica:",
+                    "Apartment/Suite Number:" => "El Apartamento/Numero de Suite:",
+                    "City:" => "La Ciudad:",
+                    "State:" => "El Estado:",
+                    "Zip Code:" => "El Codigo Postal:",
+                    "Mailing Address (if different from physical address):" => "Dirección postal (si es diferente de la dirección física):",
+                    "Phone Number:" => "numero de telefono:",
+                    "Work Phone:" => "telefono del trabajo",
+                    "Work Extension:" => "Extensión de trabajo:",
+                    "Mobile" => "Número de teléfono móvil:",
+                    "Fax Number:" => "El numero de fax:",
+                    "Email:" => "El correo electronico:",
+                    "Driver’s License Number:" => "Número de licencia de conducir:",
+                    "Marital Status:" => "El estado civil:",
+                    "Number of Children:" => "Número de niños:",
+                    "Ethnicity:" => "la etnia:",
+                    "Education:" => "educacion:",
+                    "Hand Dominance" => "Dominación de la mano",
+                    "Primary Language:" => "Idioma principal:",
+                    "Name" => "Nombre",
+                    "Address" => "La Direccion",
+                    "City" => "Ciudad",
+                    "Phone" => "Telephono",
+                    "Relationship" => "relacion",
+                    "Allergies" => "Alergias",
+                ];
+
+                $labelToColumn = [];
+
+                foreach ($fieldMapping as $column => $englishLabel) {
+                    $labelToColumn[trim($englishLabel)] = $column;
+
+                    if (isset($translationMap[$englishLabel])) {
+                        $labelToColumn[trim($translationMap[$englishLabel])] = $column;
+                    }
+                }
+
+                $patientUpdateData = [];
+
+                foreach ($fieldsInput as $field) {
+                    if (!is_array($field)) {
+                        continue;
+                    }
+
+                    $label = trim($field['label'] ?? $field['lable'] ?? '');
+                    $value = $field['value'] ?? null;
+
+                    if ($label && array_key_exists($label, $labelToColumn)) {
+                        $patientUpdateData[$labelToColumn[$label]] = $value;
+                    }
+                }
+
+                if (!empty($patientUpdateData)) {
+                    AhcsPatient::where('id', $patientId)->update($patientUpdateData);
+                }
+
+                $hasData = collect($formData)
+                    ->filter(fn ($v) => $v !== null && $v !== '' && $v !== [])
+                    ->isNotEmpty();
+
+                $submission = FormSubmission::create([
+                    'user_id'    => $userId,
+                    'form_id'    => $formId,
+                    'funnel_id'  => $request->input('funnel_id'),
+                    'data'       => $formData,
+                    'ip_address' => $request->ip(),
+                    'user_agent' => $request->userAgent(),
+                    'status'     => $hasData ? 'completed' : 'draft',
                 ]);
+
+                DB::commit();
+
+            } catch (\Throwable $e) {
+                DB::rollBack();
+
+                Log::channel('patient_form')->error('Form submission transaction failed', [
+                    'user_id'    => $userId,
+                    'patient_id' => $patientId,
+                    'case_id'    => $caseId,
+                    'form_id'    => $formId,
+                    'error'      => $e->getMessage(),
+                ]);
+
+                throw $e;
             }
 
-            // ── 4. Determine submission status ───────────────────────────────
-            $hasData = collect($formData)
-                ->filter(fn($v) => $v !== null && $v !== '' && $v !== [])
-                ->isNotEmpty();
-
-            // ── 5. Save submission ───────────────────────────────────────────
-            $submission = FormSubmission::create([
-                'user_id'    => auth()->id(),
-                'form_id'    => $formId,
-                'funnel_id'  => $request->input('funnel_id'),
-                'data'       => $formData,
-                'ip_address' => $request->ip(),
-                'user_agent' => $request->userAgent(),
-                'status'     => $hasData ? 'completed' : 'draft',
-            ]);
-
-            Log::channel('patient_form')->info('Patient form submitted successfully', [
-                'submission_id' => $submission->id,
-                'form_id'       => $submission->form_id,
-                'funnel_id'     => $submission->funnel_id,
-                'status'        => $submission->status
-            ]);
-
-            // ── 6. Generate PDF and save filename ────────────────────────────
-            $pdfFilename = null;
             try {
-                /** @var User|null $user */
-                $user        = Auth::user();
-                $pdfService  = new FormSubmissionPdfService();
+                $user = Auth::user();
+                $pdfService = new FormSubmissionPdfService();
+
                 $pdfFilename = $pdfService->generate($submission, $form, $user);
 
                 $submission->pdf_url = $pdfFilename;
                 $submission->save();
 
-                Log::channel('patient_form')->info('PDF generated for submission', [
-                    'submission_id' => $submission->id,
-                    'pdf_url'       => $pdfFilename,
-                ]);
-
             } catch (\Throwable $e) {
-                // PDF generation failure must NOT block the submission response
-                Log::channel('patient_form')->error('PDF generation failed for submission #' . $submission->id, [
-                    'error' => $e->getMessage(),
-                    'line'  => $e->getLine(),
-                    'file'  => $e->getFile(),
-                    'trace' => $e->getTraceAsString(),
+                Log::channel('patient_form')->error('PDF generation failed', [
+                    'submission_id' => $submission?->id,
+                    'error'         => $e->getMessage(),
                 ]);
             }
 
-            // ── 7. Return response ───────────────────────────────────────────
             return response()->json([
                 'status'  => true,
                 'message' => 'Form submitted successfully.',
@@ -737,20 +1013,12 @@ class FunnelApiController extends Controller
             ], 201);
 
         } catch (\Throwable $e) {
-            Log::channel('patient_form')->error('Patient form submission failed', [
-                'form_id' => $formId,
-                'error'   => $e->getMessage(),
-                'line'    => $e->getLine()
-            ]);
-
             return response()->json([
                 'status'  => false,
-                'error' => $e->getMessage(),
                 'message' => 'Something went wrong while submitting the form.',
             ], 500);
         }
     }
-
 
     public function getAllOldForms(){
         try{
