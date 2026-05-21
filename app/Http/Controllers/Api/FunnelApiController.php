@@ -497,15 +497,22 @@ class FunnelApiController extends Controller
                     return collect($row['cols'] ?? [])
                         ->flatMap(function ($col) use ($patientValues) {
                             return collect($col['fields'] ?? [])->map(function ($field) use ($patientValues) {
-                                $label = trim($field['label'] ?? '');
 
-                                if (array_key_exists($label, $patientValues)) {
-                                    $field['value'] = $patientValues[$label];
-                                } else {
-                                    $field['value'] = null;
+                                $label = trim($field['label'] ?? '');
+                                $value = $patientValues[$label] ?? null;
+
+                                $newField = [];
+
+                                foreach ($field as $key => $item) {
+
+                                    $newField[$key] = $item;
+
+                                    if ($key === 'label') {
+                                        $newField['value'] = $value;
+                                    }
                                 }
 
-                                return $field;
+                                return $newField;
                             });
                         });
                 })
