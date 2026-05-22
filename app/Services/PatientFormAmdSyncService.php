@@ -4,7 +4,7 @@ namespace App\Services;
 
 use App\Models\AdvancedmdToken;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 
 class PatientFormAmdSyncService
 {
@@ -92,13 +92,25 @@ class PatientFormAmdSyncService
 
         $newToken = $this->login();
 
+        $updateData = [
+            'token' => $newToken['token'],
+            'webserver' => $newToken['webserver'],
+        ];
+
+        $table = (new AdvancedmdToken())->getTable();
+        $connection = (new AdvancedmdToken())->getConnectionName();
+
+        if (Schema::connection($connection)->hasColumn($table, 'created_at_timestamp')) {
+            $updateData['created_at_timestamp'] = time();
+        } elseif (Schema::connection($connection)->hasColumn($table, 'updated_at')) {
+            $updateData['updated_at'] = now();
+        } elseif (Schema::connection($connection)->hasColumn($table, 'created_at')) {
+            $updateData['created_at'] = now();
+        }
+
         AdvancedmdToken::updateOrCreate(
             ['office_key' => $this->officeCode],
-            [
-                'token' => $newToken['token'],
-                'webserver' => $newToken['webserver'],
-                'created_at_timestamp' => time(),
-            ]
+            $updateData
         );
 
         return $newToken;
@@ -268,4 +280,3 @@ class PatientFormAmdSyncService
         return $payload;
     }
 }
-

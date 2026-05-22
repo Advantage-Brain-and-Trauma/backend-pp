@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Carbon;
 
 class AdvancedmdToken extends Model
 {
@@ -15,14 +16,37 @@ class AdvancedmdToken extends Model
         'token',
         'webserver',
         'created_at_timestamp',
+        'created_at',
+        'updated_at',
     ];
 
     public function isValid(): bool
     {
         $cacheTtl = 86400 - 120;
-        $age = time() - (int) $this->created_at_timestamp;
+        $issuedAt = $this->issuedAtUnix();
+        if ($issuedAt <= 0) {
+            return false;
+        }
+
+        $age = time() - $issuedAt;
 
         return $age < $cacheTtl;
     }
-}
 
+    protected function issuedAtUnix(): int
+    {
+        if (!empty($this->created_at_timestamp)) {
+            return (int) $this->created_at_timestamp;
+        }
+
+        if (!empty($this->updated_at)) {
+            return Carbon::parse($this->updated_at)->timestamp;
+        }
+
+        if (!empty($this->created_at)) {
+            return Carbon::parse($this->created_at)->timestamp;
+        }
+
+        return 0;
+    }
+}
