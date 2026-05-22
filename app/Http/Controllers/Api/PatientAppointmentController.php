@@ -27,6 +27,19 @@ use Illuminate\Database\Eloquent\ModelNotFoundException;
 
 class PatientAppointmentController extends Controller
 {
+    /**
+     * GET /api/get-patient-appointments
+     *
+     * Returns upcoming and past appointments for the authenticated patient.
+     *
+     * Request Payload:
+     * - None (uses authenticated patient and JWT case_id claim when available)
+     *
+     * Response:
+     * - 200: { success: true, upcoming_count, past_count, upcoming_appointments: array, past_appointments: array }
+     * - 404: { success: false, message: string }
+     * - 500: { success: false, message: string }
+     */
     public function getPatientAppointments(): JsonResponse
     {
         try {
@@ -151,19 +164,36 @@ class PatientAppointmentController extends Controller
     }
 
 
+    /**
+     * GET /api/get-appointment-departments
+     *
+     * Returns active appointment departments (cities).
+     *
+     * Request Payload:
+     * - None
+     *
+     * Response:
+     * - 200: { success: true, departments: array }
+     * - 500: { success: false, message: string }
+     */
     public function getAppointmentDepartments(){
         try {
+            Log::channel('appointment')->info('Fetching appointment departments - Start');
 
             $departments = MedhiwaSpecialityLocation::where('status', 1)
                             ->whereNull('deleted_at')
                             ->pluck('city');
+
+            Log::channel('appointment')->info('Fetching appointment departments - Success', [
+                'department_count' => $departments->count(),
+            ]);
             
             return response()->json([
                 'success' => true,
                 'departments' => $departments
             ], 200);
         } catch (\Throwable $e) {
-            Log::error("Error fetching appointment departments: " . $e->getMessage());
+            Log::channel('appointment')->error("Error fetching appointment departments: " . $e->getMessage());
             return response()->json([
                 'success' => false,
                 'message' => 'Something went wrong'
@@ -171,11 +201,27 @@ class PatientAppointmentController extends Controller
         }
     }
 
+    /**
+     * GET /api/get-department-speciality-with-physician?department={city}
+     *
+     * Returns specialities, visit types, and physician availability details for a department.
+     *
+     * Request Payload:
+     * - Query: department (required, string)
+     *
+     * Response:
+     * - 200: { success: true, count: int, data: array }
+     * - 400: { success: false, message: string, data: [] }
+     */
     public function getDepartmentSpecialityWithPhysician(Request $request)
     {
         $department = $request->query('department');
+        Log::channel('appointment')->info('Fetching department speciality with physician - Start', [
+            'department' => $department,
+        ]);
 
         if (!$department) {
+            Log::channel('appointment')->warning('Department speciality fetch failed: missing department');
             return response()->json([
                 'success' => false,
                 'message' => 'Department parameter is required',
@@ -190,6 +236,9 @@ class PatientAppointmentController extends Controller
             ->where('city', $department);
 
         if ($rows->isEmpty()) {
+            Log::channel('appointment')->info('No speciality rows found for department', [
+                'department' => $department,
+            ]);
             return response()->json([
                 'success' => true,
                 'count' => 0,
@@ -535,14 +584,42 @@ class PatientAppointmentController extends Controller
             'data' => $finalData
         ];
 
+        Log::channel('appointment')->info('Fetching department speciality with physician - Success', [
+            'department' => $department,
+            'speciality_count' => $finalData->count(),
+            'physician_count' => $physiciansWithOtherLocations->count(),
+        ]);
+
         return response()->json($responseData);
     }
 
+    /**
+     * GET /api/get-company-by-department-and-provider?department={city}&provider_id={id}
+     *
+     * Returns mapped companies for a department and provider.
+     *
+     * Request Payload:
+     * - Query: department (required, string)
+     * - Query: provider_id (required)
+     *
+     * Response:
+     * - 200: { success: true, count: int, companies: array } or { success: false, message: string }
+     * - 400: { success: false, message: string, data: [] }
+     * - 500: { success: false, message: string, data: [] }
+     */
     public function getCompanyByDepartmentAndProvider(Request $request){
         $department = $request->query('department');
         $providerId = $request->query('provider_id');
+        Log::channel('appointment')->info('Fetching companies by department and provider - Start', [
+            'department' => $department,
+            'provider_id' => $providerId,
+        ]);
 
         if (empty($department) || empty($providerId)) {
+            Log::channel('appointment')->warning('Company fetch failed: missing department/provider', [
+                'department' => $department,
+                'provider_id' => $providerId,
+            ]);
             return response()->json([
                 'success' => false,
                 'message' => 'Department and Provider parameters are required',
@@ -556,11 +633,21 @@ class PatientAppointmentController extends Controller
                 ->get(['amd_provider_id', 'amd_code', 'amd_company_name']);
 
             if($companies->isEmpty()) {
+                Log::channel('appointment')->info('No companies found for department/provider', [
+                    'department' => $department,
+                    'provider_id' => $providerId,
+                ]);
                 return response()->json([
                     'success' => false,
                     'message' => 'No companies found for this location',
                 ], 200);
             }
+
+            Log::channel('appointment')->info('Companies fetched successfully', [
+                'department' => $department,
+                'provider_id' => $providerId,
+                'company_count' => $companies->count(),
+            ]);
 
             return response()->json([
                 'success' => true,
@@ -568,7 +655,7 @@ class PatientAppointmentController extends Controller
                 'companies' => $companies
             ], 200);
         }catch (\Throwable $e) {
-            Log::error("Error fetching companies by location and department: " . $e->getMessage());
+            Log::channel('appointment')->error("Error fetching companies by location and department: " . $e->getMessage());
             return response()->json([
                 'success' => false,
                 'message' => 'Something went wrong',
@@ -577,8 +664,27 @@ class PatientAppointmentController extends Controller
         }
     }
 
+    /**
+     * POST /api/schedule-patient-appointment/{userName}/{caseId}
+     *
+     * Creates a new patient appointment request.
+     *
+     * Request Payload:
+     * - department, service, physicanId, physicanName, attend_date, svc_date_start, svc_date_end, status, pa_resp, no_sessions (required)
+     * - attend_type, pa_req, time, end_time, attend_notes, provider_code, company_name (optional)
+     *
+     * Response:
+     * - 200: { success: true, message: string, appointment_id: int }
+     * - 422: { success: false, message: string, errors: object }
+     * - 500: { success: false, message: string, error: string }
+     */
     public function schedulePatientAppointment(Request $request, $userName, $caseId){
         try{
+            Log::channel('appointment')->info('Schedule appointment request started', [
+                'user_name' => $userName,
+                'case_id' => $caseId,
+            ]);
+
             $validator = Validator::make($request->all(), [
                 
                 'department'      => 'required|string|max:100',
@@ -609,6 +715,11 @@ class PatientAppointmentController extends Controller
             ]);
 
             if ($validator->fails()) {
+                Log::channel('appointment')->warning('Schedule appointment validation failed', [
+                    'user_name' => $userName,
+                    'case_id' => $caseId,
+                    'errors' => $validator->errors()->toArray(),
+                ]);
                 return response()->json([
                     'success' => false,
                     'message' => 'Validation errors',
@@ -618,7 +729,7 @@ class PatientAppointmentController extends Controller
             
 
             // Log the incoming request data
-            Log::info("Scheduling appointment for user: $userName, case: $caseId", [
+            Log::channel('appointment')->info("Scheduling appointment for user: $userName, case: $caseId", [
                 'request_data' => $request->all()
             ]);
 
@@ -656,6 +767,12 @@ class PatientAppointmentController extends Controller
                 'platform_name' => 'New Patient',
             ]);
 
+            Log::channel('appointment')->info('Schedule appointment request completed', [
+                'appointment_id' => $appointment->id,
+                'user_name' => $userName,
+                'case_id' => $caseId,
+            ]);
+
             return response()->json([
                 'success' => true,
                 'message' => 'Appointment request submitted successfully',
@@ -663,7 +780,7 @@ class PatientAppointmentController extends Controller
             ],200);
 
         }catch(\Throwable $e){
-            Log::error("Error scheduling patient appointment: " . $e->getMessage());
+            Log::channel('appointment')->error("Error scheduling patient appointment: " . $e->getMessage());
             return response()->json([
                 'success' => false,
                 'error' => $e->getMessage(),

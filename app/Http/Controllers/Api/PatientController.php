@@ -22,6 +22,19 @@ use Tymon\JWTAuth\Token;
 
 class PatientController extends Controller
 {
+    /**
+     * GET /api/get-patient-details
+     *
+     * Returns the authenticated patient's basic profile details.
+     *
+     * Request Payload:
+     * - None
+     *
+     * Response:
+     * - 200: { success: true, patient_details: { id, first_name, last_name, full_name, dob, email, home_phone, address1 } }
+     * - 404: { success: false, message: string }
+     * - 500: { success: false, message: string }
+     */
     public function getPatientDetails(): JsonResponse
     {
         try {
@@ -112,9 +125,25 @@ class PatientController extends Controller
         }
     }
 
+    /**
+     * GET /api/get-case-ids-by-patient-id
+     *
+     * Returns all case IDs for the authenticated patient.
+     *
+     * Request Payload:
+     * - None
+     *
+     * Response:
+     * - 200: { success: true, case_ids: int[] }
+     * - 500: { success: false, message: string }
+     */
     public function getCaseIdsByPatientId(): JsonResponse
     {
         try {
+            Log::channel('patient')->info('Get case IDs API hit', [
+                'user_id' => auth()->id(),
+            ]);
+
             $userDetails = auth()->user();
             $patient_id = $userDetails->patient_id;
 
@@ -129,6 +158,11 @@ class PatientController extends Controller
             $caseIds = AhcsCase::where('patient_id', $patient_id)
                 ->pluck('id')
                 ->toArray();
+
+            Log::channel('patient')->info('Case IDs fetched successfully', [
+                'patient_id' => $patient_id,
+                'case_count' => count($caseIds),
+            ]);
 
             return response()->json([
                 'success' => true,
@@ -145,77 +179,39 @@ class PatientController extends Controller
         }
     }
 
-    // public function changePatientCase(Request $request): JsonResponse
-    // {
-    //     try {
 
-    //         $validator = Validator::make($request->all(), [
-    //             'case_id' => 'required|integer|exists:patient_cases,case_id',
-    //         ]);
-    //         if ($validator->fails()) {
-    //             return response()->json([
-    //                 'success' => false,
-    //                 'message' => $validator->errors()->first()
-    //             ], 422);
-    //         }
-
-    //         $oldToken = JWTAuth::getToken();
-
-    //         if (!$oldToken) {
-    //             return response()->json([
-    //                 'success' => false,
-    //                 'message' => 'Token not provided'
-    //             ], 401);
-    //         }
-
-    //         $oldPayload = JWTAuth::setToken($oldToken)->getPayload();
-    //         $oldJwtId = $oldPayload->get('jti');
-
-    //         $newToken = Auth::guard('api')->refresh();
-
-    //         $newPayload = JWTAuth::setToken($newToken)->getPayload();
-    //         $newJwtId = $newPayload->get('jti');
-
-    //         $user = Auth::guard('api')->setToken($newToken)->user();
-
-    //         UserSession::where('user_id', $user->id)
-    //             ->where('jwt_id', $oldJwtId)
-    //             ->where('is_active', 1)
-    //             ->update([
-    //                 'jwt_id' => $newJwtId,
-    //                 'token' => $newToken,
-    //                 'ip_address' => $request->ip(),
-    //                 'user_agent' => $request->userAgent(),
-    //                 'last_activity' => now(),
-    //                 'updated_at' => now(),
-    //             ]);
-
-    //         return response()->json([
-    //             'success' => true,
-    //             'message' => 'Token refreshed successfully',
-    //             'token' => $newToken,
-    //         ], 200);
-
-    //     } catch (\Throwable $e) {
-    //         Log::channel('auth')->error('Token refresh failed', [
-    //             'message' => $e->getMessage()
-    //         ]);
-
-    //         return response()->json([
-    //             'success' => false,
-    //             'message' => 'Token refresh failed'
-    //         ], 401);
-    //     }
-    // }
-
+    /**
+     * POST /api/change-patient-case
+     *
+     * Switches the active patient case in JWT claims and updates the active user session token.
+     *
+     * Request Payload:
+     * - case_id (required, integer)
+     *
+     * Response:
+     * - 200: { success: true, message: string, token: string }
+     * - 401: { success: false, message: string }
+     * - 404: { success: false, message: string }
+     * - 422: { success: false, message: string }
+     */
     public function changePatientCase(Request $request): JsonResponse
     {
         try {
+            Log::channel('auth')->info('Change patient case API hit', [
+                'user_id' => auth()->id(),
+                'case_id' => $request->case_id,
+            ]);
+
             $validator = Validator::make($request->all(), [
                 'case_id' => 'required|integer',
             ]);
 
             if ($validator->fails()) {
+                Log::channel('auth')->warning('Change patient case validation failed', [
+                    'user_id' => auth()->id(),
+                    'error' => $validator->errors()->first(),
+                ]);
+
                 return response()->json([
                     'success' => false,
                     'message' => $validator->errors()->first()
@@ -225,6 +221,10 @@ class PatientController extends Controller
             $oldToken = JWTAuth::parseToken()->getToken();
 
             if (!$oldToken) {
+                Log::channel('auth')->warning('Change patient case failed: token missing', [
+                    'user_id' => auth()->id(),
+                ]);
+
                 return response()->json([
                     'success' => false,
                     'message' => 'Token not provided'
@@ -237,6 +237,8 @@ class PatientController extends Controller
             $user = Auth::guard('api')->user();
 
             if (!$user) {
+                Log::channel('auth')->warning('Change patient case failed: unauthenticated user');
+
                 return response()->json([
                     'success' => false,
                     'message' => 'Unauthenticated user'
@@ -250,6 +252,12 @@ class PatientController extends Controller
                 ->exists();
 
             if (!$checkCaseId) {
+                Log::channel('auth')->warning('Change patient case failed: invalid case', [
+                    'user_id' => $user->id,
+                    'patient_id' => $user->patient_id,
+                    'case_id' => $caseId,
+                ]);
+
                 return response()->json([
                     'success' => false,
                     'message' => 'Invalid Case Id'
@@ -274,6 +282,11 @@ class PatientController extends Controller
                     'last_activity' => now(),
                     'updated_at' => now(),
                 ]);
+
+            Log::channel('auth')->info('Patient case changed successfully', [
+                'user_id' => $user->id,
+                'case_id' => $caseId,
+            ]);
 
             return response()->json([
                 'success' => true,
