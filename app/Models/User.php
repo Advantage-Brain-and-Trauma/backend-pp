@@ -84,9 +84,10 @@ class User extends Authenticatable implements JWTSubject
     {
         return [
             'id'    => $this->id,
-            'name' => $this->patient_id && $this->patient
-                    ? $this->patient->patient_name
-                    : $this->name,
+            // 'name' => $this->patient_id && $this->patient
+            //         ? $this->patient->patient_name
+            //         : $this->name,
+            'name'  => $this->name,
             'email' => $this->email,
             'phone' => $this->phone,
             'role'  => $this->role,
