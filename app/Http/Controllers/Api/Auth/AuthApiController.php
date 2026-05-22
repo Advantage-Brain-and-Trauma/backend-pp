@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Log;
 use Tymon\JWTAuth\Facades\JWTAuth;
+use Tymon\JWTAuth\Token;
 
 class AuthApiController extends Controller
 {
@@ -115,6 +116,63 @@ class AuthApiController extends Controller
                 'success' => false,
                 'message' => 'Failed to logout'
             ], 500);
+        }
+    }
+
+    public function refreshToken(Request $request)
+    {
+        try {
+            $oldToken = JWTAuth::parseToken()->getToken();
+
+            if (!$oldToken) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Token not provided'
+                ], 401);
+            }
+
+            $oldPayload = JWTAuth::parseToken()->getPayload();
+            $oldJwtId = $oldPayload->get('jti');
+
+            $user = Auth::guard('api')->user();
+            if (!$user) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Unauthenticated user'
+                ], 401);
+            }
+
+            $newToken = Auth::guard('api')->refresh();
+            $newPayload = JWTAuth::manager()->decode(new Token($newToken));
+            $newJwtId = $newPayload->get('jti');
+
+            UserSession::where('user_id', $user->id)
+                ->where('jwt_id', $oldJwtId)
+                ->where('is_active', 1)
+                ->update([
+                    'jwt_id' => $newJwtId,
+                    'token' => $newToken,
+                    'ip_address' => $request->ip(),
+                    'user_agent' => $request->userAgent(),
+                    'last_activity' => now(),
+                    'updated_at' => now(),
+                ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Token refreshed successfully',
+                'token' => $newToken,
+            ], 200);
+        } catch (\Throwable $e) {
+            Log::channel('auth')->error('Refresh token failed', [
+                'user_id' => Auth::guard('api')->id(),
+                'message' => $e->getMessage()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to refresh token'
+            ], 401);
         }
     }
 }
