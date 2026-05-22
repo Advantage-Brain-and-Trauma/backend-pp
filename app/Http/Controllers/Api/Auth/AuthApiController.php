@@ -152,21 +152,13 @@ class AuthApiController extends Controller
                 ], 401);
             }
 
-            $updatedClaims = [
-                'id' => $freshUser->id,
-                'name' => $freshUser->patient_id && $freshUser->patient
-                    ? $freshUser->patient->patient_name
-                    : $freshUser->name,
-                'email' => $freshUser->email,
-                'phone' => $freshUser->phone,
-                'role' => $freshUser->role,
-            ];
-
+            $claimOverrides = [];
             if (!is_null($activeCaseId)) {
-                $updatedClaims['case_id'] = $activeCaseId;
+                $claimOverrides['case_id'] = $activeCaseId;
             }
 
-            $newToken = JWTAuth::claims($updatedClaims)->fromUser($freshUser);
+            // Force claim generation via User::getJWTCustomClaims()
+            $newToken = JWTAuth::fromUser($freshUser, $claimOverrides);
             JWTAuth::setToken($oldToken)->invalidate();
             $newPayload = JWTAuth::manager()->decode(new Token($newToken));
             $newJwtId = $newPayload->get('jti');
