@@ -580,7 +580,7 @@ class FunnelApiController extends Controller
      *   }
      * }
      */
-    // public function PatientSubmitForm(Request $request, int $formId)
+    // public function patientSubmitForm(Request $request, int $formId)
     // {
     //     try {
     //         Log::channel('patient_form')->info('Patient form submission started', [
@@ -757,9 +757,14 @@ class FunnelApiController extends Controller
     // }
 
 
-    public function PatientSubmitForm(Request $request, int $formId)
+    public function patientSubmitForm(Request $request, int $formId)
     {
         try {
+
+            $userId    = auth()->id();
+            $patientId = auth()->user()->patient_id;
+            $caseId    = auth()->payload()->get('case_id');
+            
             Log::channel('patient_form')->info('Patient form submission started', [
                 'user_id'    => $userId,
                 'patient_id' => $patientId,
@@ -768,10 +773,6 @@ class FunnelApiController extends Controller
                 'funnel_id'  => $request->funnel_id,
                 'ip_address' => $request->ip(),
             ]);
-        
-            $userId    = auth()->id();
-            $patientId = auth()->user()->patient_id;
-            $caseId    = auth()->payload()->get('case_id');
 
             $validator = Validator::make($request->all(), [
                 'funnel_id' => 'required|integer|exists:funnels,id',
