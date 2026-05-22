@@ -760,6 +760,15 @@ class FunnelApiController extends Controller
     public function PatientSubmitForm(Request $request, int $formId)
     {
         try {
+            Log::channel('patient_form')->info('Patient form submission started', [
+                'user_id'    => $userId,
+                'patient_id' => $patientId,
+                'case_id'    => $caseId,
+                'form_id'    => $formId,
+                'funnel_id'  => $request->funnel_id,
+                'ip_address' => $request->ip(),
+            ]);
+        
             $userId    = auth()->id();
             $patientId = auth()->user()->patient_id;
             $caseId    = auth()->payload()->get('case_id');
@@ -770,6 +779,13 @@ class FunnelApiController extends Controller
             ]);
 
             if ($validator->fails()) {
+
+            Log::channel('patient_form')->warning('Patient form validation failed', [
+                'user_id' => $userId,
+                'errors'  => $validator->errors()->toArray(),
+                'payload' => $request->all(),
+            ]);
+
                 return response()->json([
                     'status'  => false,
                     'message' => 'Validation failed.',
@@ -782,6 +798,11 @@ class FunnelApiController extends Controller
                 ->exists();
 
             if (!$checkPatientCase) {
+                Log::channel('patient_form')->warning('Invalid patient or case', [
+                    'user_id'    => $userId,
+                    'patient_id' => $patientId,
+                    'case_id'    => $caseId,
+                ]);
                 return response()->json([
                     'status'  => false,
                     'message' => 'Invalid patient or case',
@@ -795,6 +816,11 @@ class FunnelApiController extends Controller
                 ->exists();
 
             if ($alreadySubmitted) {
+                Log::channel('patient_form')->warning('Form already submitted', [
+                    'user_id'   => $userId,
+                    'form_id'   => $formId,
+                    'funnel_id' => $request->funnel_id,
+                ]);
                 return response()->json([
                     'status'  => false,
                     'message' => 'Form already submitted.',
@@ -948,14 +974,27 @@ class FunnelApiController extends Controller
                         $patientUpdateData[$labelToColumn[$label]] = $value;
                     }
                 }
-
+                $existingPatient = AhcsPatient::find($patientId);
                 if (!empty($patientUpdateData)) {
+                    Log::channel('patient_form')->info('Updating patient data', [
+                        'patient_id' => $patientId,
+                        'old_data' => optional($existingPatient)->toArray(),
+                        'data'       => $patientUpdateData,
+                    ]);
                     AhcsPatient::where('id', $patientId)->update($patientUpdateData);
                 }
 
                 $hasData = collect($formData)
                     ->filter(fn ($v) => $v !== null && $v !== '' && $v !== [])
                     ->isNotEmpty();
+
+                Log::channel('patient_form')->info('Creating form submission', [
+                    'user_id'   => $userId,
+                    'form_id'   => $formId,
+                    'funnel_id' => $request->input('funnel_id'),
+                    'data'      => $formData,
+                    'status'    => $hasData ? 'completed' : 'draft',
+                ]);
 
                 $submission = FormSubmission::create([
                     'user_id'    => $userId,
@@ -1012,7 +1051,19 @@ class FunnelApiController extends Controller
                 ],
             ], 201);
 
+            Log::channel('patient_form')->info('Patient form submitted successfully', [
+                'submission_id' => $submission->id,
+                'pdf_url'       => $pdfFilename,
+            ]);
+
         } catch (\Throwable $e) {
+            Log::channel('patient_form')->error('Patient form submission failed', [
+                'form_id' => $formId,
+                'error'   => $e->getMessage(),
+                'line'    => $e->getLine(),
+                'file'    => $e->getFile(),
+                'trace'   => $e->getTraceAsString(),
+            ]);
             return response()->json([
                 'status'  => false,
                 'message' => 'Something went wrong while submitting the form.',
