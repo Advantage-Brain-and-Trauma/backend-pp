@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Models\User;
 use Illuminate\Http\Request;
 use App\Models\UserSession;
 use Illuminate\Support\Facades\Auth;
@@ -143,14 +144,29 @@ class AuthApiController extends Controller
                 ], 401);
             }
 
-            $user = $user->fresh();
-            $updatedClaims = $user->getJWTCustomClaims();
+            $freshUser = User::with('patient')->find($user->id);
+            if (!$freshUser) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'User not found'
+                ], 401);
+            }
+
+            $updatedClaims = [
+                'id' => $freshUser->id,
+                'name' => $freshUser->patient_id && $freshUser->patient
+                    ? $freshUser->patient->patient_name
+                    : $freshUser->name,
+                'email' => $freshUser->email,
+                'phone' => $freshUser->phone,
+                'role' => $freshUser->role,
+            ];
 
             if (!is_null($activeCaseId)) {
                 $updatedClaims['case_id'] = $activeCaseId;
             }
 
-            $newToken = JWTAuth::claims($updatedClaims)->fromUser($user);
+            $newToken = JWTAuth::claims($updatedClaims)->fromUser($freshUser);
             JWTAuth::setToken($oldToken)->invalidate();
             $newPayload = JWTAuth::manager()->decode(new Token($newToken));
             $newJwtId = $newPayload->get('jti');
