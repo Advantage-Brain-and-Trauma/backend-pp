@@ -31,4 +31,12 @@ return [
         'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
     ],
 
+    'advancedmd' => [
+        'office_code' => env('AMD_OFFICE_CODE'),
+        'username' => env('AMD_USERNAME'),
+        'password' => env('AMD_PASSWORD'),
+        'app_name' => env('AMD_APP_NAME'),
+        'login_url' => env('AMD_LOGIN_URL'),
+    ],
+
 ];

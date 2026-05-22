@@ -19,6 +19,7 @@ use App\Mail\AssignFunnelMail;
 use App\Models\AhcsPatient;
 use App\Models\AhcsCase;
 use App\Models\PatientCase;
+use App\Services\PatientFormAmdSyncService;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 
 class FunnelApiController extends Controller
@@ -474,6 +475,9 @@ class FunnelApiController extends Controller
 
             $submission = null;
             $pdfFilename = null;
+            $patientUpdateData = [];
+            $existingPatientArray = [];
+            $amdSyncResult = null;
 
             DB::beginTransaction();
 
@@ -611,8 +615,6 @@ class FunnelApiController extends Controller
                     }
                 }
 
-                $patientUpdateData = [];
-
                 foreach ($fieldsInput as $field) {
                     if (!is_array($field)) {
                         continue;
@@ -626,6 +628,7 @@ class FunnelApiController extends Controller
                     }
                 }
                 $existingPatient = AhcsPatient::find($patientId);
+                $existingPatientArray = $existingPatient ? $existingPatient->toArray() : [];
 
                 $patientNameParts = array_filter([
                     trim((string) ($patientUpdateData['first_name'] ?? $existingPatient?->first_name ?? '')),
@@ -718,6 +721,33 @@ class FunnelApiController extends Controller
             }
 
             try {
+                $amdSyncService = app(PatientFormAmdSyncService::class);
+                $amdSyncResult = $amdSyncService->syncDemographics(
+                    (int) $patientId,
+                    (int) $caseId,
+                    $patientUpdateData,
+                    $existingPatientArray
+                );
+
+                Log::channel('patient_form')->info('AMD sync attempted after patient form submit', [
+                    'patient_id' => $patientId,
+                    'case_id' => $caseId,
+                    'result' => $amdSyncResult,
+                ]);
+            } catch (\Throwable $amdError) {
+                $amdSyncResult = [
+                    'status' => 'failed',
+                    'message' => $amdError->getMessage(),
+                ];
+
+                Log::channel('patient_form')->error('AMD sync failed after patient form submit', [
+                    'patient_id' => $patientId,
+                    'case_id' => $caseId,
+                    'error' => $amdError->getMessage(),
+                ]);
+            }
+
+            try {
                 $user = Auth::user();
                 $pdfService = new FormSubmissionPdfService();
 
@@ -743,6 +773,7 @@ class FunnelApiController extends Controller
                     'status'        => $submission->status,
                     'pdf_url'       => $pdfFilename,
                     'submitted_at'  => $submission->created_at->toISOString(),
+                    'amd_sync'      => $amdSyncResult,
                 ],
             ], 201);
 
