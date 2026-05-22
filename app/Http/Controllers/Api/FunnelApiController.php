@@ -27,6 +27,13 @@ class FunnelApiController extends Controller
      * GET /api/get-patient-funnels
      *
      * Returns funnels assigned to the authenticated user.
+     *
+     * Request Payload:
+     * - None (uses authenticated user and JWT case_id claim when available)
+     *
+     * Response:
+     * - 200: { status: true, message: string, data: [{ id, funnel_name, submission_status, pending_count }] }
+     * - 500: { status: false, message: string }
      */
     
 
@@ -119,6 +126,15 @@ class FunnelApiController extends Controller
      * GET /api/get-patient-funnel-submission-details/{funnelId}
      *
      * Returns funnel details with per-form submission status for the authenticated user.
+     *
+     * Request Payload:
+     * - Path param: funnelId (int)
+     * - No JSON body (uses authenticated user and JWT case_id claim when available)
+     *
+     * Response:
+     * - 200: { status: true, message: string, data: { id, funnel_name, forms: [{ id, name, description, submission_status, fields }] } }
+     * - 404: { status: false, message: string } (patient/funnel/case mapping not found)
+     * - 500: { status: false, message: string }
      */
 
     public function getPatientFunnelSubmissionDetails($funnelId)
@@ -357,6 +373,25 @@ class FunnelApiController extends Controller
         }
     }
 
+    /**
+     * POST /api/patient-submit-form/{formId}
+     *
+     * Submits a patient form for the authenticated user and generates a PDF when possible.
+     *
+     * Request Payload:
+     * - Path param: formId (int)
+     * - Body:
+     *   - funnel_id (required, int)
+     *   - fields (required, array; supports scalar values and file uploads)
+     *
+     * Response:
+     * - 201: { status: true, message: string, data: { submission_id, form_id, funnel_id, status, pdf_url, submitted_at } }
+     * - 403: { status: false, message: string } (invalid patient/case)
+     * - 404: { status: false, message: string } (form not found)
+     * - 409: { status: false, message: string } (already submitted)
+     * - 422: { status: false, message: string, errors: object }
+     * - 500: { status: false, message: string }
+     */
     public function patientSubmitForm(Request $request, int $formId)
     {
         try {
@@ -672,6 +707,18 @@ class FunnelApiController extends Controller
         }
     }
 
+    /**
+     * GET /api/get-all-old-forms
+     *
+     * Returns legacy forms from the patient_portal database connection.
+     *
+     * Request Payload:
+     * - None
+     *
+     * Response:
+     * - 200: { status: true, message: string, data: Form[] }
+     * - 500: { status: false, message: string, error: string }
+     */
     public function getAllOldForms(){
         try{
 
@@ -697,6 +744,24 @@ class FunnelApiController extends Controller
         }
     }
 
+    /**
+     * POST /api/assign-funnel
+     *
+     * Assigns a funnel to a patient/case and sends the assignment email.
+     *
+     * Request Payload:
+     * - patient_id (required, int, exists in ahcs.ahcs_patients)
+     * - case_id (required, int, exists in ahcs.ahcs_cases)
+     * - funnel_id (required, int, exists in funnels)
+     * - funnel_name (required, string)
+     * - email (required, valid email)
+     * - phone (optional, string)
+     *
+     * Response:
+     * - 200: { status: true, message: string }
+     * - 422: { status: false, message: string, errors: string }
+     * - 500: { status: false, message: string }
+     */
     public function assignFunnel(Request $request)
     {
         try {
@@ -843,6 +908,27 @@ class FunnelApiController extends Controller
         }
     }
 
+    /**
+     * POST /api/add-patient-to-funnel
+     *
+     * Creates or updates a portal user for a patient and binds the user to an assigned funnel.
+     *
+     * Request Payload:
+     * - patient_id (required, int)
+     * - case_id (required, int)
+     * - funnel_id (required, int)
+     * - name (required, string)
+     * - email (required, valid email)
+     * - phone (optional, string)
+     * - password (required, string, min:8)
+     * - confirm_password (required, string, same as password)
+     *
+     * Response:
+     * - 200: { status: true, message: string, data: { user_id, patient_id, funnel_id } }
+     * - 404: { status: false, message: string } (patient/case/funnel/assignment not found)
+     * - 422: { status: false, message: string }
+     * - 500: { status: false, message: string }
+     */
     public function addPatientToFunnel(Request $request)
     {
         try {
@@ -1017,6 +1103,18 @@ class FunnelApiController extends Controller
         }
     }
 
+    /**
+     * GET /api/get-all-funnel-list
+     *
+     * Returns active funnels grouped by NPPW, Consent, and Other categories.
+     *
+     * Request Payload:
+     * - None
+     *
+     * Response:
+     * - 200: { status: true, message: string, data: { NPPW: Funnel[], Consent: Funnel[], Other: Funnel[] } }
+     * - 500: { status: false, message: string }
+     */
     public function getAllFunnelList()
     {
         try {
