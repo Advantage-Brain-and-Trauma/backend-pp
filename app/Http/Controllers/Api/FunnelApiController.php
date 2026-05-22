@@ -586,13 +586,28 @@ class FunnelApiController extends Controller
                     "Allergies" => "Alergias",
                 ];
 
+                $normalizeLabel = static function (?string $label): string {
+                    $label = (string) $label;
+                    $label = str_replace(["\xE2\x80\x99", "\xE2\x80\x98", "\x60"], "'", $label);
+                    $label = preg_replace('/\s+/', ' ', trim($label));
+                    $label = rtrim($label, ':');
+
+                    return mb_strtolower($label);
+                };
+
                 $labelToColumn = [];
 
                 foreach ($fieldMapping as $column => $englishLabel) {
-                    $labelToColumn[trim($englishLabel)] = $column;
+                    $normalizedEnglishLabel = $normalizeLabel($englishLabel);
+                    if (!isset($labelToColumn[$normalizedEnglishLabel])) {
+                        $labelToColumn[$normalizedEnglishLabel] = $column;
+                    }
 
                     if (isset($translationMap[$englishLabel])) {
-                        $labelToColumn[trim($translationMap[$englishLabel])] = $column;
+                        $normalizedTranslatedLabel = $normalizeLabel($translationMap[$englishLabel]);
+                        if (!isset($labelToColumn[$normalizedTranslatedLabel])) {
+                            $labelToColumn[$normalizedTranslatedLabel] = $column;
+                        }
                     }
                 }
 
@@ -603,7 +618,7 @@ class FunnelApiController extends Controller
                         continue;
                     }
 
-                    $label = trim($field['label'] ?? $field['lable'] ?? '');
+                    $label = $normalizeLabel($field['label'] ?? $field['lable'] ?? '');
                     $value = $field['value'] ?? null;
 
                     if ($label && array_key_exists($label, $labelToColumn)) {
