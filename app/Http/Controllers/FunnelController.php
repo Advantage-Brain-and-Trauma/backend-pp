@@ -8,12 +8,14 @@ use App\Models\FormSubmission;
 use App\Models\UserFunnel;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 class FunnelController extends Controller
 {
     public function index(Request $request)
     {
+        Log::channel('admin_funnels')->info('Funnels index requested', $request->only(['search', 'sort', 'direction', 'per_page']));
         $query = Funnel::withCount('submissions');
 
         if ($request->search) {
@@ -355,3 +357,6 @@ class FunnelController extends Controller
     }
 
 }
+
+
+

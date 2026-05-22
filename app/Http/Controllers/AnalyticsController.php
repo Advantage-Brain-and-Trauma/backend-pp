@@ -7,6 +7,7 @@ use App\Models\FormSubmission;
 use App\Models\UserFunnel;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class AnalyticsController extends Controller
 {
@@ -20,6 +21,7 @@ class AnalyticsController extends Controller
      */
     public function funnels(Request $request)
     {
+        Log::channel('admin_analytics')->info('Analytics funnels requested', $request->only(['from', 'to', 'search']));
         $from     = $request->input('from', now()->subDays(30)->format('Y-m-d'));
         $to       = $request->input('to',   now()->format('Y-m-d'));
         $fromDate = \Carbon\Carbon::parse($from)->startOfDay();
@@ -97,6 +99,7 @@ class AnalyticsController extends Controller
      */
     public function forms(Request $request)
     {
+        Log::channel('admin_analytics')->info('Analytics forms requested', $request->only(['from', 'to', 'search']));
         $from     = $request->input('from', now()->subDays(30)->format('Y-m-d'));
         $to       = $request->input('to',   now()->format('Y-m-d'));
         $fromDate = \Carbon\Carbon::parse($from)->startOfDay();
@@ -201,6 +204,7 @@ class AnalyticsController extends Controller
      */
     public function reports(Request $request)
     {
+        Log::channel('admin_analytics')->info('Analytics reports requested', $request->only(['from', 'to']));
         // ── Date range ──────────────────────────────────────────────────────────
         $from = $request->input('from', now()->subDays(30)->format('Y-m-d'));
         $to   = $request->input('to',   now()->format('Y-m-d'));
@@ -275,3 +279,7 @@ class AnalyticsController extends Controller
         return view('analytics.reports', compact('stats', 'from', 'to'));
     }
 }
+
+
+
+

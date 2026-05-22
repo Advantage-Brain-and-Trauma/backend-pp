@@ -5,7 +5,6 @@ namespace App\Http\Controllers;
 use App\Models\Form;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 class OldFormController extends Controller
@@ -41,7 +40,7 @@ class OldFormController extends Controller
             ], 200);
 
         } catch (\Throwable $e) {
-            Log::channel('patient_form')->error('Error fetching old forms list', [
+            Log::channel('admin_old_forms')->error('Error fetching old forms list', [
                 'error' => $e->getMessage(),
                 'line'  => $e->getLine(),
             ]);
@@ -113,7 +112,7 @@ class OldFormController extends Controller
             ], 200);
 
         } catch (\Throwable $e) {
-            Log::channel('patient_form')->error('Error syncing old form', [
+            Log::channel('admin_old_forms')->error('Error syncing old form', [
                 'old_form_id' => $id,
                 'error'       => $e->getMessage(),
                 'line'        => $e->getLine(),
@@ -245,3 +244,4 @@ class OldFormController extends Controller
         return $typeMap[$oldType] ?? 'text';
     }
 }
+

@@ -7,6 +7,7 @@ use App\Models\FormSubmission;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
@@ -14,6 +15,7 @@ class FormController extends Controller
 {
     public function index(Request $request)
     {
+        Log::channel('admin_forms')->info('Forms index requested', $request->only(['search', 'status', 'sort', 'direction', 'per_page']));
         $query = Form::with('creator')->withCount('submissions');
 
         if ($request->search) {
@@ -476,3 +478,6 @@ class FormController extends Controller
         return response()->json(['status' => 'success', 'url' => $url]);
     }
 }
+
+
+

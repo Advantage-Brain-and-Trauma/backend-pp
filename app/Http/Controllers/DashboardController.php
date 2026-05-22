@@ -7,11 +7,13 @@ use App\Models\Funnel;
 use App\Models\FormSubmission;
 use App\Models\Message;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 
 class DashboardController extends Controller
 {
     public function index()
     {
+        Log::channel('admin_dashboard')->info('Dashboard requested');
         $stats = [
             'total_forms' => Form::count(),
             'active_forms' => Form::where('is_active', 1)->count(),
@@ -28,3 +30,7 @@ class DashboardController extends Controller
         return view('dashboard', compact('stats', 'recentSubmissions', 'recentMessages'));
     }
 }
+
+
+
+

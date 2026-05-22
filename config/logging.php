@@ -167,6 +167,78 @@ return [
             'replace_placeholders' => true,
         ],
 
+        'admin_dashboard' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/admin/dashboard.log'),
+            'level' => env('LOG_LEVEL', 'debug'),
+            'days' => 14,
+            'replace_placeholders' => true,
+        ],
+
+        'admin_analytics' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/admin/analytics.log'),
+            'level' => env('LOG_LEVEL', 'debug'),
+            'days' => 14,
+            'replace_placeholders' => true,
+        ],
+
+        'admin_billing' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/admin/billing.log'),
+            'level' => env('LOG_LEVEL', 'debug'),
+            'days' => 14,
+            'replace_placeholders' => true,
+        ],
+
+        'admin_appointments' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/admin/appointments.log'),
+            'level' => env('LOG_LEVEL', 'debug'),
+            'days' => 14,
+            'replace_placeholders' => true,
+        ],
+
+        'admin_forms' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/admin/forms.log'),
+            'level' => env('LOG_LEVEL', 'debug'),
+            'days' => 14,
+            'replace_placeholders' => true,
+        ],
+
+        'admin_funnels' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/admin/funnels.log'),
+            'level' => env('LOG_LEVEL', 'debug'),
+            'days' => 14,
+            'replace_placeholders' => true,
+        ],
+
+        'admin_messages' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/admin/messages.log'),
+            'level' => env('LOG_LEVEL', 'debug'),
+            'days' => 14,
+            'replace_placeholders' => true,
+        ],
+
+        'admin_users' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/admin/users.log'),
+            'level' => env('LOG_LEVEL', 'debug'),
+            'days' => 14,
+            'replace_placeholders' => true,
+        ],
+
+        'admin_old_forms' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/admin/old_forms.log'),
+            'level' => env('LOG_LEVEL', 'debug'),
+            'days' => 14,
+            'replace_placeholders' => true,
+        ],
+
     ],
 
 ];

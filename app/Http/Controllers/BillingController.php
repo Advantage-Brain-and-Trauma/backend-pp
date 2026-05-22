@@ -4,11 +4,13 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 
 class BillingController extends Controller
 {
     public function index(Request $request)
     {
+        Log::channel('admin_billing')->info('Billing index requested');
         $billingRecords = $this->fetchBillingRecords($request);
         $stats = $this->computeStats($billingRecords);
         return view('billing.index', compact('billingRecords', 'stats'));
@@ -16,6 +18,7 @@ class BillingController extends Controller
 
     public function show($id)
     {
+        Log::channel('admin_billing')->info('Billing record requested', ['record_id' => $id]);
         $record = $this->fetchRecord($id);
         return view('billing.show', compact('record'));
     }
@@ -71,3 +74,6 @@ class BillingController extends Controller
         ];
     }
 }
+
+
+

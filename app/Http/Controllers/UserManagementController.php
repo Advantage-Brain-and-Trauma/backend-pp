@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 
 class UserManagementController extends Controller
 {
@@ -192,6 +193,7 @@ class UserManagementController extends Controller
      */
     public function index(Request $request)
     {
+        Log::channel('admin_users')->info('User list requested', $request->only(['search', 'sort', 'direction', 'per_page']));
         $perPage = in_array($request->per_page, [10, 25, 50, 100]) ? (int) $request->per_page : 10;
         $search  = $request->search;
 
@@ -337,3 +339,6 @@ class UserManagementController extends Controller
         return back()->with('success', 'User deleted successfully.');
     }
 }
+
+
+

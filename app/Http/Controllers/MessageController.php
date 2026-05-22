@@ -4,11 +4,13 @@ namespace App\Http\Controllers;
 use App\Models\Message;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 
 class MessageController extends Controller
 {
     public function index(Request $request)
     {
+        Log::channel('admin_messages')->info('Messages index requested', $request->only(['search']));
         $search = $request->input('search', '');
         $messages = Message::whereNull('parent_id')
             ->when($search, function($q) use ($search) {
@@ -85,3 +87,6 @@ class MessageController extends Controller
         return redirect()->route('messages.show', $message)->with('success', 'Reply sent.');
     }
 }
+
+
+

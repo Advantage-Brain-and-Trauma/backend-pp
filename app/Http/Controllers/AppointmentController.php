@@ -4,11 +4,13 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 
 class AppointmentController extends Controller
 {
     public function index(Request $request)
     {
+        Log::channel('admin_appointments')->info('Appointments index requested');
         // Appointments are fetched from external system
         $appointments = $this->fetchAppointments($request);
 
@@ -17,6 +19,7 @@ class AppointmentController extends Controller
 
     public function show($id)
     {
+        Log::channel('admin_appointments')->info('Appointment show requested', ['appointment_id' => $id]);
         $appointment = $this->fetchAppointment($id);
 
         return view('appointments.show', compact('appointment'));
@@ -66,3 +69,6 @@ class AppointmentController extends Controller
         ];
     }
 }
+
+
+
