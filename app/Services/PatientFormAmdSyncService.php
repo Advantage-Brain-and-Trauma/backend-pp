@@ -61,11 +61,14 @@ class PatientFormAmdSyncService
         ];
 
         $response = $this->postJson($url, $payload, $tokenData['token']);
+        $fault = $this->extractAmdFault((string) ($response['body'] ?? ''));
+        $httpOk = $response['http_code'] >= 200 && $response['http_code'] < 300;
 
         return [
-            'status' => ($response['http_code'] >= 200 && $response['http_code'] < 300) ? 'success' : 'failed',
+            'status' => ($httpOk && $fault === null) ? 'success' : 'failed',
             'http_code' => $response['http_code'],
             'error' => $response['error'],
+            'fault' => $fault,
             'response_snippet' => substr((string) ($response['body'] ?? ''), 0, 500),
         ];
     }
@@ -243,9 +246,9 @@ class PatientFormAmdSyncService
             $payload['@dob'] = $newDob;
         }
 
-        if (!empty($data['sex'])) {
-            $payload['@sex'] = (string) $data['sex'];
-        }
+        // Note: sex/gender is intentionally skipped for now due AMD fault:
+        // "String or binary data would be truncated ... column 'Gender'".
+        // We can re-enable once AMD's expected format is confirmed for this environment.
 
         $payload['address'] = [
             '@address2' => (string) ($data['address1'] ?? ''),
@@ -278,5 +281,29 @@ class PatientFormAmdSyncService
         }
 
         return $payload;
+    }
+
+    protected function extractAmdFault(string $xml): ?array
+    {
+        if ($xml === '' || stripos($xml, '<Fault>') === false) {
+            return null;
+        }
+
+        $get = static function (string $pattern) use ($xml): ?string {
+            if (preg_match($pattern, $xml, $m)) {
+                return trim((string) $m[1]);
+            }
+
+            return null;
+        };
+
+        return [
+            'faultcode' => $get('/<faultcode>(.*?)<\/faultcode>/is'),
+            'faultstring' => $get('/<faultstring>(.*?)<\/faultstring>/is'),
+            'code' => $get('/<code>(.*?)<\/code>/is'),
+            'description' => $get('/<description>(.*?)<\/description>/is'),
+            'class' => $get('/<class>(.*?)<\/class>/is'),
+            'method' => $get('/<method>(.*?)<\/method>/is'),
+        ];
     }
 }
