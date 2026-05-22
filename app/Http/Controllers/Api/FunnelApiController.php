@@ -635,6 +635,39 @@ class FunnelApiController extends Controller
                     AhcsPatient::where('id', $patientId)->update($patientUpdateData);
                 }
 
+                $userUpdateData = [];
+                $nameParts = array_filter([
+                    trim((string) ($patientUpdateData['first_name'] ?? '')),
+                    trim((string) ($patientUpdateData['middle_name'] ?? '')),
+                    trim((string) ($patientUpdateData['last_name'] ?? '')),
+                ], fn ($part) => $part !== '');
+
+                if (!empty($nameParts)) {
+                    $userUpdateData['name'] = implode(' ', $nameParts);
+                }
+
+                if (!empty($patientUpdateData['email'])) {
+                    $userUpdateData['email'] = $patientUpdateData['email'];
+                }
+
+                $phoneValue = $patientUpdateData['cell_no']
+                    ?? $patientUpdateData['home_ph']
+                    ?? $patientUpdateData['work_ph']
+                    ?? null;
+
+                if (!empty($phoneValue)) {
+                    $userUpdateData['phone'] = $phoneValue;
+                }
+
+                if (!empty($userUpdateData)) {
+                    Log::channel('patient_form')->info('Updating user data from patient form', [
+                        'user_id' => $userId,
+                        'data'    => $userUpdateData,
+                    ]);
+
+                    User::where('id', $userId)->update($userUpdateData);
+                }
+
                 $hasData = collect($formData)
                     ->filter(fn ($v) => $v !== null && $v !== '' && $v !== [])
                     ->isNotEmpty();
