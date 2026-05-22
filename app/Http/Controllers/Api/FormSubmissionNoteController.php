@@ -7,6 +7,7 @@ use App\Models\FormSubmission;
 use App\Models\FormSubmissionNote;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 
 class FormSubmissionNoteController extends Controller
@@ -17,9 +18,19 @@ class FormSubmissionNoteController extends Controller
      */
     public function index(int $submissionId)
     {
+        Log::channel('patient_form')->info('Fetching form submission notes started', [
+            'submission_id' => $submissionId,
+            'user_id'       => Auth::id(),
+        ]);
+
         $submission = FormSubmission::find($submissionId);
 
         if (!$submission) {
+            Log::channel('patient_form')->warning('Form submission not found while fetching notes', [
+                'submission_id' => $submissionId,
+                'user_id'       => Auth::id(),
+            ]);
+
             return response()->json([
                 'status'  => false,
                 'message' => 'Form submission not found.',
@@ -43,6 +54,12 @@ class FormSubmissionNoteController extends Controller
                 ];
             });
 
+        Log::channel('patient_form')->info('Form submission notes fetched successfully', [
+            'submission_id' => $submissionId,
+            'notes_count'   => $notes->count(),
+            'user_id'       => Auth::id(),
+        ]);
+
         return response()->json([
             'status'  => true,
             'message' => 'Notes retrieved successfully.',
@@ -56,9 +73,19 @@ class FormSubmissionNoteController extends Controller
      */
     public function store(Request $request, int $submissionId)
     {
+        Log::channel('patient_form')->info('Creating form submission note started', [
+            'submission_id' => $submissionId,
+            'user_id'       => Auth::id(),
+        ]);
+
         $submission = FormSubmission::find($submissionId);
 
         if (!$submission) {
+            Log::channel('patient_form')->warning('Form submission not found while creating note', [
+                'submission_id' => $submissionId,
+                'user_id'       => Auth::id(),
+            ]);
+
             return response()->json([
                 'status'  => false,
                 'message' => 'Form submission not found.',
@@ -70,6 +97,12 @@ class FormSubmissionNoteController extends Controller
         ]);
 
         if ($validator->fails()) {
+            Log::channel('patient_form')->warning('Validation failed while creating form submission note', [
+                'submission_id' => $submissionId,
+                'user_id'       => Auth::id(),
+                'errors'        => $validator->errors()->toArray(),
+            ]);
+
             return response()->json([
                 'status'  => false,
                 'message' => 'Validation failed.',
@@ -81,6 +114,12 @@ class FormSubmissionNoteController extends Controller
             'form_submission_id' => $submissionId,
             'note'               => $request->input('note'),
             'noted_by'           => Auth::id(),
+        ]);
+
+        Log::channel('patient_form')->info('Form submission note created successfully', [
+            'submission_id' => $submissionId,
+            'note_id'       => $note->id,
+            'user_id'       => Auth::id(),
         ]);
 
         return response()->json([
@@ -103,11 +142,23 @@ class FormSubmissionNoteController extends Controller
      */
     public function update(Request $request, int $submissionId, int $noteId)
     {
+        Log::channel('patient_form')->info('Updating form submission note started', [
+            'submission_id' => $submissionId,
+            'note_id'       => $noteId,
+            'user_id'       => Auth::id(),
+        ]);
+
         $note = FormSubmissionNote::where('id', $noteId)
             ->where('form_submission_id', $submissionId)
             ->first();
 
         if (!$note) {
+            Log::channel('patient_form')->warning('Form submission note not found while updating note', [
+                'submission_id' => $submissionId,
+                'note_id'       => $noteId,
+                'user_id'       => Auth::id(),
+            ]);
+
             return response()->json([
                 'status'  => false,
                 'message' => 'Note not found.',
@@ -119,6 +170,13 @@ class FormSubmissionNoteController extends Controller
         ]);
 
         if ($validator->fails()) {
+            Log::channel('patient_form')->warning('Validation failed while updating form submission note', [
+                'submission_id' => $submissionId,
+                'note_id'       => $noteId,
+                'user_id'       => Auth::id(),
+                'errors'        => $validator->errors()->toArray(),
+            ]);
+
             return response()->json([
                 'status'  => false,
                 'message' => 'Validation failed.',
@@ -128,6 +186,12 @@ class FormSubmissionNoteController extends Controller
 
         $note->update([
             'note' => $request->input('note'),
+        ]);
+
+        Log::channel('patient_form')->info('Form submission note updated successfully', [
+            'submission_id' => $submissionId,
+            'note_id'       => $noteId,
+            'user_id'       => Auth::id(),
         ]);
 
         return response()->json([
@@ -150,11 +214,23 @@ class FormSubmissionNoteController extends Controller
      */
     public function destroy(int $submissionId, int $noteId)
     {
+        Log::channel('patient_form')->info('Deleting form submission note started', [
+            'submission_id' => $submissionId,
+            'note_id'       => $noteId,
+            'user_id'       => Auth::id(),
+        ]);
+
         $note = FormSubmissionNote::where('id', $noteId)
             ->where('form_submission_id', $submissionId)
             ->first();
 
         if (!$note) {
+            Log::channel('patient_form')->warning('Form submission note not found while deleting note', [
+                'submission_id' => $submissionId,
+                'note_id'       => $noteId,
+                'user_id'       => Auth::id(),
+            ]);
+
             return response()->json([
                 'status'  => false,
                 'message' => 'Note not found.',
@@ -162,6 +238,12 @@ class FormSubmissionNoteController extends Controller
         }
 
         $note->delete();
+
+        Log::channel('patient_form')->info('Form submission note deleted successfully', [
+            'submission_id' => $submissionId,
+            'note_id'       => $noteId,
+            'user_id'       => Auth::id(),
+        ]);
 
         return response()->json([
             'status'  => true,
