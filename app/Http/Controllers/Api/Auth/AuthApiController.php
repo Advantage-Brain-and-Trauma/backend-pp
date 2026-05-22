@@ -133,6 +133,7 @@ class AuthApiController extends Controller
 
             $oldPayload = JWTAuth::parseToken()->getPayload();
             $oldJwtId = $oldPayload->get('jti');
+            $activeCaseId = $oldPayload->get('case_id');
 
             $user = Auth::guard('api')->user();
             if (!$user) {
@@ -142,7 +143,15 @@ class AuthApiController extends Controller
                 ], 401);
             }
 
-            $newToken = Auth::guard('api')->refresh();
+            $user = $user->fresh();
+            $updatedClaims = $user->getJWTCustomClaims();
+
+            if (!is_null($activeCaseId)) {
+                $updatedClaims['case_id'] = $activeCaseId;
+            }
+
+            $newToken = JWTAuth::claims($updatedClaims)->fromUser($user);
+            JWTAuth::setToken($oldToken)->invalidate();
             $newPayload = JWTAuth::manager()->decode(new Token($newToken));
             $newJwtId = $newPayload->get('jti');
 
