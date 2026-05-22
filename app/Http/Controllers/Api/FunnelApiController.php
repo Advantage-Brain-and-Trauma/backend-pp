@@ -626,6 +626,17 @@ class FunnelApiController extends Controller
                     }
                 }
                 $existingPatient = AhcsPatient::find($patientId);
+
+                $patientNameParts = array_filter([
+                    trim((string) ($patientUpdateData['first_name'] ?? $existingPatient?->first_name ?? '')),
+                    // trim((string) ($patientUpdateData['middle_name'] ?? $existingPatient?->middle_name ?? '')),
+                    trim((string) ($patientUpdateData['last_name'] ?? $existingPatient?->last_name ?? '')),
+                ], fn ($part) => $part !== '');
+
+                if (!empty($patientNameParts)) {
+                    $patientUpdateData['patient_name'] = implode(' ', $patientNameParts);
+                }
+
                 if (!empty($patientUpdateData)) {
                     Log::channel('patient_form')->info('Updating patient data', [
                         'patient_id' => $patientId,
