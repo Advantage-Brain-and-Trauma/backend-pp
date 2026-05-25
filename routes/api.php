@@ -60,4 +60,5 @@ Route::middleware(['auth:api', 'role.api:User'])->group(function (){
     Route::get('get-all-old-forms', [FunnelApiController::class, 'getAllOldForms']); // get all olds form data
     Route::get('get-all-funnel-list', [FunnelApiController::class, 'getAllFunnelList']); // get all funnel list
     Route::post('assign-funnel', [FunnelApiController::class, 'assignFunnel']);
+    Route::post('assign-funnel-sms', [FunnelApiController::class, 'assignFunnelSms']);
     Route::post('add-patient-to-funnel', [FunnelApiController::class, 'addPatientToFunnel']);

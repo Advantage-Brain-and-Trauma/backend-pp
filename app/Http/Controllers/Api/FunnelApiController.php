@@ -15,6 +15,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Http;
 use App\Mail\AssignFunnelMail;
 use App\Models\AhcsPatient;
 use App\Models\AhcsCase;
@@ -996,6 +997,210 @@ class FunnelApiController extends Controller
                 'message' => 'Something went wrong while assigning the funnel.',
             ], 500);
         }
+    }
+
+    /**
+     * POST /api/assign-funnel-sms
+     *
+     * Assigns a funnel to a patient/case and sends the assignment SMS.
+     *
+     * Request Payload:
+     * - patient_id (required, int, exists in ahcs.ahcs_patients)
+     * - case_id (required, int, exists in ahcs.ahcs_cases)
+     * - funnel_id (required, int, exists in funnels)
+     * - funnel_name (required, string)
+     * - phone (required, string)
+     *
+     * Response:
+     * - 200: { status: true, message: string }
+     * - 422: { status: false, message: string, errors: string }
+     * - 500: { status: false, message: string }
+     */
+    public function assignFunnelSms(Request $request)
+    {
+        try {
+            Log::channel('patient_funnel')->info('Assign funnel SMS request received', [
+                'patient_id' => $request->patient_id,
+                'case_id'    => $request->case_id,
+                'funnel_id'  => $request->funnel_id,
+            ]);
+
+            $validator = Validator::make($request->all(), [
+                'patient_id'  => 'required|integer|exists:ahcs.ahcs_patients,id',
+                'case_id'     => 'required|integer|exists:ahcs.ahcs_cases,id',
+                'funnel_id'   => 'required|integer|exists:funnels,id',
+                'funnel_name' => 'required|string|max:255',
+                'phone'       => 'required|string|max:20',
+            ]);
+
+            if ($validator->fails()) {
+                Log::channel('patient_funnel')->warning('Assign funnel SMS validation failed', [
+                    'patient_id' => $request->patient_id,
+                    'case_id'    => $request->case_id,
+                    'funnel_id'  => $request->funnel_id,
+                    'error'      => $validator->errors()->first(),
+                ]);
+
+                return response()->json([
+                    'status'  => false,
+                    'message' => 'Validation failed.',
+                    'errors'  => $validator->errors()->first(),
+                ], 422);
+            }
+
+            DB::beginTransaction();
+
+            $patient = AhcsPatient::find($request->patient_id);
+            $user = User::where('patient_id', $request->patient_id)->first();
+            $userId = $user?->id;
+            $flag = $user ? 'user_exists' : 'no_user';
+            $patientName = $patient->patient_name
+                ?? $user?->name
+                ?? 'Patient';
+
+            $patientCase = PatientCase::firstOrCreate([
+                'patient_id' => $request->patient_id,
+                'case_id'    => $request->case_id,
+            ]);
+
+            $existingAssignment = UserFunnel::withTrashed()
+                ->where('patient_id', $request->patient_id)
+                ->where('funnel_id', $request->funnel_id)
+                ->first();
+
+            if (!$existingAssignment && $userId) {
+                $existingAssignment = UserFunnel::withTrashed()
+                    ->where('user_id', $userId)
+                    ->where('funnel_id', $request->funnel_id)
+                    ->first();
+            }
+
+            if (!$existingAssignment) {
+                UserFunnel::create([
+                    'user_id'         => $userId,
+                    'patient_id'      => $request->patient_id,
+                    'funnel_id'       => $request->funnel_id,
+                    'patient_case_id' => $patientCase->id,
+                    'assigned_via'    => 'sms',
+                    'assigned_at'     => now(),
+                ]);
+            } elseif ($existingAssignment->trashed()) {
+                $existingAssignment->restore();
+                $existingAssignment->update([
+                    'user_id'         => $userId,
+                    'patient_id'      => $request->patient_id,
+                    'patient_case_id' => $patientCase->id,
+                    'assigned_via'    => 'sms',
+                    'assigned_at'     => now(),
+                ]);
+            } else {
+                $existingAssignment->update([
+                    'user_id'         => $userId ?? $existingAssignment->user_id,
+                    'patient_id'      => $request->patient_id,
+                    'patient_case_id' => $patientCase->id,
+                    'assigned_via'    => 'sms',
+                    'assigned_at'     => now(),
+                ]);
+            }
+
+            $funnelUrl = $this->buildAssignedFunnelUrl(
+                (string) $request->patient_id,
+                (string) $request->case_id,
+                (string) $request->funnel_id,
+                (string) $request->funnel_name,
+                (string) $patientName,
+                (string) ($user?->email ?? ''),
+                (string) $request->phone,
+                (string) $flag
+            );
+
+            $twilioSid = config('services.twilio.sid');
+            $twilioToken = config('services.twilio.token');
+            $twilioFrom = config('services.twilio.from');
+
+            if (empty($twilioSid) || empty($twilioToken) || empty($twilioFrom)) {
+                throw new \RuntimeException('Twilio SMS configuration is missing.');
+            }
+
+            $smsBody = "Hi {$patientName}, please complete your {$request->funnel_name} form: {$funnelUrl}";
+
+            $smsResponse = Http::withBasicAuth($twilioSid, $twilioToken)
+                ->asForm()
+                ->post("https://api.twilio.com/2010-04-01/Accounts/{$twilioSid}/Messages.json", [
+                    'From' => $twilioFrom,
+                    'To'   => $request->phone,
+                    'Body' => $smsBody,
+                ]);
+
+            if ($smsResponse->failed()) {
+                throw new \RuntimeException('Twilio API error: ' . $smsResponse->body());
+            }
+
+            DB::commit();
+
+            Log::channel('patient_funnel')->info('Funnel assigned and SMS sent successfully', [
+                'patient_id' => $request->patient_id,
+                'case_id'    => $request->case_id,
+                'funnel_id'  => $request->funnel_id,
+                'user_id'    => $userId,
+                'flag'       => $flag,
+            ]);
+
+            return response()->json([
+                'status'  => true,
+                'message' => 'Funnel assigned and SMS sent successfully.',
+            ], 200);
+
+        } catch (\Throwable $e) {
+            DB::rollBack();
+
+            Log::channel('patient_funnel')->error('Error assigning funnel with SMS', [
+                'patient_id' => $request->patient_id ?? null,
+                'case_id'    => $request->case_id ?? null,
+                'funnel_id'  => $request->funnel_id ?? null,
+                'message'    => $e->getMessage(),
+                'line'       => $e->getLine(),
+                'file'       => $e->getFile(),
+            ]);
+
+            return response()->json([
+                'status'  => false,
+                'message' => 'Something went wrong while assigning the funnel via SMS.',
+            ], 500);
+        }
+    }
+
+    private function buildAssignedFunnelUrl(
+        string $patientId,
+        string $caseId,
+        string $funnelId,
+        string $funnelName,
+        string $patientName,
+        string $email,
+        string $phone,
+        string $flag
+    ): string {
+        $baseUrl = 'https://app.advantagehcs.com';
+
+        $params = [];
+        $params[$this->base64UrlEncode('form')] = $this->base64UrlEncode($funnelId);
+        $params[$this->base64UrlEncode('flag')] = $this->base64UrlEncode($flag);
+
+        if ($flag !== 'user_exists') {
+            $params[$this->base64UrlEncode('patient_id')] = $this->base64UrlEncode($patientId);
+            $params[$this->base64UrlEncode('case_id')] = $this->base64UrlEncode($caseId);
+            $params[$this->base64UrlEncode('funnel_name')] = $this->base64UrlEncode($funnelName);
+            $params[$this->base64UrlEncode('name')] = $this->base64UrlEncode($patientName);
+            $params[$this->base64UrlEncode('email')] = $this->base64UrlEncode($email);
+            $params[$this->base64UrlEncode('phone')] = $this->base64UrlEncode($phone);
+        }
+
+        return $baseUrl . '?' . http_build_query($params);
+    }
+
+    private function base64UrlEncode(string $value): string
+    {
+        return rtrim(strtr(base64_encode($value), '+/', '-_'), '=');
     }
 
     /**
