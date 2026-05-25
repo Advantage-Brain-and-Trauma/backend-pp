@@ -632,7 +632,7 @@ class FunnelApiController extends Controller
 
                 $patientNameParts = array_filter([
                     trim((string) ($patientUpdateData['first_name'] ?? $existingPatient?->first_name ?? '')),
-                    // trim((string) ($patientUpdateData['middle_name'] ?? $existingPatient?->middle_name ?? '')),
+                    trim((string) ($patientUpdateData['middle_name'] ?? $existingPatient?->middle_name ?? '')),
                     trim((string) ($patientUpdateData['last_name'] ?? $existingPatient?->last_name ?? '')),
                 ], fn ($part) => $part !== '');
 
