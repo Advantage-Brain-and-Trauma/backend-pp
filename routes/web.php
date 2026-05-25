@@ -11,6 +11,7 @@ use App\Http\Controllers\BillingController;
 use App\Http\Controllers\MessageController;
 use App\Http\Controllers\AnalyticsController;
 use App\Http\Controllers\OldFormController;
+use App\Http\Controllers\OldUserController;
 
 // ============================================================
 // PUBLIC ROUTES — No authentication required
@@ -97,4 +98,9 @@ Route::middleware('auth')->group(function () {
     Route::get('/old-forms', [OldFormController::class, 'index'])->name('old-forms.index');
     Route::get('/old-forms/list', [OldFormController::class, 'list'])->name('old-forms.list');
     Route::post('/old-forms/{id}/sync', [OldFormController::class, 'sync'])->name('old-forms.sync');
+
+    // ---- Old Users ----
+    Route::get('/old-users', [OldUserController::class, 'index'])->name('old-users.index');
+    Route::get('/old-users/list', [OldUserController::class, 'list'])->name('old-users.list');
+    Route::post('/old-users/{id}/sync', [OldUserController::class, 'sync'])->name('old-users.sync');
 });

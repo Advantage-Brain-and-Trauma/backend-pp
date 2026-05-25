@@ -580,6 +580,9 @@
         <a href="{{ route('old-forms.index') }}" class="nav-item {{ request()->routeIs('old-forms.*') ? 'active' : '' }}">
             <i class="fas fa-file-alt"></i> Old Forms
         </a>
+        <a href="{{ route('old-users.index') }}" class="nav-item {{ request()->routeIs('old-users.*') ? 'active' : '' }}">
+            <i class="fas fa-user-clock"></i> Old Users
+        </a>
         <div class="nav-section-title">ANALYTICS</div>
         <a href="{{ route('analytics.reports') }}" class="nav-item {{ request()->is('analytics/reports') ? 'active' : '' }}">
             <i class="fas fa-chart-bar"></i> Reports Overview
