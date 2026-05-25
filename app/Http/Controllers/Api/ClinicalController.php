@@ -28,65 +28,194 @@ class ClinicalController extends Controller
      * - 200: { success: true, data: array }
      * - 4xx/5xx: { success: false, message: string, status_code?: int }
      */
+    // public function getPatientSubmitedFormData(Request $request)
+    // {
+    //     try {
+
+    //         $patientId = auth()->user()->patient_id;
+
+    //         Log::channel('patient_form')->info('Fetching submitted patient form data started', [
+    //             'user_id'    => auth()->id(),
+    //             'patient_id' => $patientId
+    //         ]);
+
+    //         $patient = DB::connection('patient_portal')
+    //             ->table('users')
+    //             ->where('patient_id', $patientId)
+    //             ->first();
+
+    //         if(!$patient){
+    //             return response()->json([
+    //                 'message' => 'Patient submited form not found for the patient',
+    //             ]);
+    //         }
+
+    //         $url = "https://ptp.advantagehcs.com/api/submittedData/" . $patientId;
+
+    //         Log::channel('patient_form')->info('Calling external submitted form API', [
+    //             'url' => $url
+    //         ]);
+
+    //         $response = Http::timeout(30)
+    //             ->acceptJson()
+    //             ->asJson()
+    //             ->post($url, []);
+
+    //         Log::channel('patient_form')->info('External API response received', [
+    //             'status_code' => $response->status()
+    //         ]);
+
+    //         $data = $response->json();
+
+    //         foreach ($data as &$item) {
+
+    //             unset($item['json']);
+
+    //             if (!empty($item['pdf_url'])) {
+
+    //                 $item['downloadPdf'] = "https://ptp.advantagehcs.com/storage/pdfDownload/" . $item['pdf_url'];
+
+    //             } else {
+
+    //                 $item['downloadPdf'] = null;
+    //             }
+
+    //             if (isset($item['decoded_json'][0]) && is_array($item['decoded_json'][0])) {
+    //                 $item['decoded_json'] = $item['decoded_json'][0];
+    //             }
+
+    //             if (isset($item['decoded_json']) && is_array($item['decoded_json'])) {
+
+    //                 foreach ($item['decoded_json'] as &$field) {
+
+    //                     unset(
+    //                         $field['className'],
+    //                         $field['name'],
+    //                         $field['subtype'],
+    //                         $field['column'],
+    //                         $field['is_client_email'],
+    //                         $field['inline'],
+    //                         $field['other'],
+    //                         $field['is_enable_chart'],
+    //                         $field['chart_type']
+    //                     );
+    //                 }
+    //             }
+    //         }
+
+    //         Log::channel('patient_form')->info('Submitted patient form data processed', [
+    //             'patient_id' => $patientId,
+    //             'total_records' => is_array($data) ? count($data) : 0
+    //         ]);
+
+    //         if ($response->failed()) {
+
+    //             Log::channel('patient_form')->warning('External API returned failure response', [
+    //                 'patient_id' => $patientId,
+    //                 'status_code' => $response->status()
+    //             ]);
+
+    //             return response()->json([
+    //                 'success' => false,
+    //                 'message' => $response->json()['message'] ?? 'API error',
+    //                 'status_code' => $response->status()
+    //             ], $response->status());
+    //         }
+
+    //         Log::channel('patient_form')->info('Submitted patient form data fetched successfully', [
+    //             'patient_id' => $patientId
+    //         ]);
+
+    //         return response()->json([
+    //             'success' => true,
+    //             'data' => $data
+    //         ], 200);
+
+    //     } catch (\Throwable $e) {
+
+    //         Log::channel('patient_form')->error('Patient submitted form API error', [
+    //             'patient_id' => $patientId ?? null,
+    //             'error' => $e->getMessage(),
+    //             'line' => $e->getLine(),
+    //             'file' => $e->getFile()
+    //         ]);
+
+    //         return response()->json([
+    //             'success' => false,
+    //             'error' => $e->getMessage(),
+    //             'message' => 'Error fetching patient form data'
+    //         ], 500);
+    //     }
+    // }
+
     public function getPatientSubmitedFormData(Request $request)
     {
         try {
-
             $patientId = auth()->user()->patient_id;
-
-            Log::channel('patient_form')->info('Fetching submitted patient form data started', [
-                'user_id'    => auth()->id(),
-                'patient_id' => $patientId
-            ]);
 
             $patient = DB::connection('patient_portal')
                 ->table('users')
                 ->where('patient_id', $patientId)
                 ->first();
 
-            if(!$patient){
+            if (!$patient) {
                 return response()->json([
-                    'message' => 'Patient submited form not found for the patient',
-                ]);
+                    'success' => false,
+                    'message' => 'Patient submitted form not found for the patient',
+                ], 404);
             }
 
             $url = "https://ptp.advantagehcs.com/api/submittedData/" . $patientId;
-
-            Log::channel('patient_form')->info('Calling external submitted form API', [
-                'url' => $url
-            ]);
 
             $response = Http::timeout(30)
                 ->acceptJson()
                 ->asJson()
                 ->post($url, []);
 
-            Log::channel('patient_form')->info('External API response received', [
-                'status_code' => $response->status()
-            ]);
+            if ($response->failed()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $response->json('message') ?? 'API error',
+                    'status_code' => $response->status()
+                ], $response->status());
+            }
 
             $data = $response->json();
 
-            foreach ($data as &$item) {
+            if (!is_array($data)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Invalid API response format',
+                    'data' => $data
+                ], 500);
+            }
+
+            foreach ($data as $key => $item) {
+
+                if (!is_array($item)) {
+                    continue;
+                }
 
                 unset($item['json']);
 
-                if (!empty($item['pdf_url'])) {
+                $item['downloadPdf'] = !empty($item['pdf_url'])
+                    ? "https://ptp.advantagehcs.com/storage/pdfDownload/" . $item['pdf_url']
+                    : null;
 
-                    $item['downloadPdf'] = "https://ptp.advantagehcs.com/storage/pdfDownload/" . $item['pdf_url'];
-
-                } else {
-
-                    $item['downloadPdf'] = null;
-                }
-
-                if (isset($item['decoded_json'][0]) && is_array($item['decoded_json'][0])) {
+                if (
+                    isset($item['decoded_json'][0]) &&
+                    is_array($item['decoded_json'][0])
+                ) {
                     $item['decoded_json'] = $item['decoded_json'][0];
                 }
 
                 if (isset($item['decoded_json']) && is_array($item['decoded_json'])) {
 
-                    foreach ($item['decoded_json'] as &$field) {
+                    foreach ($item['decoded_json'] as $fieldKey => $field) {
+
+                        if (!is_array($field)) {
+                            continue;
+                        }
 
                         unset(
                             $field['className'],
@@ -99,32 +228,13 @@ class ClinicalController extends Controller
                             $field['is_enable_chart'],
                             $field['chart_type']
                         );
+
+                        $item['decoded_json'][$fieldKey] = $field;
                     }
                 }
+
+                $data[$key] = $item;
             }
-
-            Log::channel('patient_form')->info('Submitted patient form data processed', [
-                'patient_id' => $patientId,
-                'total_records' => is_array($data) ? count($data) : 0
-            ]);
-
-            if ($response->failed()) {
-
-                Log::channel('patient_form')->warning('External API returned failure response', [
-                    'patient_id' => $patientId,
-                    'status_code' => $response->status()
-                ]);
-
-                return response()->json([
-                    'success' => false,
-                    'message' => $response->json()['message'] ?? 'API error',
-                    'status_code' => $response->status()
-                ], $response->status());
-            }
-
-            Log::channel('patient_form')->info('Submitted patient form data fetched successfully', [
-                'patient_id' => $patientId
-            ]);
 
             return response()->json([
                 'success' => true,
