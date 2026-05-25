@@ -98,13 +98,13 @@
 .fna-breakdown-bar { height:10px; background:#f1f5f9; border-radius:5px; overflow:hidden; display:flex; }
 
 /* Steps pipeline */
-.fna-steps { display:flex; align-items:center; gap:0; padding:16px 24px; border-bottom:1px solid #f1f5f9; flex-wrap:wrap; }
+.fna-steps { display:flex; align-items:center; gap:8px 6px; padding:16px 24px; border-bottom:1px solid #f1f5f9; flex-wrap:wrap; }
 .fna-step {
     display:flex; align-items:center; gap:8px; padding:8px 14px;
     background:#f8fafc; border-radius:10px; font-size:12px; font-weight:600; color:#475569;
     border:1px solid #e2e8f0;
 }
-.fna-step-arrow { color:#cbd5e1; font-size:12px; margin:0 4px; }
+.fna-step-arrow { color:#cbd5e1; font-size:12px; margin:0 2px; }
 
 /* Recent table */
 .fna-recent-head {
