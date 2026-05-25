@@ -138,9 +138,10 @@ class AnalyticsController extends Controller
             if (!empty($funnelIdsForForm)) {
                 $totalPatientAssignForm = DB::table('user_funnels')
                     ->whereIn('funnel_id', $funnelIdsForForm)
+                    ->whereNotNull('user_id')
                     ->whereNull('deleted_at')
                     ->whereBetween('created_at', [$fromDate, $toDate])
-                    // ->distinct('user_id')
+                    ->distinct('user_id')
                     ->count('user_id');
             } else {
                 // Form not in any funnel — count distinct users from form_submissions in period
@@ -279,7 +280,6 @@ class AnalyticsController extends Controller
         return view('analytics.reports', compact('stats', 'from', 'to'));
     }
 }
-
 
 
 
