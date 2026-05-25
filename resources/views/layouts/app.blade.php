@@ -561,6 +561,9 @@
         <a href="{{ route('user-management.index') }}" class="nav-item {{ request()->routeIs('user-management.*') ? 'active' : '' }}">
             <i class="fas fa-users-cog"></i> Users
         </a>
+        <a href="{{ route('old-users.index') }}" class="nav-item {{ request()->routeIs('old-users.*') ? 'active' : '' }}">
+            <i class="fas fa-user-clock"></i> Old Users
+        </a>
 
         <a href="{{ route('messages.index') }}" class="nav-item {{ request()->routeIs('messages.*') ? 'active' : '' }}">
             <i class="fas fa-envelope"></i> Messages
@@ -574,14 +577,11 @@
         <a href="{{ route('forms.index') }}" class="nav-item {{ request()->routeIs('forms.*') ? 'active' : '' }}">
             <i class="fas fa-wpforms"></i> Forms
         </a>
-        <a href="{{ route('funnels.index') }}" class="nav-item {{ request()->routeIs('funnels.*') ? 'active' : '' }}">
-            <i class="fas fa-filter"></i> Funnels
-        </a>
         <a href="{{ route('old-forms.index') }}" class="nav-item {{ request()->routeIs('old-forms.*') ? 'active' : '' }}">
             <i class="fas fa-file-alt"></i> Old Forms
         </a>
-        <a href="{{ route('old-users.index') }}" class="nav-item {{ request()->routeIs('old-users.*') ? 'active' : '' }}">
-            <i class="fas fa-user-clock"></i> Old Users
+        <a href="{{ route('funnels.index') }}" class="nav-item {{ request()->routeIs('funnels.*') ? 'active' : '' }}">
+            <i class="fas fa-filter"></i> Funnels
         </a>
         <div class="nav-section-title">ANALYTICS</div>
         <a href="{{ route('analytics.reports') }}" class="nav-item {{ request()->is('analytics/reports') ? 'active' : '' }}">
