@@ -77,10 +77,6 @@ html, body { height: 100%; font-family: -apple-system, BlinkMacSystemFont, 'Inte
 .library-form-add-btn { background: #ede9fe; color: #6366f1; }
 .library-form-add-btn:hover { background: #6366f1; color: #fff; }
 .library-form-added-badge { background: #dcfce7; color: #16a34a; font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 4px; pointer-events: none; }
-.url-bar { display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: #f0fdf4; border: 1px solid #86efac; border-radius: 8px; }
-.url-bar-label { font-size: 11px; font-weight: 600; color: #16a34a; white-space: nowrap; }
-.url-bar-link { font-size: 11px; color: #374151; font-family: monospace; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.url-bar-copy { padding: 4px 10px; border-radius: 6px; border: none; background: #16a34a; color: #fff; font-size: 11px; font-weight: 600; cursor: pointer; white-space: nowrap; }
 ::-webkit-scrollbar { width: 6px; } ::-webkit-scrollbar-track { background: transparent; } ::-webkit-scrollbar-thumb { background: #e5e7eb; border-radius: 3px; }
 
 /* Toast */
@@ -122,14 +118,7 @@ html, body { height: 100%; font-family: -apple-system, BlinkMacSystemFont, 'Inte
         <h2>Funnel Builder</h2>
         <span id="stepCount" style="font-size:12px;color:#6b7280;background:#f3f4f6;padding:4px 10px;border-radius:20px;">0 forms</span>
       </div>
-      @if($funnel->slug && $funnel->status === 'active')
-      <div class="url-bar">
-        <span class="url-bar-label">🔗 Public URL</span>
-        <span class="url-bar-link" id="publicUrlText">{{ url('/funnel/' . $funnel->slug) }}</span>
-        <button class="url-bar-copy" onclick="copyUrl()">Copy</button>
-        <a href="{{ url('/funnel/' . $funnel->slug) }}" target="_blank" style="padding:4px 10px;border-radius:6px;border:1px solid #86efac;background:#fff;color:#16a34a;font-size:11px;font-weight:600;text-decoration:none;white-space:nowrap;">Open ↗</a>
-      </div>
-      @elseif($funnel->status === 'draft')
+      @if($funnel->status === 'draft')
       <div style="padding:8px 12px;background:#fef3c7;border:1px solid #fde68a;border-radius:8px;font-size:12px;color:#d97706;">
         ⚠️ This funnel is a draft. Publish it to generate a public URL.
       </div>
@@ -198,9 +187,6 @@ html, body { height: 100%; font-family: -apple-system, BlinkMacSystemFont, 'Inte
   <input type="hidden" name="form_ids" id="hiddenFormIds">
 </form>
 
-<div id="copyToast" style="display:none;position:fixed;bottom:24px;right:24px;background:#111827;color:#fff;padding:12px 20px;border-radius:10px;font-size:13px;font-weight:500;box-shadow:0 8px 24px rgba(0,0,0,0.2);z-index:9999;">
-  ✅ Funnel URL copied!
-</div>
 
 <script>
 let funnelSteps = @json($existingSteps ?? []);
@@ -377,13 +363,6 @@ function showFunnelToast(message, type) {
     el.classList.add('hide');
     setTimeout(() => { if (el.parentNode) el.parentNode.removeChild(el); }, 350);
   }, 4500);
-}
-
-function copyUrl() {
-  const url = document.getElementById('publicUrlText').textContent;
-  navigator.clipboard.writeText(url).then(() => {
-    const toast = document.getElementById('copyToast'); toast.style.display = 'block'; setTimeout(() => toast.style.display = 'none', 3000);
-  }).catch(() => prompt('Copy this URL:', url));
 }
 
 function escHtml(str) { const d = document.createElement('div'); d.textContent = str; return d.innerHTML; }
