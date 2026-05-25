@@ -31,6 +31,7 @@ class CorsMiddleware
         $response->headers->set('Vary', 'Origin');
         $response->headers->set('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
         $response->headers->set('Access-Control-Allow-Headers', $allowHeaders);
+        $response->headers->set('Access-Control-Allow-Credentials', 'true');
         $response->headers->set('Access-Control-Max-Age', '86400');
 
         return $response;
