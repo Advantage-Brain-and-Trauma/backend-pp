@@ -147,7 +147,8 @@ class AnalyticsController extends Controller
                 $totalPatientAssignForm = FormSubmission::where('form_id', $form->id)
                     ->whereNull('deleted_at')
                     ->whereBetween('created_at', [$fromDate, $toDate])
-                    ->distinct('user_id')->count('user_id');
+                    // ->distinct('user_id')
+                    ->count('user_id');
             }
 
             // Total Completed: submissions with status 'completed' for this form in the date range
