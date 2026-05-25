@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Form;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 class OldFormController extends Controller
@@ -154,7 +155,7 @@ class OldFormController extends Controller
             }
 
             $type = $this->mapFieldType($oldField['type'] ?? 'text');
-            $label = $oldField['label'] ?? '';
+            $label = $this->decodeHtmlEntities($oldField['label'] ?? '');
             $required = isset($oldField['required']) ? (bool) $oldField['required'] : false;
 
             // Map options from old values array
@@ -162,9 +163,9 @@ class OldFormController extends Controller
             if (!empty($oldField['values']) && is_array($oldField['values'])) {
                 foreach ($oldField['values'] as $val) {
                     if (is_array($val) && isset($val['label'])) {
-                        $options[] = $val['label'];
+                        $options[] = $this->decodeHtmlEntities($val['label']);
                     } elseif (is_string($val)) {
-                        $options[] = $val;
+                        $options[] = $this->decodeHtmlEntities($val);
                     }
                 }
             }
@@ -213,6 +214,18 @@ class OldFormController extends Controller
         }
 
         return ['rows' => $rows];
+    }
+
+    /**
+     * Decode HTML entities from legacy form text before storing new schema JSON.
+     */
+    private function decodeHtmlEntities($value): string
+    {
+        if (!is_string($value) || $value === '') {
+            return (string) $value;
+        }
+
+        return html_entity_decode($value, ENT_QUOTES | ENT_HTML5, 'UTF-8');
     }
 
     /**
