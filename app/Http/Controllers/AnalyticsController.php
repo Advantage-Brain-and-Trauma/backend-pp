@@ -213,19 +213,33 @@ class AnalyticsController extends Controller
         $toDate   = \Carbon\Carbon::parse($to)->endOfDay();
 
         // ── Submission status breakdown — date-filtered ────────────────────────────
-        $totalForms = Form::count();
+        // Total forms assigned to all users in selected period:
+        // sum(form count per assigned funnel row)
+        $funnelFormCounts = Funnel::all()->mapWithKeys(function ($funnel) {
+            $formIds = is_array($funnel->form_ids)
+                ? $funnel->form_ids
+                : (json_decode($funnel->form_ids ?? '[]', true) ?: []);
+            return [$funnel->id => count($formIds)];
+        });
+
+        $totalAssignedForms = UserFunnel::whereNull('deleted_at')
+            ->whereBetween('created_at', [$fromDate, $toDate])
+            ->get(['funnel_id'])
+            ->sum(function ($assignment) use ($funnelFormCounts) {
+                return (int) ($funnelFormCounts[$assignment->funnel_id] ?? 0);
+            });
         $allCompleted = FormSubmission::where('status', 'completed')
             ->whereBetween('created_at', [$fromDate, $toDate])
             ->count();
         // Keep status math consistent with requested rule:
         // pending = total forms - completed
         // completed = total forms - pending
-        $allCompleted = min($allCompleted, $totalForms);
-        $totalPending = max(0, $totalForms - $allCompleted);
+        $allCompleted = min($allCompleted, $totalAssignedForms);
+        $totalPending = max(0, $totalAssignedForms - $allCompleted);
 
         $submissionsByStatus = [
-            'total'                => max($totalForms, 1),
-            'total_forms'          => $totalForms,
+            'total'                => max($totalAssignedForms, 1),
+            'total_assigned_forms' => $totalAssignedForms,
             'completed'            => $allCompleted,
             'pending'              => $totalPending,
         ];
@@ -281,5 +295,4 @@ class AnalyticsController extends Controller
         return view('analytics.reports', compact('stats', 'from', 'to'));
     }
 }
-
 
