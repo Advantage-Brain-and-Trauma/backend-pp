@@ -140,7 +140,7 @@ class AnalyticsController extends Controller
                     ->whereIn('funnel_id', $funnelIdsForForm)
                     ->whereNull('deleted_at')
                     ->whereBetween('created_at', [$fromDate, $toDate])
-                    ->distinct('user_id')
+                    // ->distinct('user_id')
                     ->count('user_id');
             } else {
                 // Form not in any funnel — count distinct users from form_submissions in period
