@@ -232,7 +232,6 @@ class PatientFormAmdSyncService
     protected function buildPatientPayload(string $amdPatientId, array $data, array $oldData): array
     {
         $firstName = trim((string) ($data['first_name'] ?? ''));
-        $middleName = trim((string) ($data['middle_name'] ?? ''));
         $lastName = trim((string) ($data['last_name'] ?? ''));
 
         $payload = [
@@ -243,10 +242,6 @@ class PatientFormAmdSyncService
             '@relationship' => '4',
             '@hipaarelationship' => '18',
         ];
-
-        if ($middleName !== '') {
-            $payload['@middlename'] = $middleName;
-        }
 
         $newDob = trim((string) ($data['dob'] ?? ''));
         $oldDob = trim((string) ($oldData['dob'] ?? ''));
