@@ -239,7 +239,7 @@
                     </div>
                     <div style="font-size:10px;color:#94a3b8;">{{ $form->stats['period_subs'] }} this period</div>
                 </div>
-                <a href="{{ route('forms.show', $form->id) }}" class="btn btn-sm btn-secondary">
+                <a href="{{ route('forms.submissions.index', $form->id) }}" class="btn btn-sm btn-secondary">
                     <i class="fas fa-eye" style="margin-right:4px;"></i>Submissions
                 </a>
                 <a href="{{ route('forms.builder', $form->id) }}" class="btn btn-sm btn-secondary">
@@ -252,7 +252,7 @@
         <div class="fa-metrics">
             <div class="fa-metric-cell">
                 <div class="fa-metric-val">{{ $patientAssign }}</div>
-                <div class="fa-metric-label">Total Patient Assign</div>
+                <div class="fa-metric-label">Total Assign</div>
             </div>
             <div class="fa-metric-cell">
                 <div class="fa-metric-val" style="color:#22c55e;">{{ $completed }}</div>
@@ -350,7 +350,7 @@
         @endforelse
 
         @if($total > 5)
-        <a href="{{ route('forms.show', $form->id) }}" class="fa-view-all">
+        <a href="{{ route('forms.submissions.index', $form->id) }}" class="fa-view-all">
             View all {{ $total }} submissions <i class="fas fa-arrow-right" style="font-size:11px;margin-left:4px;"></i>
         </a>
         @endif

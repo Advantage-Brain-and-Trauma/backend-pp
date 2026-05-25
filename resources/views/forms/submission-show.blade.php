@@ -62,8 +62,8 @@
             <a href="{{ route('analytics.forms') }}" class="btn btn-secondary">
                 <i class="fas fa-arrow-left" style="margin-right:6px;"></i>Back to Form Analytics
             </a>
-            <a href="{{ route('forms.show', $form->id) }}" class="btn btn-secondary">
-                <i class="fas fa-eye" style="margin-right:6px;"></i>Form Preview
+            <a href="{{ route('forms.submissions.index', $form->id) }}" class="btn btn-secondary">
+                <i class="fas fa-list" style="margin-right:6px;"></i>All Form Submissions
             </a>
         </div>
     </div>

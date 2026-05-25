@@ -104,6 +104,17 @@ class FormController extends Controller
         return view('forms.show', compact('form'));
     }
 
+    public function submissions(Form $form)
+    {
+        $submissions = FormSubmission::with(['user', 'funnel'])
+            ->where('form_id', $form->id)
+            ->latest()
+            ->paginate(20)
+            ->withQueryString();
+
+        return view('forms.submissions-index', compact('form', 'submissions'));
+    }
+
     public function showSubmission(Form $form, FormSubmission $submission)
     {
         abort_if((int) $submission->form_id !== (int) $form->id, 404);
