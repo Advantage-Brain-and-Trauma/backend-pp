@@ -1122,7 +1122,12 @@ class FunnelApiController extends Controller
                 throw new \RuntimeException('Twilio SMS configuration is missing.');
             }
 
-            $smsBody = "Hi {$patientName}, please complete your {$request->funnel_name} form: {$funnelUrl}";
+            $smsBody = "Hello, {$patientName}.\n"
+                . "You have received a new funnel form link for: {$request->funnel_name}. Please use the link below to access and complete the form.\n"
+                . "Click here to open your funnel form: {$funnelUrl}\n"
+                . "If you have any questions, feel free to contact support.\n\n"
+                . "Best Regards,\n"
+                . "MedHiWa Team";
 
             $smsResponse = Http::withBasicAuth($twilioSid, $twilioToken)
                 ->asForm()
