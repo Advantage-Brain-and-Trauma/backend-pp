@@ -142,6 +142,7 @@ class ClinicalController extends Controller
 
             return response()->json([
                 'success' => false,
+                'error' => $e->getMessage(),
                 'message' => 'Error fetching patient form data'
             ], 500);
         }
