@@ -231,14 +231,22 @@ class PatientFormAmdSyncService
 
     protected function buildPatientPayload(string $amdPatientId, array $data, array $oldData): array
     {
+        $firstName = trim((string) ($data['first_name'] ?? ''));
+        $middleName = trim((string) ($data['middle_name'] ?? ''));
+        $lastName = trim((string) ($data['last_name'] ?? ''));
+
         $payload = [
             '@id' => $amdPatientId,
-            '@name' => trim(($data['last_name'] ?? '') . ', ' . ($data['first_name'] ?? '')),
-            '@preferredfirstname' => $data['first_name'] ?? '',
-            '@preferredlastname' => $data['last_name'] ?? '',
+            '@name' => trim($lastName . ', ' . $firstName),
+            '@preferredfirstname' => $firstName,
+            '@preferredlastname' => $lastName,
             '@relationship' => '4',
             '@hipaarelationship' => '18',
         ];
+
+        if ($middleName !== '') {
+            $payload['@middlename'] = $middleName;
+        }
 
         $newDob = trim((string) ($data['dob'] ?? ''));
         $oldDob = trim((string) ($oldData['dob'] ?? ''));
@@ -246,9 +254,16 @@ class PatientFormAmdSyncService
             $payload['@dob'] = $newDob;
         }
 
-        // Note: sex/gender is intentionally skipped for now due AMD fault:
-        // "String or binary data would be truncated ... column 'Gender'".
-        // We can re-enable once AMD's expected format is confirmed for this environment.
+        $normalizedSsn = $this->normalizeSsn((string) ($data['ssn'] ?? ''));
+        if ($normalizedSsn !== '') {
+            $payload['@ssn'] = $normalizedSsn;
+        }
+
+        $sexValue = $this->normalizeSexForAmd((string) ($data['sex'] ?? ''));
+        if ($sexValue !== '') {
+            // AMD expects a compact gender value (M/F/U), not full words.
+            $payload['@sex'] = $sexValue;
+        }
 
         $payload['address'] = [
             '@address2' => (string) ($data['address1'] ?? ''),
@@ -281,6 +296,42 @@ class PatientFormAmdSyncService
         }
 
         return $payload;
+    }
+
+    protected function normalizeSexForAmd(string $sex): string
+    {
+        $value = strtoupper(trim($sex));
+        if ($value === '') {
+            return '';
+        }
+
+        if (in_array($value, ['M', 'MALE'], true)) {
+            return 'M';
+        }
+
+        if (in_array($value, ['F', 'FEMALE'], true)) {
+            return 'F';
+        }
+
+        if (in_array($value, ['U', 'UNKNOWN', 'OTHER'], true)) {
+            return 'U';
+        }
+
+        return '';
+    }
+
+    protected function normalizeSsn(string $ssn): string
+    {
+        $digits = preg_replace('/\D+/', '', $ssn) ?? '';
+        if ($digits === '') {
+            return '';
+        }
+
+        if (strlen($digits) > 9) {
+            $digits = substr($digits, 0, 9);
+        }
+
+        return $digits;
     }
 
     protected function normalizeUsState(string $state): string
