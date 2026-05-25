@@ -25,8 +25,9 @@ class OldFormController extends Controller
         try {
             $allOldForms = DB::connection('patient_portal')->table('forms')->whereNull('deleted_at')->get();
 
-            // Get slugs of already-synced forms from test_pp.forms (include soft-deleted)
-            $syncedSlugs = Form::withTrashed()->pluck('slug')->toArray();
+            // Get slugs of currently active synced forms only.
+            // Soft-deleted forms should be allowed to appear again for re-sync.
+            $syncedSlugs = Form::query()->pluck('slug')->toArray();
 
             // Filter out old forms whose slug (title-slug + id) already exists in test_pp.forms
             $filteredForms = $allOldForms->filter(function ($form) use ($syncedSlugs) {
