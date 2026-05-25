@@ -213,18 +213,16 @@ class AnalyticsController extends Controller
         $toDate   = \Carbon\Carbon::parse($to)->endOfDay();
 
         // ── Submission status breakdown — date-filtered ────────────────────────────
-        $totalPatientAssign = DB::table('user_funnels')
-            ->whereNull('deleted_at')
-            ->whereBetween('created_at', [$fromDate, $toDate])
+        $totalSubmissions = FormSubmission::whereBetween('created_at', [$fromDate, $toDate])
             ->count();
         $allCompleted = FormSubmission::where('status', 'completed')
             ->whereBetween('created_at', [$fromDate, $toDate])
             ->count();
-        $totalPending = max(0, $totalPatientAssign - $allCompleted);
+        $totalPending = max(0, $totalSubmissions - $allCompleted);
 
         $submissionsByStatus = [
-            'total'                => max($totalPatientAssign, 1),
-            'total_patient_assign' => $totalPatientAssign,
+            'total'                => max($totalSubmissions, 1),
+            'total_submissions'    => $totalSubmissions,
             'completed'            => $allCompleted,
             'pending'              => $totalPending,
         ];
@@ -280,7 +278,6 @@ class AnalyticsController extends Controller
         return view('analytics.reports', compact('stats', 'from', 'to'));
     }
 }
-
 
 
 
