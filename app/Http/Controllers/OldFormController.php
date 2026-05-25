@@ -73,6 +73,7 @@ class OldFormController extends Controller
             }
 
             $transformedFields = $this->transformJsonToFields($oldForm->json ?? null);
+            $transformedFields = $this->decodeHtmlEntitiesRecursively($transformedFields);
 
             $slug = Str::slug($oldForm->title ?? 'untitled') . '-' . $oldForm->id;
 
@@ -155,7 +156,7 @@ class OldFormController extends Controller
             }
 
             $type = $this->mapFieldType($oldField['type'] ?? 'text');
-            $label = $this->decodeHtmlEntities($oldField['label'] ?? '');
+            $label = $oldField['label'] ?? '';
             $required = isset($oldField['required']) ? (bool) $oldField['required'] : false;
 
             // Map options from old values array
@@ -163,9 +164,9 @@ class OldFormController extends Controller
             if (!empty($oldField['values']) && is_array($oldField['values'])) {
                 foreach ($oldField['values'] as $val) {
                     if (is_array($val) && isset($val['label'])) {
-                        $options[] = $this->decodeHtmlEntities($val['label']);
+                        $options[] = $val['label'];
                     } elseif (is_string($val)) {
-                        $options[] = $this->decodeHtmlEntities($val);
+                        $options[] = $val;
                     }
                 }
             }
@@ -225,7 +226,39 @@ class OldFormController extends Controller
             return (string) $value;
         }
 
-        return html_entity_decode($value, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $decoded = $value;
+        $maxPasses = 5;
+
+        // Decode repeatedly to handle double-encoded strings like "&amp;amp;" -> "&".
+        for ($i = 0; $i < $maxPasses; $i++) {
+            $next = html_entity_decode($decoded, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+            if ($next === $decoded) {
+                break;
+            }
+            $decoded = $next;
+        }
+
+        return str_replace("\u{00A0}", ' ', $decoded);
+    }
+
+    /**
+     * Recursively decode entities for all strings in the schema payload.
+     */
+    private function decodeHtmlEntitiesRecursively($value)
+    {
+        if (is_array($value)) {
+            foreach ($value as $key => $item) {
+                $value[$key] = $this->decodeHtmlEntitiesRecursively($item);
+            }
+
+            return $value;
+        }
+
+        if (is_string($value)) {
+            return $this->decodeHtmlEntities($value);
+        }
+
+        return $value;
     }
 
     /**
