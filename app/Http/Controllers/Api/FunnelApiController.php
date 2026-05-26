@@ -961,7 +961,8 @@ class FunnelApiController extends Controller
                     $patientName,
                     $request->email,
                     $request->phone,
-                    $flag
+                    $flag,
+                    'email'
                 )
             );
             DB::commit();
@@ -1111,7 +1112,8 @@ class FunnelApiController extends Controller
                 (string) $patientName,
                 (string) ($user?->email ?? ''),
                 (string) $request->phone,
-                (string) $flag
+                (string) $flag,
+                'sms'
             ))->funnelUrl;
 
             $twilioSid = config('services.twilio.sid');
