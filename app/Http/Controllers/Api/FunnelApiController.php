@@ -890,10 +890,6 @@ class FunnelApiController extends Controller
 
             $patient = AhcsPatient::find($request->patient_id);
 
-            $case = AhcsCase::find($request->case_id);
-
-            $funnel = Funnel::find($request->funnel_id);
-
             $user = User::where('patient_id', $request->patient_id)->first();
             $userId = $user?->id;
             $flag = $user ? 'user_exists' : 'no_user';
