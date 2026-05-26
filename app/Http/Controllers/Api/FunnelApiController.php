@@ -418,11 +418,11 @@ class FunnelApiController extends Controller
 
             if ($validator->fails()) {
 
-            Log::channel('patient_form')->warning('Patient form validation failed', [
-                'user_id' => $userId,
-                'errors'  => $validator->errors()->toArray(),
-                'payload' => $request->all(),
-            ]);
+                Log::channel('patient_form')->warning('Patient form validation failed', [
+                    'user_id' => $userId,
+                    'errors'  => $validator->errors()->toArray(),
+                    'payload' => $request->all(),
+                ]);
 
                 return response()->json([
                     'status'  => false,
