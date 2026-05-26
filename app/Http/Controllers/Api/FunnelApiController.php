@@ -1046,6 +1046,22 @@ class FunnelApiController extends Controller
                 ], 422);
             }
 
+            $normalizedPhone = $this->normalizeUsPhone((string) $request->phone);
+            if (!$normalizedPhone) {
+                Log::channel('patient_funnel')->warning('Assign funnel SMS invalid phone format', [
+                    'patient_id' => $request->patient_id,
+                    'case_id'    => $request->case_id,
+                    'funnel_id'  => $request->funnel_id,
+                    'phone'      => $request->phone,
+                ]);
+
+                return response()->json([
+                    'status'  => false,
+                    'message' => 'Validation failed.',
+                    'errors'  => 'Phone must be a valid US number.',
+                ], 422);
+            }
+
             DB::beginTransaction();
 
             $patient = AhcsPatient::find($request->patient_id);
@@ -1108,7 +1124,7 @@ class FunnelApiController extends Controller
                 (string) $request->funnel_name,
                 (string) $patientName,
                 (string) ($user?->email ?? ''),
-                (string) $request->phone,
+                (string) $normalizedPhone,
                 (string) $flag,
                 'sms'
             ))->funnelUrl;
@@ -1132,7 +1148,7 @@ class FunnelApiController extends Controller
                 ->asForm()
                 ->post("https://api.twilio.com/2010-04-01/Accounts/{$twilioSid}/Messages.json", [
                     'From' => $twilioFrom,
-                    'To'   => $request->phone,
+                    'To'   => $normalizedPhone,
                     'Body' => $smsBody,
                 ]);
 
@@ -1172,6 +1188,21 @@ class FunnelApiController extends Controller
                 'message' => 'Something went wrong while assigning the funnel via SMS.',
             ], 500);
         }
+    }
+
+    private function normalizeUsPhone(string $phone): ?string
+    {
+        $digits = preg_replace('/\D+/', '', $phone) ?? '';
+
+        if (strlen($digits) === 10) {
+            $digits = '1' . $digits;
+        }
+
+        if (strlen($digits) !== 11 || !str_starts_with($digits, '1')) {
+            return null;
+        }
+
+        return '+' . $digits;
     }
 
     /**
