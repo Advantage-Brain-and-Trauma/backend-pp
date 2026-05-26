@@ -27,6 +27,33 @@ use Illuminate\Database\Eloquent\ModelNotFoundException;
 class FunnelApiController extends Controller
 {
     /**
+     * Normalize a phone number for Twilio SMS delivery.
+     * - 10 digits => +1XXXXXXXXXX
+     * - 11 digits starting with 1 => +1XXXXXXXXXX
+     * - Existing + prefixed value => keep with only digits after +
+     */
+    private function normalizePhoneForSms(string $phone): string
+    {
+        $trimmed = trim($phone);
+
+        if (str_starts_with($trimmed, '+')) {
+            return '+' . preg_replace('/\D+/', '', substr($trimmed, 1));
+        }
+
+        $digitsOnly = preg_replace('/\D+/', '', $trimmed);
+
+        if (strlen($digitsOnly) === 10) {
+            return '+1' . $digitsOnly;
+        }
+
+        if (strlen($digitsOnly) === 11 && str_starts_with($digitsOnly, '1')) {
+            return '+' . $digitsOnly;
+        }
+
+        return '+' . $digitsOnly;
+    }
+
+    /**
      * GET /api/get-patient-funnels
      *
      * Returns funnels assigned to the authenticated user.
@@ -1047,6 +1074,15 @@ class FunnelApiController extends Controller
             }
 
             DB::beginTransaction();
+            $normalizedPhone = $this->normalizePhoneForSms((string) $request->phone);
+            $normalizedDigits = preg_replace('/\D+/', '', $normalizedPhone);
+            if (strlen($normalizedDigits) < 11) {
+                return response()->json([
+                    'status'  => false,
+                    'message' => 'Validation failed.',
+                    'errors'  => 'Please provide a valid phone number.',
+                ], 422);
+            }
 
             $patient = AhcsPatient::find($request->patient_id);
             $user = User::where('patient_id', $request->patient_id)->first();
@@ -1108,7 +1144,7 @@ class FunnelApiController extends Controller
                 (string) $request->funnel_name,
                 (string) $patientName,
                 (string) ($user?->email ?? ''),
-                (string) $request->phone,
+                (string) $normalizedPhone,
                 (string) $flag,
                 'sms'
             ))->funnelUrl;
@@ -1132,7 +1168,7 @@ class FunnelApiController extends Controller
                 ->asForm()
                 ->post("https://api.twilio.com/2010-04-01/Accounts/{$twilioSid}/Messages.json", [
                     'From' => $twilioFrom,
-                    'To'   => $request->phone,
+                    'To'   => $normalizedPhone,
                     'Body' => $smsBody,
                 ]);
 
