@@ -100,7 +100,7 @@ class FormController extends Controller
 
     public function show(Form $form)
     {
-        $form->load(['creator', 'submissions']);
+        $form->load('creator')->loadCount('submissions');
         return view('forms.show', compact('form'));
     }
 

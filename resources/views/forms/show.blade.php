@@ -281,7 +281,7 @@
             <i class="fas fa-circle" style="font-size:8px;"></i>
             {{ $form->is_active ? 'Active' : 'Inactive' }}
         </span>
-        <span class="preview-meta-item"><i class="fas fa-inbox" style="margin-right:4px;"></i>{{ $form->submission_count }} submissions</span>
+        <span class="preview-meta-item"><i class="fas fa-inbox" style="margin-right:4px;"></i>{{ $form->submissions_count ?? $form->submission_count ?? 0 }} submissions</span>
         <span class="preview-meta-item"><i class="fas fa-clock" style="margin-right:4px;"></i>Created {{ $form->created_at->format('M d, Y') }}</span>
     </div>
 
