@@ -160,7 +160,6 @@
             </select>
             <input type="text" id="forms-search-input" name="search" value="{{ request('search') }}" placeholder="Search..."
                 style="padding:8px 14px;border:1px solid #e5e7eb;border-radius:8px;font-size:13px;background:#f9fafb;color:#374151;width:220px;outline:none;">
-            <button type="submit" style="padding:8px 16px;border:1px solid #e5e7eb;border-radius:8px;font-size:13px;background:#f9fafb;color:#374151;cursor:pointer;"><i class="fas fa-search"></i></button>
         </form>
     </div>
     {{-- Bulk Action Bar --}}

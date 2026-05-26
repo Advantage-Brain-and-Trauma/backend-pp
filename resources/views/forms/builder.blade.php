@@ -773,7 +773,7 @@ body {
     </div>
 
     <!-- Public URL Card -->
-    <div style="background:var(--bg-panel);border:1px solid var(--border);border-radius:12px;padding:24px;margin-bottom:16px;">
+    <div style="display:none;background:var(--bg-panel);border:1px solid var(--border);border-radius:12px;padding:24px;margin-bottom:16px;">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
         <span style="font-size:20px;">🔗</span>
         <div>
