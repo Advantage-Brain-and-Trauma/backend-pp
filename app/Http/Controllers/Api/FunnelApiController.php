@@ -1371,11 +1371,12 @@ class FunnelApiController extends Controller
                 ]);
             }
 
-            // Update funnel assignment with the resolved user id
-            UserFunnel::where('patient_id', $request->patient_id)
-                    ->update([
-                        'user_id' => $user->id,
-                    ]);
+            // Update all funnel assignments for this patient (including soft-deleted history)
+            $updatedUserFunnelRows = UserFunnel::withTrashed()
+                ->where('patient_id', $request->patient_id)
+                ->update([
+                    'user_id' => $user->id,
+                ]);
 
 
             DB::commit();
@@ -1384,6 +1385,7 @@ class FunnelApiController extends Controller
                 'case_id'    => $request->case_id,
                 'funnel_id'  => $request->funnel_id,
                 'user_id'    => $user->id,
+                'updated_user_funnel_rows' => $updatedUserFunnelRows,
             ]);
 
             return response()->json([
