@@ -50,6 +50,9 @@ class AuthApiController extends Controller
             }
             // ✅ Get logged-in user
             $user = Auth::guard('api')->user();
+            $user->forceFill([
+                'last_login_at' => now(),
+            ])->save();
             $payload = JWTAuth::setToken($token)->getPayload();
             $jwtId = $payload->get('jti');
 

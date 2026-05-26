@@ -27,6 +27,9 @@ class LoginController extends Controller
 
         if (Auth::attempt($credentials, $request->boolean('remember'))) {
             $request->session()->regenerate();
+            Auth::user()?->forceFill([
+                'last_login_at' => now(),
+            ])->save();
 
             // If user clicked a shared funnel link before logging in, assign it now
             if ($pendingSlug = session()->pull('pending_funnel_slug')) {
