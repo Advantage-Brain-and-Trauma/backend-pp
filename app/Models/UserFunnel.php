@@ -36,3 +36,4 @@ class UserFunnel extends Model
         return $this->belongsTo(PatientCase::class, 'patient_case_id','id');
     }
 }
+
