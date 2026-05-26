@@ -28,29 +28,28 @@ class FunnelApiController extends Controller
 {
     /**
      * Normalize a phone number for Twilio SMS delivery.
-     * - 10 digits => +1XXXXXXXXXX
-     * - 11 digits starting with 1 => +1XXXXXXXXXX
-     * - Existing + prefixed value => keep with only digits after +
+     * - 10 digits => 1XXXXXXXXXX
+     * - 11 digits starting with 1 => 1XXXXXXXXXX
+     * - Existing + prefixed value => strip + and keep digits
      */
     private function normalizePhoneForSms(string $phone): string
     {
         $trimmed = trim($phone);
-
-        if (str_starts_with($trimmed, '+')) {
-            return '+' . preg_replace('/\D+/', '', substr($trimmed, 1));
-        }
-
         $digitsOnly = preg_replace('/\D+/', '', $trimmed);
 
+        if (str_starts_with($trimmed, '+')) {
+            return preg_replace('/\D+/', '', substr($trimmed, 1));
+        }
+
         if (strlen($digitsOnly) === 10) {
-            return '+1' . $digitsOnly;
+            return '1' . $digitsOnly;
         }
 
         if (strlen($digitsOnly) === 11 && str_starts_with($digitsOnly, '1')) {
-            return '+' . $digitsOnly;
+            return $digitsOnly;
         }
 
-        return '+' . $digitsOnly;
+        return $digitsOnly;
     }
 
     /**
