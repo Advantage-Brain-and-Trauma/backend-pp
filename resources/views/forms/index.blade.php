@@ -191,7 +191,6 @@
                         }
                     @endphp
                     <th><a href="{{ formsSortUrl('name', $currentSort, $currentDir) }}" class="sort-link">Form Name {!! formsSortArrows('name', $currentSort, $currentDir) !!}</a></th>
-                    <th style="width:90px; text-align:center;"><a href="{{ formsSortUrl('status', $currentSort, $currentDir) }}" class="sort-link">Status {!! formsSortArrows('status', $currentSort, $currentDir) !!}</a></th>
                     <th><a href="{{ formsSortUrl('submissions', $currentSort, $currentDir) }}" class="sort-link">Submissions {!! formsSortArrows('submissions', $currentSort, $currentDir) !!}</a></th>
                     <th><a href="{{ formsSortUrl('created_by', $currentSort, $currentDir) }}" class="sort-link">Created By {!! formsSortArrows('created_by', $currentSort, $currentDir) !!}</a></th>
                     <th><a href="{{ formsSortUrl('created_at', $currentSort, $currentDir) }}" class="sort-link">Created {!! formsSortArrows('created_at', $currentSort, $currentDir) !!}</a></th>
@@ -209,15 +208,6 @@
                         @if($form->description)
                             <div style="font-size:12px; color:#6b7280;">{{ Str::limit($form->description, 60) }}</div>
                         @endif
-                    </td>
-                    <td style="text-align:center;">
-                        <span class="status-toggle-wrap"
-                              onclick="toggleFormStatus({{ $form->id }}, this)"
-                              title="{{ $form->is_active ? 'Active — click to deactivate' : 'Inactive — click to activate' }}">
-                            <span class="status-toggle-track {{ $form->is_active ? 'active' : '' }}">
-                                <span class="status-toggle-knob"></span>
-                            </span>
-                        </span>
                     </td>
                     <td style="font-size:13px; color:#6b7280;">{{ $form->submissions_count ?? 0 }}</td>
                     <td style="font-size:13px; color:#6b7280;">{{ $form->creator->name ?? '—' }}</td>
@@ -247,7 +237,7 @@
                 </tr>
                 @empty
                 <tr>
-                    <td colspan="7" style="text-align:center; padding:48px; color:#9ca3af;">
+                    <td colspan="6" style="text-align:center; padding:48px; color:#9ca3af;">
                         <i class="fas fa-wpforms" style="font-size:36px; display:block; margin-bottom:12px;"></i>
                         No forms yet. <a href="{{ route('forms.create') }}" style="color:#C8102E;">Create your first form</a>
                     </td>
@@ -602,3 +592,4 @@ function toggleFormStatus(formId, wrapEl) {
 })();
 </script>
 @endsection
+

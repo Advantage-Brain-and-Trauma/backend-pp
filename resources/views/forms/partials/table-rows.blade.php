@@ -10,15 +10,6 @@
             <div style="font-size:12px; color:#6b7280;">{{ Str::limit($form->description, 60) }}</div>
         @endif
     </td>
-    <td style="text-align:center;">
-        <span class="status-toggle-wrap"
-              onclick="toggleFormStatus({{ $form->id }}, this)"
-              title="{{ $form->is_active ? 'Active — click to deactivate' : 'Inactive — click to activate' }}">
-            <span class="status-toggle-track {{ $form->is_active ? 'active' : '' }}">
-                <span class="status-toggle-knob"></span>
-            </span>
-        </span>
-    </td>
     <td style="font-size:13px; color:#6b7280;">{{ $form->submissions_count ?? 0 }}</td>
     <td style="font-size:13px; color:#6b7280;">{{ $form->creator->name ?? '—' }}</td>
     <td style="font-size:12px; color:#6b7280;">{{ $form->created_at->format('M d, Y') }}</td>
@@ -47,9 +38,10 @@
 </tr>
 @empty
 <tr>
-    <td colspan="7" style="text-align:center; padding:48px; color:#9ca3af;">
+    <td colspan="6" style="text-align:center; padding:48px; color:#9ca3af;">
         <i class="fas fa-wpforms" style="font-size:36px; display:block; margin-bottom:12px;"></i>
         No forms found. <a href="{{ route('forms.create') }}" style="color:#C8102E;">Create your first form</a>
     </td>
 </tr>
 @endforelse
+
