@@ -1321,7 +1321,7 @@ class FunnelApiController extends Controller
 
             // Check funnel assignment
             $userFunnel = UserFunnel::where('patient_id', $request->patient_id)
-                ->where('funnel_id', $request->funnel_id)
+                // ->where('funnel_id', $request->funnel_id)
                 ->first();
 
             if (!$userFunnel) {
