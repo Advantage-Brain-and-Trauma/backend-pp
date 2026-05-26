@@ -1103,7 +1103,7 @@ class FunnelApiController extends Controller
                 ]);
             }
 
-            $funnelUrl = $this->buildAssignedFunnelUrl(
+            $funnelUrl = (new AssignFunnelMail(
                 (string) $request->patient_id,
                 (string) $request->case_id,
                 (string) $request->funnel_id,
@@ -1112,7 +1112,7 @@ class FunnelApiController extends Controller
                 (string) ($user?->email ?? ''),
                 (string) $request->phone,
                 (string) $flag
-            );
+            ))->funnelUrl;
 
             $twilioSid = config('services.twilio.sid');
             $twilioToken = config('services.twilio.token');
@@ -1173,39 +1173,6 @@ class FunnelApiController extends Controller
                 'message' => 'Something went wrong while assigning the funnel via SMS.',
             ], 500);
         }
-    }
-
-    private function buildAssignedFunnelUrl(
-        string $patientId,
-        string $caseId,
-        string $funnelId,
-        string $funnelName,
-        string $patientName,
-        string $email,
-        string $phone,
-        string $flag
-    ): string {
-        $baseUrl = 'https://app.advantagehcs.com';
-
-        $params = [];
-        $params[$this->base64UrlEncode('form')] = $this->base64UrlEncode($funnelId);
-        $params[$this->base64UrlEncode('flag')] = $this->base64UrlEncode($flag);
-
-        if ($flag !== 'user_exists') {
-            $params[$this->base64UrlEncode('patient_id')] = $this->base64UrlEncode($patientId);
-            $params[$this->base64UrlEncode('case_id')] = $this->base64UrlEncode($caseId);
-            $params[$this->base64UrlEncode('funnel_name')] = $this->base64UrlEncode($funnelName);
-            $params[$this->base64UrlEncode('name')] = $this->base64UrlEncode($patientName);
-            $params[$this->base64UrlEncode('email')] = $this->base64UrlEncode($email);
-            $params[$this->base64UrlEncode('phone')] = $this->base64UrlEncode($phone);
-        }
-
-        return $baseUrl . '?' . http_build_query($params);
-    }
-
-    private function base64UrlEncode(string $value): string
-    {
-        return rtrim(strtr(base64_encode($value), '+/', '-_'), '=');
     }
 
     /**
