@@ -1321,7 +1321,7 @@ class FunnelApiController extends Controller
 
             // Check funnel assignment
             $userFunnel = UserFunnel::where('patient_id', $request->patient_id)
-                // ->where('funnel_id', $request->funnel_id)
+                ->where('funnel_id', $request->funnel_id)
                 ->first();
 
             if (!$userFunnel) {
@@ -1372,9 +1372,11 @@ class FunnelApiController extends Controller
             }
 
             // Update funnel assignment with the resolved user id
-            $userFunnel->update([
-                'user_id' => $user->id,
-            ]);
+            UserFunnel::where('patient_id', $request->patient_id)
+                    ->update([
+                        'user_id' => $user->id,
+                    ]);
+
 
             DB::commit();
             Log::channel('patient_funnel')->info('Patient added to funnel successfully', [
