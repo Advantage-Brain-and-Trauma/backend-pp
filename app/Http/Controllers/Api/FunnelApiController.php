@@ -21,6 +21,7 @@ use App\Models\AhcsPatient;
 use App\Models\AhcsCase;
 use App\Models\PatientCase;
 use App\Services\PatientFormAmdSyncService;
+use Illuminate\Validation\Rules\Password;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 
 class FunnelApiController extends Controller
@@ -1210,7 +1211,16 @@ class FunnelApiController extends Controller
                 'name'             => 'required|string|max:255',
                 'email'            => 'required|email|max:255',
                 'phone'            => 'nullable|string|max:20',
-                'password'         => 'required|string|min:8',
+                'password' => [
+                    'required',
+                    'string',
+                    Password::min(8)
+                        ->mixedCase()   // uppercase + lowercase
+                        ->letters()     // at least one letter
+                        ->numbers()     // at least one number
+                        ->symbols()     // at least one special character
+                       
+                ],
                 'confirm_password' => 'required|string|same:password',
             ]);
 
