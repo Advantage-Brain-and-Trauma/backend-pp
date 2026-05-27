@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use App\Models\AhcsAttendance;
+use Illuminate\Http\Request;
 
 class ClinicalNoteController extends Controller
 {
