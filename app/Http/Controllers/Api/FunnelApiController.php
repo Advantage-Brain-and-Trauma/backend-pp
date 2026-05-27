@@ -930,6 +930,18 @@ class FunnelApiController extends Controller
                 'case_id'    => $request->case_id,
             ]);
 
+            $existingCaseAssignment = UserFunnel::where('patient_id', $request->patient_id)
+                ->where('patient_case_id', $patientCase->id)
+                ->first();
+
+            if ($existingCaseAssignment) {
+                DB::rollBack();
+                return response()->json([
+                    'status'  => false,
+                    'message' => 'A funnel is already assigned for this patient and case.',
+                ], 422);
+            }
+
             // Check existing funnel assignment
             $existingAssignment = UserFunnel::withTrashed()
                 ->where('patient_id', $request->patient_id)
@@ -1095,6 +1107,18 @@ class FunnelApiController extends Controller
                 'patient_id' => $request->patient_id,
                 'case_id'    => $request->case_id,
             ]);
+
+            $existingCaseAssignment = UserFunnel::where('patient_id', $request->patient_id)
+                ->where('patient_case_id', $patientCase->id)
+                ->first();
+
+            if ($existingCaseAssignment) {
+                DB::rollBack();
+                return response()->json([
+                    'status'  => false,
+                    'message' => 'A funnel is already assigned for this patient and case.',
+                ], 422);
+            }
 
             $existingAssignment = UserFunnel::withTrashed()
                 ->where('patient_id', $request->patient_id)
