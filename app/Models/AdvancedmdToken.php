@@ -40,10 +40,20 @@ class AdvancedmdToken extends Model
         }
 
         if (!empty($this->updated_at)) {
+            $updatedAt = (string) $this->updated_at;
+            if (ctype_digit($updatedAt)) {
+                return (int) $updatedAt;
+            }
+
             return Carbon::parse($this->updated_at)->timestamp;
         }
 
         if (!empty($this->created_at)) {
+            $createdAt = (string) $this->created_at;
+            if (ctype_digit($createdAt)) {
+                return (int) $createdAt;
+            }
+
             return Carbon::parse($this->created_at)->timestamp;
         }
 

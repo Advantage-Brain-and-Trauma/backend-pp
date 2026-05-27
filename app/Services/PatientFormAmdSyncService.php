@@ -105,10 +105,10 @@ class PatientFormAmdSyncService
 
         if (Schema::connection($connection)->hasColumn($table, 'created_at_timestamp')) {
             $updateData['created_at_timestamp'] = time();
-        } elseif (Schema::connection($connection)->hasColumn($table, 'updated_at')) {
+        }
+
+        if (Schema::connection($connection)->hasColumn($table, 'updated_at')) {
             $updateData['updated_at'] = now();
-        } elseif (Schema::connection($connection)->hasColumn($table, 'created_at')) {
-            $updateData['created_at'] = now();
         }
 
         AdvancedmdToken::updateOrCreate(
