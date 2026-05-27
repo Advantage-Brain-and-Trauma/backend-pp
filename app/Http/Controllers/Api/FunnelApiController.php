@@ -1419,7 +1419,8 @@ class FunnelApiController extends Controller
                     'user_id'    => $user->id,
                     'patient_id' => $user->patient_id,
                     'funnel_id'  => $request->funnel_id,
-                ]
+                ],
+                'amd_sync'   => $amdSyncResult,
             ], 200);
 
         } catch (\Throwable $e) {
