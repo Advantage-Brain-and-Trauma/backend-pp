@@ -1437,6 +1437,7 @@ class FunnelApiController extends Controller
 
             return response()->json([
                 'status'  => false,
+                'error' => $e->getMessage(),
                 'message' => 'Something went wrong while adding patient to the funnel.',
             ], 500);
         }
