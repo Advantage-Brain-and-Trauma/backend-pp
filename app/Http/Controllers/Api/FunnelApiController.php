@@ -1386,11 +1386,29 @@ class FunnelApiController extends Controller
 
 
             DB::commit();
+
+            $amdSyncResult = null;
+            try {
+                $amdSyncService = app(PatientFormAmdSyncService::class);
+                $amdSyncResult = $amdSyncService->syncDemographics(
+                    (int) $request->patient_id,
+                    (int) $request->case_id,
+                    ['email' => $request->email],
+                    $patient->toArray()
+                );
+            } catch (\Throwable $amdError) {
+                $amdSyncResult = [
+                    'status' => 'failed',
+                    'message' => $amdError->getMessage(),
+                ];
+            }
+
             Log::channel('patient_funnel')->info('Patient added to funnel successfully', [
                 'patient_id' => $request->patient_id,
                 'case_id'    => $request->case_id,
                 'funnel_id'  => $request->funnel_id,
                 'user_id'    => $user->id,
+                'amd_sync'   => $amdSyncResult,
                 'updated_user_funnel_rows' => $updatedUserFunnelRows,
             ]);
 
