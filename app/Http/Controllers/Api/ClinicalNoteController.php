@@ -18,7 +18,7 @@ class ClinicalNoteController extends Controller
     {
         try {
 
-            $appointmentId = $request->query('appointment_id');
+            $appointmentId = $request->query('appt_id');
             $appointmentId = AhcsAttendance::findorFail($appointmentId)->id;
 
             if(!$appointmentId) {
