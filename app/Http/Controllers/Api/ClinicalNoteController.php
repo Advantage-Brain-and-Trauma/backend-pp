@@ -14,10 +14,11 @@ class ClinicalNoteController extends Controller
      *
      * Fetches clinical note attachment data from external API by appointment ID.
      */
-    public function show(int $appointmentId): JsonResponse
+    public function show(Request $request): JsonResponse
     {
         try {
 
+            $appointmentId = $request->query('appointment_id');
             $appointmentId = AhcsAttendance::findorFail($appointmentId)->id;
 
             if(!$appointmentId) {
