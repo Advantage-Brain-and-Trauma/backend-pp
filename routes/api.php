@@ -41,6 +41,8 @@ Route::middleware(['auth:api', 'role.api:User'])->group(function (){
     Route::get('get-patient-form-data',[ClinicalController::class, 'getPatientFormData']); // new platform form data
     Route::post('download-patient-form-pdf',[ClinicalController::class, 'downloadPatientFormPdf']); // new platform form pdf download
     Route::get('clinical-note', [ClinicalNoteController::class, 'show']);
+    Route::get('clinical-note-preview', [ClinicalNoteController::class, 'preview']);
+    Route::get('clinical-note-preview-url', [ClinicalNoteController::class, 'generatePreviewUrl']);
     
     Route::get('get-patient-details',[PatientController::class, 'getPatientDetails']);
     Route::get('get-case-ids-by-patient-id', [PatientController::class, 'getCaseIdsByPatientId']);
