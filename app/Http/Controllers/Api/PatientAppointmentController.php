@@ -90,7 +90,7 @@ class PatientAppointmentController extends Controller
                 ->get([
                     'id','ma_id','department','service','attend_type',
                     'provider_id','provider_name','attend_date','time',
-                    'end_time','length','attend_status','attend_notes'
+                    'end_time','length','attend_status','attend_notes','is_virtual'
                 ]);
             Log::channel('appointment')->info('Appointments fetched', ['patient_id' => $patientId, 'appointment_count' => $appointments->count()]);
 
@@ -117,6 +117,11 @@ class PatientAppointmentController extends Controller
                 $appointment->service_full_name = $specialities[$appointment->service] ?? null;
                 $code = strtolower($appointment->attend_type);
                 $appointment->attend_type_full_name = $attendTypes[$code] ?? null;
+
+                $appointment->is_virtual_text = $appointment->is_virtual == 1
+                    ? 'Telehealth'
+                    : 'In-Person';
+
 
                 return $appointment;
             });
