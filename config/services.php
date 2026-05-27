@@ -45,4 +45,8 @@ return [
         'from' => env('TWILIO_PHONE'),
     ],
 
+    'clinical_notes' => [
+        'base_url' => env('CLINICAL_NOTES_API_BASE_URL', 'http://10.0.0.23/api'),
+    ],
+
 ];

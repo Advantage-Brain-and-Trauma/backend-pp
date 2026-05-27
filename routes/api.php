@@ -5,6 +5,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\PatientAppointmentController;
 use App\Http\Controllers\Api\PatientController;
 use App\Http\Controllers\Api\ClinicalController;
+use App\Http\Controllers\Api\ClinicalNoteController;
 use App\Http\Controllers\Api\Auth\AuthApiController;
 use App\Http\Controllers\Api\FunnelApiController;
 use App\Http\Controllers\Api\FormSubmissionNoteController;
@@ -38,6 +39,7 @@ Route::middleware(['auth:api', 'role.api:User'])->group(function (){
     Route::post('download-patient-submited-form-pdf',[ClinicalController::class, 'downloadPatientSubmitedFormPdf']); // old platform form pdf download
     Route::get('get-patient-form-data',[ClinicalController::class, 'getPatientFormData']); // new platform form data
     Route::post('download-patient-form-pdf',[ClinicalController::class, 'downloadPatientFormPdf']); // new platform form pdf download
+    Route::get('clinical-note/{appointmentId}', [ClinicalNoteController::class, 'show']);
     
     Route::get('get-patient-details',[PatientController::class, 'getPatientDetails']);
     Route::get('get-case-ids-by-patient-id', [PatientController::class, 'getCaseIdsByPatientId']);
