@@ -1244,7 +1244,7 @@ class FunnelApiController extends Controller
                 'case_id'          => 'required|integer',
                 'funnel_id'        => 'required|integer',
                 'name'             => 'required|string|max:255',
-                'email'            => 'required|email|max:255',
+                'email'            => 'required|email|unique:users,email|max:255',
                 'phone'            => 'nullable|string|max:20',
                 'password' => [
                     'required',
@@ -1338,6 +1338,11 @@ class FunnelApiController extends Controller
 
             DB::beginTransaction();
 
+            // Keep AHCS patient email in sync with the assignment email.
+            AhcsPatient::where('id', $request->patient_id)->update([
+                'email' => $request->email,
+            ]);
+
             // Find existing user by email or patient_id (including soft-deleted records)
             $user = User::withTrashed()
                 ->where('email', $request->email)
@@ -1352,6 +1357,7 @@ class FunnelApiController extends Controller
                 $user->update([
                     'patient_id'        => $request->patient_id,
                     'name'              => $request->name,
+                    'email'             => $request->email,
                     'phone'             => $request->phone,
                     'password'          => bcrypt($request->password),
                     'country_code'      => 'US',
