@@ -22,6 +22,7 @@ use App\Http\Controllers\Api\FormSubmissionNoteController;
 */
 
 Route::post('login',[AuthApiController::class, 'login']);
+Route::post('magic-link/verify',[AuthApiController::class, 'magicLinkVerify']);
 
 Route::middleware('auth:api')->group(function () {
     Route::post('logout',[AuthApiController::class, 'logout']);

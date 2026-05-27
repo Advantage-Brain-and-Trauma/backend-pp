@@ -195,4 +195,25 @@ class AuthApiController extends Controller
             ], 401);
         }
     }
+
+    public function magicLinkVerify(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'patient_id' => 'required|integer',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => $validator->errors(),
+            ], 422);
+        }
+
+        $exists = User::where('patient_id', $request->patient_id)->exists();
+
+        return response()->json([
+            'success' => true,
+            'flag' => $exists ? 'exist' : 'not_exists',
+        ], 200);
+    }
 }
