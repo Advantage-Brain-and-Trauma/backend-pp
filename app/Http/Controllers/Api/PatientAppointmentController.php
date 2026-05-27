@@ -122,6 +122,7 @@ class PatientAppointmentController extends Controller
                     ? 'Telehealth'
                     : 'In-Person';
 
+                $appointment->appt_status = 'Confirmed';
 
                 return $appointment;
             });
