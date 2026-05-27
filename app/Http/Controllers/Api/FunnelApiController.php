@@ -1244,7 +1244,7 @@ class FunnelApiController extends Controller
                 'case_id'          => 'required|integer',
                 'funnel_id'        => 'required|integer',
                 'name'             => 'required|string|max:255',
-                'email'            => 'required|email|max:255|unique:users,email'. $user->id,
+                'email'            => 'required|email|max:255',
                 'phone'            => 'nullable|string|max:20',
                 'password' => [
                     'required',
