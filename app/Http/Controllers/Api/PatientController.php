@@ -67,7 +67,7 @@ class PatientController extends Controller
                 'full_name' => $patient->patient_name,
                 'dob' => $patient->dob,
                 'email' => $patient->email,
-                'home_phone' => $patient->home_ph,
+                'home_phone' => $patient->cell_no ?? $patient->home_ph,
                 'address1' => $patient->address1,
 
             ];
