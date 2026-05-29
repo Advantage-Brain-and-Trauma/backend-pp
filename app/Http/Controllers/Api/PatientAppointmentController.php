@@ -52,21 +52,26 @@ class PatientAppointmentController extends Controller
                 throw new \Exception("Patient ID is required", 400);
             }
 
+            if (empty($caseId)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Case Id is required',
+                ], 422);
+            }
+
             // ✅ Check patient exists
             AhcsPatient::findOrFail($patientId);
             Log::channel('appointment')->info('Patient found', ['patient_id' => $patientId]);
 
-            if (!empty($caseId)) {
-                $isValidCaseForPatient = AhcsCase::where('id', $caseId)
-                    ->where('patient_id', $patientId)
-                    ->exists();
+            $isValidCaseForPatient = AhcsCase::where('id', $caseId)
+                ->where('patient_id', $patientId)
+                ->exists();
 
-                if (!$isValidCaseForPatient) {
-                    return response()->json([
-                        'success' => false,
-                        'message' => 'Invalid case_id for this patient',
-                    ], 422);
-                }
+            if (!$isValidCaseForPatient) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Invalid Case Id for this patient',
+                ], 422);
             }
 
             $caseQuery = AhcsCase::where('patient_id', $patientId);

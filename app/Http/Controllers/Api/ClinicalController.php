@@ -433,17 +433,22 @@ class ClinicalController extends Controller
             $caseId = $request->input('case_id');
             $patientId = auth()->user()->patient_id;
 
-            if (!empty($caseId)) {
-                $isValidCaseForPatient = AhcsCase::where('id', $caseId)
-                    ->where('patient_id', $patientId)
-                    ->exists();
+            if (empty($caseId)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Case Id is required',
+                ], 422);
+            }
 
-                if (!$isValidCaseForPatient) {
-                    return response()->json([
-                        'success' => false,
-                        'message' => 'Invalid case_id for this patient',
-                    ], 422);
-                }
+            $isValidCaseForPatient = AhcsCase::where('id', $caseId)
+                ->where('patient_id', $patientId)
+                ->exists();
+
+            if (!$isValidCaseForPatient) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Invalid Case Id for this patient',
+                ], 422);
             }
 
             $formSubmission = FormSubmission::with([

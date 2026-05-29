@@ -73,17 +73,22 @@ class FunnelApiController extends Controller
             $caseId = $request->input('case_id');
             $patientId = $request->user()->patient_id;
 
-            if (!empty($caseId)) {
-                $isValidCaseForPatient = AhcsCase::where('id', $caseId)
-                    ->where('patient_id', $patientId)
-                    ->exists();
+            if (empty($caseId)) {
+                return response()->json([
+                    'status' => false,
+                    'message' => 'Case Id is required.',
+                ], 422);
+            }
 
-                if (!$isValidCaseForPatient) {
-                    return response()->json([
-                        'status' => false,
-                        'message' => 'Invalid case_id for this patient.',
-                    ], 422);
-                }
+            $isValidCaseForPatient = AhcsCase::where('id', $caseId)
+                ->where('patient_id', $patientId)
+                ->exists();
+
+            if (!$isValidCaseForPatient) {
+                return response()->json([
+                    'status' => false,
+                    'message' => 'Invalid Case Id for this patient.',
+                ], 422);
             }
 
             Log::channel('patient_funnel')->info('Fetching patient funnels - Start', [
@@ -187,17 +192,22 @@ class FunnelApiController extends Controller
             $caseId = $request->input('case_id');
             $patientId = auth()->user()->patient_id;
 
-            if (!empty($caseId)) {
-                $isValidCaseForPatient = AhcsCase::where('id', $caseId)
-                    ->where('patient_id', $patientId)
-                    ->exists();
+            if (empty($caseId)) {
+                return response()->json([
+                    'status' => false,
+                    'message' => 'Case Id is required.',
+                ], 422);
+            }
 
-                if (!$isValidCaseForPatient) {
-                    return response()->json([
-                        'status' => false,
-                        'message' => 'Invalid case_id for this patient.',
-                    ], 422);
-                }
+            $isValidCaseForPatient = AhcsCase::where('id', $caseId)
+                ->where('patient_id', $patientId)
+                ->exists();
+
+            if (!$isValidCaseForPatient) {
+                return response()->json([
+                    'status' => false,
+                    'message' => 'Invalid Case Id for this patient.',
+                ], 422);
             }
 
             $fieldMapping = [
@@ -455,6 +465,13 @@ class FunnelApiController extends Controller
             $userId    = auth()->id();
             $patientId = auth()->user()->patient_id;
             $caseId    = $request->input('case_id');
+
+            if (empty($caseId)) {
+                return response()->json([
+                    'status'  => false,
+                    'message' => 'Case Id is required.',
+                ], 422);
+            }
             
             Log::channel('patient_form')->info('Patient form submission started', [
                 'user_id'    => $userId,
