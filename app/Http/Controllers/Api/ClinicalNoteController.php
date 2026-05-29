@@ -50,6 +50,50 @@ class ClinicalNoteController extends Controller
                 ], 422);
             }
 
+            if (empty($appointmentId)) {
+                $rows = DB::connection('ahcs')
+                    ->table('ahcs_attachment_logs')
+                    ->select('id', 'case_id', 'attend_id', 'folder', 'sub_folder', 'filename', 'serverType')
+                    ->where('case_id', $caseId)
+                    ->orderByDesc('id')
+                    ->get();
+
+                $data = $rows->map(function ($row) use ($caseId) {
+                    $split = implode('/', str_split((string) $row->case_id));
+                    $folder = trim((string) $row->folder, '/\\');
+                    $subFolder = trim((string) $row->sub_folder, '/\\');
+                    $file = (string) $row->filename;
+                    $base = ((string) ($row->serverType ?? '2') === '1') ? self::WEBDAV_BASE : self::STORAGE_BASE;
+
+                    $fullUrl = rtrim($base, '/')
+                        . '/' . $split
+                        . '/' . rawurlencode($folder)
+                        . '/' . rawurlencode($subFolder)
+                        . '/' . rawurlencode($file);
+
+                    return [
+                        'id' => (int) $row->id,
+                        'filename' => $file,
+                        'full_url' => $fullUrl,
+                        'url' => $fullUrl,
+                        'serverType' => (int) ($row->serverType ?? 2),
+                        'case_id' => (int) $row->case_id,
+                        'attend_id' => (int) $row->attend_id,
+                        'folder' => $row->folder,
+                        'sub_folder' => $row->sub_folder,
+                        'preview_url_api' => url('/api/clinical-note-preview-url')
+                            . '?filename=' . rawurlencode($file)
+                            . '&attend_id=' . rawurlencode((string) $row->attend_id)
+                            . '&case_id=' . rawurlencode((string) $caseId),
+                    ];
+                })->values();
+
+                return response()->json([
+                    'success' => true,
+                    'data' => $data,
+                ]);
+            }
+
             $appointment = AhcsAttendance::findorFail($appointmentId);
             $appointmentId = $appointment->id;
 
