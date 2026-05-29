@@ -19,6 +19,8 @@ class ClinicalNoteController extends Controller
     private const STORAGE_BASE = 'http://10.0.0.23/storage/files/mh';
     private const LOCAL_WEBDAV_BASE = 'http://10.0.0.23/webdav/mh';
     private const WEBDAV_BASE = 'http://10.0.0.24/webdav/mh';
+    private const STORAGE_FS_BASE = '/files/mh';
+    private const LOCAL_WEBDAV_FS_BASE = '/webdav/mh';
 
     /**
      * GET /api/clinical-note/{appointmentId}
@@ -405,27 +407,63 @@ class ClinicalNoteController extends Controller
             $subVariants = [''];
         }
 
+        $fallback = '';
+
         foreach ($bases as $base) {
             $base = rtrim($base, '/');
             foreach ($folderVariants as $f) {
                 foreach ($subVariants as $s) {
+                    $url = '';
                     if ($s !== '') {
-                        return $base
+                        $url = $base
                             . '/' . $split
                             . '/' . rawurlencode($f)
                             . '/' . rawurlencode($s)
                             . '/' . rawurlencode($filename);
+                    } else {
+                        $url = $base
+                            . '/' . $split
+                            . '/' . rawurlencode($f)
+                            . '/' . rawurlencode($filename);
                     }
 
-                    return $base
-                        . '/' . $split
-                        . '/' . rawurlencode($f)
-                        . '/' . rawurlencode($filename);
+                    if ($fallback === '') {
+                        $fallback = $url;
+                    }
+
+                    if ($this->localAttachmentExists($base, $split, $f, $s, $filename)) {
+                        return $url;
+                    }
                 }
             }
         }
 
-        return '';
+        return $fallback;
+    }
+
+    private function localAttachmentExists(string $baseUrl, string $splitCaseId, string $folder, string $subFolder, string $filename): bool
+    {
+        $fsBase = match (rtrim($baseUrl, '/')) {
+            self::STORAGE_BASE => self::STORAGE_FS_BASE,
+            self::LOCAL_WEBDAV_BASE => self::LOCAL_WEBDAV_FS_BASE,
+            default => null,
+        };
+
+        if ($fsBase === null) {
+            return false;
+        }
+
+        $path = rtrim($fsBase, '/')
+            . '/' . $splitCaseId
+            . '/' . $folder;
+
+        if ($subFolder !== '') {
+            $path .= '/' . $subFolder;
+        }
+
+        $path .= '/' . $filename;
+
+        return is_file($path);
     }
 
     private function enrichClinicalPayload(mixed $payload, string $caseId, string $attendId): mixed
