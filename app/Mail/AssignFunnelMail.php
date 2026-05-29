@@ -43,11 +43,11 @@ class AssignFunnelMail extends Mailable
         $params[$this->base64UrlEncode('form')] = $encodedFunnelId;
         $params[$this->base64UrlEncode('flag')] = $encodedFlag;
         $params[$this->base64UrlEncode('source')] = $encodedSource;
+        $params[$this->base64UrlEncode('patient_id')] = $encodedPatientId;
+        $params[$this->base64UrlEncode('case_id')] = $encodedCaseId;
 
         if ($flag !== 'user_exists') {
 
-            $params[$this->base64UrlEncode('patient_id')] = $encodedPatientId;
-            $params[$this->base64UrlEncode('case_id')]    = $encodedCaseId;
             $params[$this->base64UrlEncode('funnel_name')] = $encodedFunnelName;
             $params[$this->base64UrlEncode('name')]       = $encodedPatientName;
             $params[$this->base64UrlEncode('email')]      = $encodedEmail;
