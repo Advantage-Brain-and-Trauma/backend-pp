@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\AhcsCase;
 use App\Models\FormSubmission;
 use App\Models\FormSubmissionNote;
 use Illuminate\Http\Request;
@@ -12,23 +13,56 @@ use Illuminate\Support\Facades\Validator;
 
 class FormSubmissionNoteController extends Controller
 {
+    private function resolveSubmissionForPatientCase(int $submissionId, int $patientId, int $caseId): ?FormSubmission
+    {
+        return FormSubmission::where('id', $submissionId)
+            ->where('user_id', Auth::id())
+            ->whereHas('userFunnel.patientCase', function ($q) use ($patientId, $caseId) {
+                $q->where('patient_id', $patientId)->where('case_id', $caseId);
+            })
+            ->first();
+    }
+
     /**
      * GET /api/form-submissions/{submissionId}/notes
      * List all notes for a form submission.
      */
-    public function index(int $submissionId)
+    public function index(Request $request, int $submissionId)
     {
+        $caseId = $request->input('case_id');
+        $patientId = auth()->user()->patient_id;
+
+        if (empty($caseId)) {
+            return response()->json([
+                'status'  => false,
+                'message' => 'Case Id is required.',
+            ], 422);
+        }
+
+        $isValidCaseForPatient = AhcsCase::where('id', $caseId)
+            ->where('patient_id', $patientId)
+            ->exists();
+
+        if (!$isValidCaseForPatient) {
+            return response()->json([
+                'status'  => false,
+                'message' => 'Invalid Case Id for this patient.',
+            ], 422);
+        }
+
         Log::channel('patient_form')->info('Fetching form submission notes started', [
             'submission_id' => $submissionId,
             'user_id'       => Auth::id(),
+            'case_id'       => $caseId,
         ]);
 
-        $submission = FormSubmission::find($submissionId);
+        $submission = $this->resolveSubmissionForPatientCase((int) $submissionId, (int) $patientId, (int) $caseId);
 
         if (!$submission) {
             Log::channel('patient_form')->warning('Form submission not found while fetching notes', [
                 'submission_id' => $submissionId,
                 'user_id'       => Auth::id(),
+                'case_id'       => $caseId,
             ]);
 
             return response()->json([
@@ -73,17 +107,40 @@ class FormSubmissionNoteController extends Controller
      */
     public function store(Request $request, int $submissionId)
     {
+        $caseId = $request->input('case_id');
+        $patientId = auth()->user()->patient_id;
+
+        if (empty($caseId)) {
+            return response()->json([
+                'status'  => false,
+                'message' => 'Case Id is required.',
+            ], 422);
+        }
+
+        $isValidCaseForPatient = AhcsCase::where('id', $caseId)
+            ->where('patient_id', $patientId)
+            ->exists();
+
+        if (!$isValidCaseForPatient) {
+            return response()->json([
+                'status'  => false,
+                'message' => 'Invalid Case Id for this patient.',
+            ], 422);
+        }
+
         Log::channel('patient_form')->info('Creating form submission note started', [
             'submission_id' => $submissionId,
             'user_id'       => Auth::id(),
+            'case_id'       => $caseId,
         ]);
 
-        $submission = FormSubmission::find($submissionId);
+        $submission = $this->resolveSubmissionForPatientCase((int) $submissionId, (int) $patientId, (int) $caseId);
 
         if (!$submission) {
             Log::channel('patient_form')->warning('Form submission not found while creating note', [
                 'submission_id' => $submissionId,
                 'user_id'       => Auth::id(),
+                'case_id'       => $caseId,
             ]);
 
             return response()->json([
@@ -142,11 +199,41 @@ class FormSubmissionNoteController extends Controller
      */
     public function update(Request $request, int $submissionId, int $noteId)
     {
+        $caseId = $request->input('case_id');
+        $patientId = auth()->user()->patient_id;
+
+        if (empty($caseId)) {
+            return response()->json([
+                'status'  => false,
+                'message' => 'Case Id is required.',
+            ], 422);
+        }
+
+        $isValidCaseForPatient = AhcsCase::where('id', $caseId)
+            ->where('patient_id', $patientId)
+            ->exists();
+
+        if (!$isValidCaseForPatient) {
+            return response()->json([
+                'status'  => false,
+                'message' => 'Invalid Case Id for this patient.',
+            ], 422);
+        }
+
         Log::channel('patient_form')->info('Updating form submission note started', [
             'submission_id' => $submissionId,
             'note_id'       => $noteId,
             'user_id'       => Auth::id(),
+            'case_id'       => $caseId,
         ]);
+
+        $submission = $this->resolveSubmissionForPatientCase((int) $submissionId, (int) $patientId, (int) $caseId);
+        if (!$submission) {
+            return response()->json([
+                'status'  => false,
+                'message' => 'Form submission not found.',
+            ], 404);
+        }
 
         $note = FormSubmissionNote::where('id', $noteId)
             ->where('form_submission_id', $submissionId)
@@ -212,13 +299,43 @@ class FormSubmissionNoteController extends Controller
      * DELETE /api/form-submissions/{submissionId}/notes/{noteId}
      * Soft-delete a note.
      */
-    public function destroy(int $submissionId, int $noteId)
+    public function destroy(Request $request, int $submissionId, int $noteId)
     {
+        $caseId = $request->input('case_id');
+        $patientId = auth()->user()->patient_id;
+
+        if (empty($caseId)) {
+            return response()->json([
+                'status'  => false,
+                'message' => 'Case Id is required.',
+            ], 422);
+        }
+
+        $isValidCaseForPatient = AhcsCase::where('id', $caseId)
+            ->where('patient_id', $patientId)
+            ->exists();
+
+        if (!$isValidCaseForPatient) {
+            return response()->json([
+                'status'  => false,
+                'message' => 'Invalid Case Id for this patient.',
+            ], 422);
+        }
+
         Log::channel('patient_form')->info('Deleting form submission note started', [
             'submission_id' => $submissionId,
             'note_id'       => $noteId,
             'user_id'       => Auth::id(),
+            'case_id'       => $caseId,
         ]);
+
+        $submission = $this->resolveSubmissionForPatientCase((int) $submissionId, (int) $patientId, (int) $caseId);
+        if (!$submission) {
+            return response()->json([
+                'status'  => false,
+                'message' => 'Form submission not found.',
+            ], 404);
+        }
 
         $note = FormSubmissionNote::where('id', $noteId)
             ->where('form_submission_id', $submissionId)
