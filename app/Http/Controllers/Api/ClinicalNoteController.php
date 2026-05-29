@@ -393,13 +393,11 @@ class ClinicalNoteController extends Controller
         }
 
         $split = implode('/', str_split($caseId));
-        $isPatientUpload = ($attendId === '' || $attendId === '0');
-
-        $bases = $isPatientUpload
-            ? [self::LOCAL_WEBDAV_BASE, self::WEBDAV_BASE, self::STORAGE_BASE]
-            : (($serverType === '1')
-                ? [self::WEBDAV_BASE, self::LOCAL_WEBDAV_BASE, self::STORAGE_BASE]
-                : [self::STORAGE_BASE, self::LOCAL_WEBDAV_BASE, self::WEBDAV_BASE]);
+        // Prefer source by serverType for all attachments (including patient uploads).
+        // This avoids returning non-existent WebDAV URLs for serverType=2 records.
+        $bases = ($serverType === '1')
+            ? [self::WEBDAV_BASE, self::LOCAL_WEBDAV_BASE, self::STORAGE_BASE]
+            : [self::STORAGE_BASE, self::LOCAL_WEBDAV_BASE, self::WEBDAV_BASE];
 
         $folderVariants = array_values(array_unique([$folder, strtolower($folder), strtoupper($folder)]));
         $subVariants = array_values(array_unique([$subFolder, strtolower($subFolder), strtoupper($subFolder)]));
