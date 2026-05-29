@@ -17,6 +17,7 @@ class ClinicalNoteController extends Controller
 {
     private const PREVIEW_ALLOWED_HOSTS = ['10.0.0.23', '10.0.0.24'];
     private const STORAGE_BASE = 'http://10.0.0.23/storage/files/mh';
+    private const LOCAL_WEBDAV_BASE = 'http://10.0.0.23/webdav/mh';
     private const WEBDAV_BASE = 'http://10.0.0.24/webdav/mh';
 
     /**
@@ -59,17 +60,8 @@ class ClinicalNoteController extends Controller
                     ->get();
 
                 $data = $rows->map(function ($row) use ($caseId) {
-                    $split = implode('/', str_split((string) $row->case_id));
-                    $folder = trim((string) $row->folder, '/\\');
-                    $subFolder = trim((string) $row->sub_folder, '/\\');
                     $file = (string) $row->filename;
-                    $base = ((string) ($row->serverType ?? '2') === '1') ? self::WEBDAV_BASE : self::STORAGE_BASE;
-
-                    $fullUrl = rtrim($base, '/')
-                        . '/' . $split
-                        . '/' . rawurlencode($folder)
-                        . '/' . rawurlencode($subFolder)
-                        . '/' . rawurlencode($file);
+                    $fullUrl = $this->resolvePreferredAttachmentUrl($row);
 
                     return [
                         'id' => (int) $row->id,
@@ -374,18 +366,8 @@ class ClinicalNoteController extends Controller
             return ['error' => 'No attachment record found for this filename.'];
         }
 
-        $split = implode('/', str_split((string) $row->case_id));
-        $folder = trim((string) $row->folder, '/\\');
-        $subFolder = trim((string) $row->sub_folder, '/\\');
         $file = (string) $row->filename;
-
-        $base = ((string) ($row->serverType ?? '2') === '1') ? self::WEBDAV_BASE : self::STORAGE_BASE;
-
-        $url = rtrim($base, '/')
-            . '/' . $split
-            . '/' . rawurlencode($folder)
-            . '/' . rawurlencode($subFolder)
-            . '/' . rawurlencode($file);
+        $url = $this->resolvePreferredAttachmentUrl($row);
 
         return [
             'url' => $url,
@@ -395,6 +377,57 @@ class ClinicalNoteController extends Controller
             'folder' => $row->folder,
             'sub_folder' => $row->sub_folder,
         ];
+    }
+
+    private function resolvePreferredAttachmentUrl(object $row): string
+    {
+        $caseId = (string) ($row->case_id ?? '');
+        $folder = trim((string) ($row->folder ?? ''), '/\\');
+        $subFolder = trim((string) ($row->sub_folder ?? ''), '/\\');
+        $filename = trim((string) ($row->filename ?? ''), '/\\');
+        $attendId = (string) ($row->attend_id ?? '');
+        $serverType = (string) ($row->serverType ?? '2');
+
+        if ($caseId === '' || $folder === '' || $filename === '') {
+            return '';
+        }
+
+        $split = implode('/', str_split($caseId));
+        $isPatientUpload = ($attendId === '' || $attendId === '0');
+
+        $bases = $isPatientUpload
+            ? [self::LOCAL_WEBDAV_BASE, self::WEBDAV_BASE, self::STORAGE_BASE]
+            : (($serverType === '1')
+                ? [self::WEBDAV_BASE, self::LOCAL_WEBDAV_BASE, self::STORAGE_BASE]
+                : [self::STORAGE_BASE, self::LOCAL_WEBDAV_BASE, self::WEBDAV_BASE]);
+
+        $folderVariants = array_values(array_unique([$folder, strtolower($folder), strtoupper($folder)]));
+        $subVariants = array_values(array_unique([$subFolder, strtolower($subFolder), strtoupper($subFolder)]));
+        if ($subFolder === '') {
+            $subVariants = [''];
+        }
+
+        foreach ($bases as $base) {
+            $base = rtrim($base, '/');
+            foreach ($folderVariants as $f) {
+                foreach ($subVariants as $s) {
+                    if ($s !== '') {
+                        return $base
+                            . '/' . $split
+                            . '/' . rawurlencode($f)
+                            . '/' . rawurlencode($s)
+                            . '/' . rawurlencode($filename);
+                    }
+
+                    return $base
+                        . '/' . $split
+                        . '/' . rawurlencode($f)
+                        . '/' . rawurlencode($filename);
+                }
+            }
+        }
+
+        return '';
     }
 
     private function enrichClinicalPayload(mixed $payload, string $caseId, string $attendId): mixed
