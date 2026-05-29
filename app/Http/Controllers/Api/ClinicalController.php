@@ -416,7 +416,7 @@ class ClinicalController extends Controller
      * Returns completed submitted forms grouped by case for the authenticated user.
      *
      * Request Payload:
-     * - None (uses JWT case_id claim when available)
+     * - case_id (optional, integer)
      *
      * Response:
      * - 200: { success: true, data: [{ case_id, cases: { forms: array } }] }
@@ -429,7 +429,7 @@ class ClinicalController extends Controller
                 'user_id' => auth()->id(),
             ]);
 
-            $caseId = auth()->payload()->get('case_id');
+            $caseId = $request->input('case_id');
 
             $formSubmission = FormSubmission::with([
                 'form' => function ($query) {

@@ -58,7 +58,7 @@ class FunnelApiController extends Controller
      * Returns funnels assigned to the authenticated user.
      *
      * Request Payload:
-     * - None (uses authenticated user and JWT case_id claim when available)
+     * - case_id (optional, integer)
      *
      * Response:
      * - 200: { status: true, message: string, data: [{ id, funnel_name, submission_status, pending_count }] }
@@ -70,7 +70,7 @@ class FunnelApiController extends Controller
     {
         try {
 
-            $caseId = auth()->payload()->get('case_id');
+            $caseId = $request->input('case_id');
 
             Log::channel('patient_funnel')->info('Fetching patient funnels - Start', [
                 'user_id' => $request->user()->id,
@@ -158,7 +158,7 @@ class FunnelApiController extends Controller
      *
      * Request Payload:
      * - Path param: funnelId (int)
-     * - No JSON body (uses authenticated user and JWT case_id claim when available)
+     * - case_id (optional, integer)
      *
      * Response:
      * - 200: { status: true, message: string, data: { id, funnel_name, forms: [{ id, name, description, submission_status, fields }] } }
@@ -166,11 +166,11 @@ class FunnelApiController extends Controller
      * - 500: { status: false, message: string }
      */
 
-    public function getPatientFunnelSubmissionDetails($funnelId)
+    public function getPatientFunnelSubmissionDetails(Request $request, $funnelId)
     {
         try {
             $userId = auth()->id();
-            $caseId = auth()->payload()->get('case_id');
+            $caseId = $request->input('case_id');
             $patientId = auth()->user()->patient_id;
 
             $fieldMapping = [
@@ -427,7 +427,7 @@ class FunnelApiController extends Controller
 
             $userId    = auth()->id();
             $patientId = auth()->user()->patient_id;
-            $caseId    = auth()->payload()->get('case_id');
+            $caseId    = $request->input('case_id');
             
             Log::channel('patient_form')->info('Patient form submission started', [
                 'user_id'    => $userId,

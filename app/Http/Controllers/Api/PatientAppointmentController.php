@@ -33,20 +33,20 @@ class PatientAppointmentController extends Controller
      * Returns upcoming and past appointments for the authenticated patient.
      *
      * Request Payload:
-     * - None (uses authenticated patient and JWT case_id claim when available)
+     * - case_id (optional, integer)
      *
      * Response:
      * - 200: { success: true, upcoming_count, past_count, upcoming_appointments: array, past_appointments: array }
      * - 404: { success: false, message: string }
      * - 500: { success: false, message: string }
      */
-    public function getPatientAppointments(): JsonResponse
+    public function getPatientAppointments(Request $request): JsonResponse
     {
         try {
             Log::channel('appointment')->info('Fetching patient appointments - Start');
             $user = auth()->user();
             $patientId = $user->patient_id;
-            $caseId = auth()->payload()->get('case_id');
+            $caseId = $request->input('case_id');
 
             if (!$patientId) {
                 throw new \Exception("Patient ID is required", 400);
