@@ -9,6 +9,8 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use App\Models\AhcsAttendance;
+use App\Models\AhcsCase;
+use App\Models\AhcsMedAuth;
 use Illuminate\Http\Request;
 
 class ClinicalNoteController extends Controller
@@ -27,7 +29,37 @@ class ClinicalNoteController extends Controller
         try {
 
             $appointmentId = $request->query('appt_id');
-            $appointmentId = AhcsAttendance::findorFail($appointmentId)->id;
+            $caseId = $request->query('case_id');
+            $patientId = auth()->user()->patient_id;
+
+            if (empty($caseId)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Case Id is required.',
+                ], 422);
+            }
+
+            $isValidCaseForPatient = AhcsCase::where('id', $caseId)
+                ->where('patient_id', $patientId)
+                ->exists();
+
+            if (!$isValidCaseForPatient) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Invalid Case Id for this patient.',
+                ], 422);
+            }
+
+            $appointment = AhcsAttendance::findorFail($appointmentId);
+            $appointmentId = $appointment->id;
+
+            $medAuth = AhcsMedAuth::where('id', $appointment->ma_id)->first();
+            if (!$medAuth || (int) $medAuth->case_id !== (int) $caseId) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Appointment does not belong to the provided Case Id.',
+                ], 422);
+            }
 
             if(!$appointmentId) {
                 return response()->json([
@@ -86,13 +118,33 @@ class ClinicalNoteController extends Controller
     public function preview(Request $request): Response|JsonResponse
     {
         $rawUrl = trim((string) $request->query('url', ''));
+        $caseId = $request->query('case_id');
+        $patientId = auth()->user()->patient_id;
+
+        if (empty($caseId)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Case Id is required.',
+            ], 422);
+        }
+
+        $isValidCaseForPatient = AhcsCase::where('id', $caseId)
+            ->where('patient_id', $patientId)
+            ->exists();
+
+        if (!$isValidCaseForPatient) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Invalid Case Id for this patient.',
+            ], 422);
+        }
 
         // Support filename-only input: build URL from ahcs_attachment_logs first.
         if ($rawUrl === '') {
             $generated = $this->buildUrlFromFilename(
                 trim((string) $request->query('filename', '')),
                 $request->query('attend_id'),
-                $request->query('case_id')
+                $caseId
             );
 
             if (!empty($generated['error'])) {
@@ -168,6 +220,25 @@ class ClinicalNoteController extends Controller
         $filename = trim((string) $request->query('filename', ''));
         $attendId = $request->query('attend_id');
         $caseId = $request->query('case_id');
+        $patientId = auth()->user()->patient_id;
+
+        if (empty($caseId)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Case Id is required.',
+            ], 422);
+        }
+
+        $isValidCaseForPatient = AhcsCase::where('id', $caseId)
+            ->where('patient_id', $patientId)
+            ->exists();
+
+        if (!$isValidCaseForPatient) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Invalid Case Id for this patient.',
+            ], 422);
+        }
 
         $generated = $this->buildUrlFromFilename($filename, $attendId, $caseId);
 
