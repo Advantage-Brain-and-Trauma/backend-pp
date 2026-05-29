@@ -91,9 +91,12 @@ class ClinicalNoteController extends Controller
                 ], $response->status());
             }
 
+            $payload = $response->json();
+            $enrichedPayload = $this->enrichClinicalPayload($payload, (string) $caseId, (string) $appointmentId);
+
             return response()->json([
                 'success' => true,
-                'data' => $response->json(),
+                'data' => $enrichedPayload,
             ]);
         } catch (\Throwable $e) {
             Log::channel('patient_form')->error('Clinical note API error', [
@@ -254,6 +257,7 @@ class ClinicalNoteController extends Controller
             'data' => [
                 'filename' => $filename,
                 'url' => $generated['url'],
+                'full_url' => $generated['url'],
                 'serverType' => $generated['serverType'],
                 'case_id' => $generated['case_id'],
                 'attend_id' => $generated['attend_id'],
@@ -347,5 +351,75 @@ class ClinicalNoteController extends Controller
             'folder' => $row->folder,
             'sub_folder' => $row->sub_folder,
         ];
+    }
+
+    private function enrichClinicalPayload(mixed $payload, string $caseId, string $attendId): mixed
+    {
+        if (!is_array($payload)) {
+            return $payload;
+        }
+
+        if ($this->isAttachmentLikeNode($payload)) {
+            return $this->enrichAttachmentNode($payload, $caseId, $attendId);
+        }
+
+        foreach ($payload as $key => $value) {
+            $payload[$key] = $this->enrichClinicalPayload($value, $caseId, $attendId);
+        }
+
+        return $payload;
+    }
+
+    private function isAttachmentLikeNode(array $node): bool
+    {
+        return array_key_exists('filename', $node)
+            || array_key_exists('file_name', $node)
+            || array_key_exists('name', $node)
+            || array_key_exists('url', $node)
+            || array_key_exists('path', $node);
+    }
+
+    private function enrichAttachmentNode(array $node, string $caseId, string $attendId): array
+    {
+        $rawFileName = $node['filename'] ?? $node['file_name'] ?? $node['name'] ?? null;
+        $filename = is_string($rawFileName) ? trim($rawFileName) : '';
+
+        $rawUrl = '';
+        if (isset($node['url']) && is_string($node['url'])) {
+            $rawUrl = trim($node['url']);
+        } elseif (isset($node['path']) && is_string($node['path'])) {
+            $rawUrl = trim($node['path']);
+        }
+
+        if ($filename === '' && $rawUrl !== '') {
+            $parsedPath = (string) (parse_url($rawUrl, PHP_URL_PATH) ?? $rawUrl);
+            $filename = basename($parsedPath);
+        }
+
+        $fullUrl = '';
+        if ($rawUrl !== '') {
+            $fullUrl = $this->normalizePreviewUrl($rawUrl) ?? '';
+        }
+
+        if ($fullUrl === '' && $filename !== '') {
+            $generated = $this->buildUrlFromFilename($filename, $attendId, $caseId);
+            if (empty($generated['error']) && !empty($generated['url'])) {
+                $fullUrl = (string) $generated['url'];
+            }
+        }
+
+        if ($filename !== '') {
+            $node['filename'] = $filename;
+            $node['preview_url_api'] = url('/api/clinical-note-preview-url')
+                . '?filename=' . rawurlencode($filename)
+                . '&attend_id=' . rawurlencode($attendId)
+                . '&case_id=' . rawurlencode($caseId);
+        }
+
+        if ($fullUrl !== '') {
+            $node['full_url'] = $fullUrl;
+        }
+
+        return $node;
     }
 }
