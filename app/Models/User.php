@@ -91,6 +91,7 @@ class User extends Authenticatable implements JWTSubject
             'email' => $this->email,
             'phone' => $this->phone,
             'role'  => $this->role,
+            'patient_id' => $this->patient_id,
             'case_id' => $this->patient_id && $this->cases
                     ? optional($this->cases()->latest()->first())->case_id
                     : null,
