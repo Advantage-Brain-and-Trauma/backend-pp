@@ -604,10 +604,31 @@ class ClinicalController extends Controller
     public function downloadPatientFormPdf(Request $request)
     {
         try {
+            $caseId = $request->input('case_id');
+            $patientId = auth()->user()->patient_id;
+
+            if (empty($caseId)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Case Id is required',
+                ], 422);
+            }
+
+            $isValidCaseForPatient = AhcsCase::where('id', $caseId)
+                ->where('patient_id', $patientId)
+                ->exists();
+
+            if (!$isValidCaseForPatient) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Invalid Case Id for this patient',
+                ], 422);
+            }
 
             Log::channel('patient')->info('PDF download request started', [
                 'user_id'  => auth()->id(),
-                'pdf_urls' => $request->pdfUrls ?? []
+                'pdf_urls' => $request->pdfUrls ?? [],
+                'case_id'  => $caseId,
             ]);
 
             $request->validate([
@@ -616,6 +637,30 @@ class ClinicalController extends Controller
             ]);
 
             $pdfFiles = $request->pdfUrls;
+            $allowedPdfFiles = FormSubmission::where('user_id', auth()->id())
+                ->where('status', 'completed')
+                ->whereNull('deleted_at')
+                ->whereNotNull('pdf_url')
+                ->whereHas('userFunnel.patientCase', function ($q) use ($caseId, $patientId) {
+                    $q->where('case_id', $caseId)
+                        ->where('patient_id', $patientId);
+                })
+                ->pluck('pdf_url')
+                ->map(fn ($v) => basename((string) $v))
+                ->filter()
+                ->values()
+                ->toArray();
+
+            $pdfFiles = array_values(array_filter($pdfFiles, function ($fileName) use ($allowedPdfFiles) {
+                return in_array((string) $fileName, $allowedPdfFiles, true);
+            }));
+
+            if (empty($pdfFiles)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No valid PDF files found for this Case Id',
+                ], 422);
+            }
 
             $tempZip = tempnam(sys_get_temp_dir(), 'patient_forms_');
 
