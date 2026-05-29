@@ -56,6 +56,19 @@ class PatientAppointmentController extends Controller
             AhcsPatient::findOrFail($patientId);
             Log::channel('appointment')->info('Patient found', ['patient_id' => $patientId]);
 
+            if (!empty($caseId)) {
+                $isValidCaseForPatient = AhcsCase::where('id', $caseId)
+                    ->where('patient_id', $patientId)
+                    ->exists();
+
+                if (!$isValidCaseForPatient) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Invalid case_id for this patient',
+                    ], 422);
+                }
+            }
+
             $caseQuery = AhcsCase::where('patient_id', $patientId);
 
             if (!empty($caseId)) {

@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\Storage;
 use ZipArchive;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
+use App\Models\AhcsCase;
 
 class ClinicalController extends Controller
 {
@@ -430,6 +431,20 @@ class ClinicalController extends Controller
             ]);
 
             $caseId = $request->input('case_id');
+            $patientId = auth()->user()->patient_id;
+
+            if (!empty($caseId)) {
+                $isValidCaseForPatient = AhcsCase::where('id', $caseId)
+                    ->where('patient_id', $patientId)
+                    ->exists();
+
+                if (!$isValidCaseForPatient) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Invalid case_id for this patient',
+                    ], 422);
+                }
+            }
 
             $formSubmission = FormSubmission::with([
                 'form' => function ($query) {

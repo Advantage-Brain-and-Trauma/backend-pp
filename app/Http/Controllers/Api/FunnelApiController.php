@@ -71,6 +71,20 @@ class FunnelApiController extends Controller
         try {
 
             $caseId = $request->input('case_id');
+            $patientId = $request->user()->patient_id;
+
+            if (!empty($caseId)) {
+                $isValidCaseForPatient = AhcsCase::where('id', $caseId)
+                    ->where('patient_id', $patientId)
+                    ->exists();
+
+                if (!$isValidCaseForPatient) {
+                    return response()->json([
+                        'status' => false,
+                        'message' => 'Invalid case_id for this patient.',
+                    ], 422);
+                }
+            }
 
             Log::channel('patient_funnel')->info('Fetching patient funnels - Start', [
                 'user_id' => $request->user()->id,
@@ -172,6 +186,19 @@ class FunnelApiController extends Controller
             $userId = auth()->id();
             $caseId = $request->input('case_id');
             $patientId = auth()->user()->patient_id;
+
+            if (!empty($caseId)) {
+                $isValidCaseForPatient = AhcsCase::where('id', $caseId)
+                    ->where('patient_id', $patientId)
+                    ->exists();
+
+                if (!$isValidCaseForPatient) {
+                    return response()->json([
+                        'status' => false,
+                        'message' => 'Invalid case_id for this patient.',
+                    ], 422);
+                }
+            }
 
             $fieldMapping = [
                 "first_name" => "First Name:",
