@@ -395,11 +395,17 @@ class ClinicalNoteController extends Controller
         }
 
         $split = implode('/', str_split($caseId));
-        // Prefer source by serverType for all attachments (including patient uploads).
-        // This avoids returning non-existent WebDAV URLs for serverType=2 records.
-        $bases = ($serverType === '1')
-            ? [self::WEBDAV_BASE, self::LOCAL_WEBDAV_BASE, self::STORAGE_BASE]
-            : [self::STORAGE_BASE, self::LOCAL_WEBDAV_BASE, self::WEBDAV_BASE];
+        // Medhiwa Add/Edit Patient uploads are stored on WebDAV:
+        // /webdav/mh/{split_case_id}/{folder}/{sub_folder}/{filename}
+        // Those rows are commonly serverType=2 and often not tied to attend_id.
+        // Prefer WebDAV first for that shape so clinical-note preview URLs resolve correctly.
+        if ($serverType === '1') {
+            $bases = [self::WEBDAV_BASE, self::LOCAL_WEBDAV_BASE, self::STORAGE_BASE];
+        } elseif ($attendId === '' || $attendId === '0') {
+            $bases = [self::LOCAL_WEBDAV_BASE, self::WEBDAV_BASE, self::STORAGE_BASE];
+        } else {
+            $bases = [self::STORAGE_BASE, self::LOCAL_WEBDAV_BASE, self::WEBDAV_BASE];
+        }
 
         $folderVariants = array_values(array_unique([$folder, strtolower($folder), strtoupper($folder)]));
         $subVariants = array_values(array_unique([$subFolder, strtolower($subFolder), strtoupper($subFolder)]));
