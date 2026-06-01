@@ -18,11 +18,11 @@ class AmdClinicalNoteService
 
     public function __construct()
     {
-        $this->ehrOfficeCode = (string) env('AMD_EHR_OFFICE_CODE', env('AMD_OFFICE_CODE', ''));
-        $this->ehrUsername = (string) env('AMD_EHR_USERNAME', env('AMD_USERNAME', ''));
-        $this->ehrPassword = (string) env('AMD_EHR_PASSWORD', env('AMD_PASSWORD', ''));
-        $this->ehrAppName = (string) env('AMD_EHR_APP_NAME', env('AMD_APP_NAME', 'TEMP'));
-        $this->ehrLoginUrl = (string) env('AMD_EHR_LOGIN_URL', env('AMD_LOGIN_URL', ''));
+        $this->ehrOfficeCode = (string) config('services.advancedmd_ehr.office_code', '');
+        $this->ehrUsername = (string) config('services.advancedmd_ehr.username', '');
+        $this->ehrPassword = (string) config('services.advancedmd_ehr.password', '');
+        $this->ehrAppName = (string) config('services.advancedmd_ehr.app_name', 'TEMP');
+        $this->ehrLoginUrl = (string) config('services.advancedmd_ehr.login_url', '');
     }
 
     public function getClinicalNotesByMedhiwaPatient(int $medhiwaPatientId, ?int $caseId = null): array
@@ -158,7 +158,28 @@ class AmdClinicalNoteService
         $appName = $this->ehrAppName;
         $loginUrl = $this->ehrLoginUrl;
 
-        if ($officeCode === '' || $username === '' || $password === '' || $appName === '' || $loginUrl === '') {
+        $missing = [];
+        if ($officeCode === '') {
+            $missing[] = 'office_code';
+        }
+        if ($username === '') {
+            $missing[] = 'username';
+        }
+        if ($password === '') {
+            $missing[] = 'password';
+        }
+        if ($appName === '') {
+            $missing[] = 'app_name';
+        }
+        if ($loginUrl === '') {
+            $missing[] = 'login_url';
+        }
+
+        if (!empty($missing)) {
+            Log::channel('patient_form')->warning('AMD EHR configuration missing fields', [
+                'config_key' => 'services.advancedmd_ehr',
+                'missing_fields' => $missing,
+            ]);
             return [];
         }
 

@@ -39,6 +39,14 @@ return [
         'login_url' => env('AMD_LOGIN_URL'),
     ],
 
+    'advancedmd_ehr' => [
+        'office_code' => env('AMD_EHR_OFFICE_CODE', env('AMD_OFFICE_CODE')),
+        'username' => env('AMD_EHR_USERNAME', env('AMD_USERNAME')),
+        'password' => env('AMD_EHR_PASSWORD', env('AMD_PASSWORD')),
+        'app_name' => env('AMD_EHR_APP_NAME', env('AMD_APP_NAME', 'TEMP')),
+        'login_url' => env('AMD_EHR_LOGIN_URL', env('AMD_LOGIN_URL')),
+    ],
+
     'twilio' => [
         'sid' => env('TWILIO_SID'),
         'token' => env('TWILIO_AUTH_TOKEN'),
