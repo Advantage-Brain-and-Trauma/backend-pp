@@ -319,7 +319,7 @@ class ClinicalNoteController extends Controller
 
         $rows = DB::connection('ahcs')
             ->table('ahcs_attachment_logs')
-            ->select('id', 'case_id', 'attend_id', 'folder', 'sub_folder', 'sub_folder_2', 'filename', 'serverType')
+            ->select('id', 'case_id', 'attend_id', 'folder', 'sub_folder', 'filename', 'serverType')
             ->where('case_id', $caseId)
             ->orderByDesc('id')
             ->get();
@@ -328,18 +328,15 @@ class ClinicalNoteController extends Controller
         $byAttendId = [];
 
         foreach ($rows as $row) {
-            $resolvedUrl = $this->resolvePreferredAttachmentUrl($row);
             $file = [
                 'id' => (int) ($row->id ?? 0),
                 'case_id' => (int) ($row->case_id ?? 0),
                 'attend_id' => (int) ($row->attend_id ?? 0),
                 'folder' => (string) ($row->folder ?? ''),
                 'sub_folder' => (string) ($row->sub_folder ?? ''),
-                'sub_folder_2' => (string) ($row->sub_folder_2 ?? ''),
                 'filename' => (string) ($row->filename ?? ''),
                 'serverType' => (int) ($row->serverType ?? 2),
-                'url' => $resolvedUrl,
-                'file_url' => $resolvedUrl,
+                'url' => $this->resolvePreferredAttachmentUrl($row),
             ];
 
             $attendId = (int) ($row->attend_id ?? 0);
@@ -368,39 +365,27 @@ class ClinicalNoteController extends Controller
 
         $rows = DB::connection('ahcs')
             ->table('ahcs_attachment_logs')
-            ->select('id', 'case_id', 'attend_id', 'folder', 'sub_folder', 'sub_folder_2', 'filename', 'serverType')
+            ->select('id', 'case_id', 'attend_id', 'folder', 'sub_folder', 'filename', 'serverType')
             ->where('case_id', $caseId)
+            ->where(function ($query) {
+                $query->whereNull('attend_id')
+                    ->orWhere('attend_id', 0);
+            })
             ->orderByDesc('id')
             ->get();
 
         $files = [];
 
         foreach ($rows as $row) {
-            // Match Medhiwa Add/Edit Patient upload behavior where attend_id can be null/0/'0'/''
-            // depending on legacy inserts and DB column type.
-            $rawAttendId = $row->attend_id ?? null;
-            $normalizedAttendId = is_string($rawAttendId) ? trim($rawAttendId) : $rawAttendId;
-            $isPatientLevelFile = $normalizedAttendId === null
-                || $normalizedAttendId === ''
-                || $normalizedAttendId === '0'
-                || (int) $normalizedAttendId === 0;
-
-            if (!$isPatientLevelFile) {
-                continue;
-            }
-
-            $resolvedUrl = $this->resolvePreferredAttachmentUrl($row);
             $files[] = [
                 'id' => (int) ($row->id ?? 0),
                 'case_id' => (int) ($row->case_id ?? 0),
                 'attend_id' => (int) ($row->attend_id ?? 0),
                 'folder' => (string) ($row->folder ?? ''),
                 'sub_folder' => (string) ($row->sub_folder ?? ''),
-                'sub_folder_2' => (string) ($row->sub_folder_2 ?? ''),
                 'filename' => (string) ($row->filename ?? ''),
                 'serverType' => (int) ($row->serverType ?? 2),
-                'url' => $resolvedUrl,
-                'file_url' => $resolvedUrl,
+                'url' => $this->resolvePreferredAttachmentUrl($row),
             ];
         }
 
@@ -415,7 +400,7 @@ class ClinicalNoteController extends Controller
 
         $query = DB::connection('ahcs')
             ->table('ahcs_attachment_logs')
-            ->select('id', 'case_id', 'attend_id', 'folder', 'sub_folder', 'sub_folder_2', 'filename', 'serverType')
+            ->select('id', 'case_id', 'attend_id', 'folder', 'sub_folder', 'filename', 'serverType')
             ->where('filename', $filename);
 
         if (!empty($attendId)) {
@@ -442,7 +427,6 @@ class ClinicalNoteController extends Controller
             'attend_id' => (int) $row->attend_id,
             'folder' => $row->folder,
             'sub_folder' => $row->sub_folder,
-            'sub_folder_2' => $row->sub_folder_2,
         ];
     }
 
@@ -451,7 +435,6 @@ class ClinicalNoteController extends Controller
         $caseId = (string) ($row->case_id ?? '');
         $folder = trim((string) ($row->folder ?? ''), '/\\');
         $subFolder = trim((string) ($row->sub_folder ?? ''), '/\\');
-        $subFolder2 = trim((string) ($row->sub_folder_2 ?? ''), '/\\');
         $filename = trim((string) ($row->filename ?? ''), '/\\');
         $attendId = (string) ($row->attend_id ?? '');
         $serverType = (string) ($row->serverType ?? '2');
@@ -483,46 +466,32 @@ class ClinicalNoteController extends Controller
             $subVariants = [''];
         }
 
-        $sub2Variants = array_values(array_unique([$subFolder2, strtolower($subFolder2), strtoupper($subFolder2)]));
-        if ($subFolder2 === '') {
-            $sub2Variants = [''];
-        }
-
         $fallback = '';
 
         foreach ($bases as $base) {
             $base = rtrim($base, '/');
             foreach ($folderVariants as $f) {
                 foreach ($subVariants as $s) {
-                    foreach ($sub2Variants as $s2) {
-                        $url = '';
-                        if ($s !== '' && $s2 !== '') {
-                            $url = $base
-                                . '/' . $split
-                                . '/' . rawurlencode($f)
-                                . '/' . rawurlencode($s)
-                                . '/' . rawurlencode($s2)
-                                . '/' . rawurlencode($filename);
-                        } elseif ($s !== '') {
-                            $url = $base
-                                . '/' . $split
-                                . '/' . rawurlencode($f)
-                                . '/' . rawurlencode($s)
-                                . '/' . rawurlencode($filename);
-                        } else {
-                            $url = $base
-                                . '/' . $split
-                                . '/' . rawurlencode($f)
-                                . '/' . rawurlencode($filename);
-                        }
+                    $url = '';
+                    if ($s !== '') {
+                        $url = $base
+                            . '/' . $split
+                            . '/' . rawurlencode($f)
+                            . '/' . rawurlencode($s)
+                            . '/' . rawurlencode($filename);
+                    } else {
+                        $url = $base
+                            . '/' . $split
+                            . '/' . rawurlencode($f)
+                            . '/' . rawurlencode($filename);
+                    }
 
-                        if ($fallback === '') {
-                            $fallback = $url;
-                        }
+                    if ($fallback === '') {
+                        $fallback = $url;
+                    }
 
-                        if ($this->localAttachmentExists($base, $split, $f, $s, $s2, $filename)) {
-                            return $url;
-                        }
+                    if ($this->localAttachmentExists($base, $split, $f, $s, $filename)) {
+                        return $url;
                     }
                 }
             }
@@ -531,7 +500,7 @@ class ClinicalNoteController extends Controller
         return $fallback;
     }
 
-    private function localAttachmentExists(string $baseUrl, string $splitCaseId, string $folder, string $subFolder, string $subFolder2, string $filename): bool
+    private function localAttachmentExists(string $baseUrl, string $splitCaseId, string $folder, string $subFolder, string $filename): bool
     {
         $fsBase = match (rtrim($baseUrl, '/')) {
             self::STORAGE_BASE => self::STORAGE_FS_BASE,
@@ -549,9 +518,6 @@ class ClinicalNoteController extends Controller
 
         if ($subFolder !== '') {
             $path .= '/' . $subFolder;
-        }
-        if ($subFolder2 !== '') {
-            $path .= '/' . $subFolder2;
         }
 
         $path .= '/' . $filename;
