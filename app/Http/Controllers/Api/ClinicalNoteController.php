@@ -55,11 +55,13 @@ class ClinicalNoteController extends Controller
                 ], 422);
             }
 
-            $result = $this->amdClinicalNoteService->getClinicalNotesByMedhiwaPatient((int) $patientId);
+            $result = $this->amdClinicalNoteService->getClinicalNotesByMedhiwaPatient((int) $patientId, (int) $caseId);
             if (empty($result['status'])) {
                 return response()->json([
                     'success' => false,
                     'message' => (string) ($result['message'] ?? 'Unable to fetch clinical notes.'),
+                    'status_code' => $result['status_code'] ?? null,
+                    'error' => $result['error'] ?? null,
                 ], 422);
             }
 

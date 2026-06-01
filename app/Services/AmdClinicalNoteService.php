@@ -9,25 +9,42 @@ use Illuminate\Support\Facades\Log;
 
 class AmdClinicalNoteService
 {
-    public function getClinicalNotesByMedhiwaPatient(int $medhiwaPatientId): array
+    public function getClinicalNotesByMedhiwaPatient(int $medhiwaPatientId, ?int $caseId = null): array
     {
-        $mapping = DB::connection('ahcs')
+        $mappingQuery = DB::connection('ahcs')
             ->table('ahcs_advancedmd_patient')
-            ->where('medhiwa_patient_id', $medhiwaPatientId)
-            ->first();
+            ->where('medhiwa_patient_id', $medhiwaPatientId);
+
+        if (!empty($caseId)) {
+            $mappingQuery->where('medhiwa_case_id', $caseId);
+        }
+
+        $mapping = $mappingQuery->first();
+
+        if (!$mapping && !empty($caseId)) {
+            $mapping = DB::connection('ahcs')
+                ->table('ahcs_advancedmd_patient')
+                ->where('medhiwa_patient_id', $medhiwaPatientId)
+                ->first();
+        }
 
         if (!$mapping || empty($mapping->advancedmd_patient_id)) {
-            return ['status' => false, 'message' => 'AdvancedMD Patient ID not available'];
+            return ['status' => false, 'message' => 'AdvancedMD patient mapping not found for this patient/case.'];
         }
 
         $amdPatientId = (int) preg_replace('/\D/', '', (string) $mapping->advancedmd_patient_id);
         if ($amdPatientId <= 0) {
-            return ['status' => false, 'message' => 'Invalid AdvancedMD Patient ID'];
+            return ['status' => false, 'message' => 'Invalid AdvancedMD Patient ID in mapping table.'];
         }
 
         $notesRes = $this->requestEhr('GET', '/clinicalnotes/notes', ['patientId' => $amdPatientId]);
         if (!$notesRes['ok']) {
-            return ['status' => false, 'message' => 'Unable to fetch clinical notes', 'error' => $notesRes['error']];
+            return [
+                'status' => false,
+                'message' => 'AMD clinical notes API failed.',
+                'status_code' => $notesRes['status'] ?? null,
+                'error' => $notesRes['error'] ?? null,
+            ];
         }
 
         $notes = $notesRes['json'];
@@ -80,7 +97,7 @@ class AmdClinicalNoteService
         try {
             $token = $this->getEhrToken();
             if (empty($token['token']) || empty($token['server'])) {
-                return ['ok' => false, 'error' => 'AMD token unavailable'];
+            return ['ok' => false, 'error' => 'AMD token unavailable. Check AMD_* environment configuration.'];
             }
 
             $url = rtrim($token['server'], '/') . $path;
@@ -190,4 +207,3 @@ class AmdClinicalNoteService
         return str_replace('/processrequest/api-102/TEMP', '/ehr-api', $base);
     }
 }
-
