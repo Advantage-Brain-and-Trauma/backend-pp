@@ -11,6 +11,7 @@ use Illuminate\Support\Facades\Log;
 use App\Models\AhcsCase;
 use App\Services\AmdClinicalNoteService;
 use Dompdf\Dompdf;
+use Dompdf\Options;
 use Illuminate\Http\Request;
 
 class ClinicalNoteController extends Controller
@@ -552,13 +553,30 @@ class ClinicalNoteController extends Controller
 
     private function buildClinicalNotePdf(array $detail, int $noteId): string
     {
+        if (function_exists('set_time_limit')) {
+            @set_time_limit(120);
+        }
+
         $header = is_array($detail['header'] ?? null) ? $detail['header'] : [];
         $templateName = (string) ($header['templateVersion']['templateName'] ?? 'Clinical Note');
         $serviceDate = (string) ($header['serviceDate'] ?? '');
         $providerName = (string) ($header['createdOrUpdatedByUser']['fullName'] ?? '');
         $isSigned = !empty($header['isSigned']) ? 'Yes' : 'No';
+        $appointmentId = (string) ($header['appointmentId'] ?? '');
 
-        $raw = htmlspecialchars(json_encode($detail, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) ?: '{}');
+        $summaryPayload = [
+            'noteId' => $noteId,
+            'templateName' => $templateName,
+            'serviceDate' => $serviceDate,
+            'providerName' => $providerName,
+            'isSigned' => !empty($header['isSigned']),
+            'appointmentId' => $appointmentId,
+            'sectionsCount' => is_array($detail['sections'] ?? null) ? count($detail['sections']) : null,
+            'noteType' => $detail['noteType'] ?? null,
+            'status' => $detail['status'] ?? null,
+        ];
+
+        $raw = htmlspecialchars(json_encode($summaryPayload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) ?: '{}');
         $html = '<html><head><style>body{font-family:DejaVu Sans,sans-serif;font-size:12px;color:#111}h1{font-size:18px}table{width:100%;border-collapse:collapse;margin:10px 0}td{border:1px solid #ccc;padding:6px;vertical-align:top}pre{font-size:10px;white-space:pre-wrap;word-break:break-word;border:1px solid #ddd;padding:10px;background:#fafafa}</style></head><body>'
             . '<h1>Clinical Note #' . $noteId . '</h1>'
             . '<table>'
@@ -566,12 +584,17 @@ class ClinicalNoteController extends Controller
             . '<tr><td><strong>Service Date</strong></td><td>' . htmlspecialchars($serviceDate) . '</td></tr>'
             . '<tr><td><strong>Provider</strong></td><td>' . htmlspecialchars($providerName) . '</td></tr>'
             . '<tr><td><strong>Signed</strong></td><td>' . htmlspecialchars($isSigned) . '</td></tr>'
+            . '<tr><td><strong>Appointment Id</strong></td><td>' . htmlspecialchars($appointmentId) . '</td></tr>'
             . '</table>'
-            . '<h2>Raw Note Data</h2>'
+            . '<h2>Clinical Note Summary</h2>'
             . '<pre>' . $raw . '</pre>'
             . '</body></html>';
 
-        $dompdf = new Dompdf();
+        $options = new Options();
+        $options->set('isRemoteEnabled', false);
+        $options->set('isHtml5ParserEnabled', true);
+
+        $dompdf = new Dompdf($options);
         $dompdf->loadHtml($html);
         $dompdf->setPaper('A4', 'portrait');
         $dompdf->render();
