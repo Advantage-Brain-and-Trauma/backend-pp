@@ -160,9 +160,13 @@ class PatientAppointmentController extends Controller
                     . '?appointment_id=' . rawurlencode((string) $appointment->id)
                     . '&case_id=' . rawurlencode((string) $caseId);
                 $attachment = $attachmentByAttendId->get($appointment->id);
-                $appointment->preview_url_api = $attachment
+                $resolvedAttachmentUrl = $attachment
                     ? $this->resolvePreferredAttachmentUrl($attachment)
                     : null;
+
+                // Keep preview_url_api for backward compatibility, but make it direct file URL.
+                $appointment->preview_url_api = $resolvedAttachmentUrl;
+                $appointment->url = $resolvedAttachmentUrl;
 
                 return $appointment;
             });
