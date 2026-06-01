@@ -189,10 +189,10 @@ class AmdClinicalNoteService
             $updateData['created_at_timestamp'] = time();
         }
         if (Schema::connection($connection)->hasColumn($table, 'updated_at')) {
-            $updateData['updated_at'] = now();
+            $updateData['updated_at'] = $this->resolveTokenTimestampValue($connection, $table, 'updated_at');
         }
         if (Schema::connection($connection)->hasColumn($table, 'created_at') && !isset($updateData['created_at_timestamp'])) {
-            $updateData['created_at'] = now();
+            $updateData['created_at'] = $this->resolveTokenTimestampValue($connection, $table, 'created_at');
         }
 
         AdvancedmdToken::updateOrCreate(['office_key' => $officeKey], $updateData);
@@ -248,5 +248,39 @@ class AmdClinicalNoteService
         $base = rtrim($webserver, '/');
         $converted = preg_replace('#/processrequest/.*$#', '/ehr-api', $base);
         return is_string($converted) ? $converted : $base;
+    }
+
+    private function resolveTokenTimestampValue(string $connection, string $table, string $column): mixed
+    {
+        try {
+            $row = DB::connection($connection)->selectOne(
+                "SHOW COLUMNS FROM `{$table}` LIKE ?",
+                [$column]
+            );
+
+            $type = strtolower((string) ($row->Type ?? ''));
+            if ($type === '') {
+                return now();
+            }
+
+            if (str_contains($type, 'int')) {
+                return time();
+            }
+
+            if (str_contains($type, 'date') || str_contains($type, 'time') || str_contains($type, 'year')) {
+                return now();
+            }
+
+            return now()->toDateTimeString();
+        } catch (\Throwable $e) {
+            Log::channel('patient_form')->warning('Unable to detect token timestamp column type', [
+                'connection' => $connection,
+                'table' => $table,
+                'column' => $column,
+                'error' => $e->getMessage(),
+            ]);
+
+            return now();
+        }
     }
 }
