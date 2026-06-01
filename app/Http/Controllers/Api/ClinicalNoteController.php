@@ -67,14 +67,10 @@ class ClinicalNoteController extends Controller
             }
 
             $notes = is_array($result['notes'] ?? null) ? $result['notes'] : [];
-            $attachmentMap = $this->buildCaseAttachmentMap((int) $caseId);
-            $globalFileNotes = $attachmentMap['global'];
-            $byAttendId = $attachmentMap['by_attend_id'];
+            $patientFileNotes = $this->buildCasePatientAttachmentNotes((int) $caseId);
 
-            $notes = array_map(function (array $note) use ($globalFileNotes, $byAttendId) {
-                $attendId = (int) ($note['medhiwa_appointmentid'] ?? 0);
-                $appointmentFileNotes = $attendId > 0 ? ($byAttendId[$attendId] ?? []) : [];
-                $note['file_notes'] = array_values(array_merge($globalFileNotes, $appointmentFileNotes));
+            $notes = array_map(function (array $note) use ($patientFileNotes) {
+                $note['file_notes'] = $patientFileNotes;
 
                 return $note;
             }, $notes);
@@ -353,6 +349,47 @@ class ClinicalNoteController extends Controller
         }
 
         return ['global' => $global, 'by_attend_id' => $byAttendId];
+    }
+
+    /**
+     * Build Add/Edit Patient style attachment payloads for a case.
+     *
+     * Only includes patient-level uploads (attend_id null/0) and excludes
+     * appointment-linked attachments.
+     */
+    private function buildCasePatientAttachmentNotes(int $caseId): array
+    {
+        if ($caseId <= 0) {
+            return [];
+        }
+
+        $rows = DB::connection('ahcs')
+            ->table('ahcs_attachment_logs')
+            ->select('id', 'case_id', 'attend_id', 'folder', 'sub_folder', 'filename', 'serverType')
+            ->where('case_id', $caseId)
+            ->where(function ($query) {
+                $query->whereNull('attend_id')
+                    ->orWhere('attend_id', 0);
+            })
+            ->orderByDesc('id')
+            ->get();
+
+        $files = [];
+
+        foreach ($rows as $row) {
+            $files[] = [
+                'id' => (int) ($row->id ?? 0),
+                'case_id' => (int) ($row->case_id ?? 0),
+                'attend_id' => (int) ($row->attend_id ?? 0),
+                'folder' => (string) ($row->folder ?? ''),
+                'sub_folder' => (string) ($row->sub_folder ?? ''),
+                'filename' => (string) ($row->filename ?? ''),
+                'serverType' => (int) ($row->serverType ?? 2),
+                'url' => $this->resolvePreferredAttachmentUrl($row),
+            ];
+        }
+
+        return $files;
     }
 
     private function buildUrlFromFilename(string $filename, mixed $attendId = null, mixed $caseId = null): array
