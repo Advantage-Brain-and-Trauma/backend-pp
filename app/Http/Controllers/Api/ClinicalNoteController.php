@@ -85,7 +85,7 @@ class ClinicalNoteController extends Controller
                 return response()->json([
                     'success' => true,
                     'data' => $data,
-                ]);
+                ], 200, [], JSON_UNESCAPED_SLASHES);
             }
 
             $appointment = AhcsAttendance::findorFail($appointmentId);
@@ -135,7 +135,7 @@ class ClinicalNoteController extends Controller
             return response()->json([
                 'success' => true,
                 'data' => $enrichedPayload,
-            ]);
+            ], 200, [], JSON_UNESCAPED_SLASHES);
         } catch (\Throwable $e) {
             Log::channel('patient_form')->error('Clinical note API error', [
                 'appointment_id' => $appointmentId,
@@ -302,7 +302,7 @@ class ClinicalNoteController extends Controller
                 'folder' => $generated['folder'],
                 'sub_folder' => $generated['sub_folder'],
             ],
-        ]);
+        ], 200, [], JSON_UNESCAPED_SLASHES);
     }
 
     private function normalizePreviewUrl(string $rawUrl): ?string
