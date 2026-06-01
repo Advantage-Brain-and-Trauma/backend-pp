@@ -164,8 +164,6 @@ class PatientAppointmentController extends Controller
                     ? $this->resolvePreferredAttachmentUrl($attachment)
                     : null;
 
-                // Keep preview_url_api for backward compatibility, but make it direct file URL.
-                $appointment->preview_url_api = $resolvedAttachmentUrl;
                 $appointment->url = $resolvedAttachmentUrl;
 
                 return $appointment;
