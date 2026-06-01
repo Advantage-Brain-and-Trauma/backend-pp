@@ -6,6 +6,7 @@ use App\Models\AdvancedmdToken;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 
 class AmdClinicalNoteService
 {
@@ -175,15 +176,26 @@ class AmdClinicalNoteService
             return [];
         }
 
-        AdvancedmdToken::updateOrCreate(
-            ['office_key' => $officeKey],
-            [
-                'token' => $login['token'],
-                'webserver' => $login['webserver'],
-                'created_at_timestamp' => time(),
-                'updated_at' => now(),
-            ]
-        );
+        $tokenModel = new AdvancedmdToken();
+        $table = $tokenModel->getTable();
+        $connection = $tokenModel->getConnectionName();
+
+        $updateData = [
+            'token' => $login['token'],
+            'webserver' => $login['webserver'],
+        ];
+
+        if (Schema::connection($connection)->hasColumn($table, 'created_at_timestamp')) {
+            $updateData['created_at_timestamp'] = time();
+        }
+        if (Schema::connection($connection)->hasColumn($table, 'updated_at')) {
+            $updateData['updated_at'] = now();
+        }
+        if (Schema::connection($connection)->hasColumn($table, 'created_at') && !isset($updateData['created_at_timestamp'])) {
+            $updateData['created_at'] = now();
+        }
+
+        AdvancedmdToken::updateOrCreate(['office_key' => $officeKey], $updateData);
 
         return [
             'token' => (string) $login['token'],
