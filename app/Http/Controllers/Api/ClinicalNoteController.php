@@ -519,6 +519,31 @@ class ClinicalNoteController extends Controller
         }
 
         try {
+            $baseUrl = rtrim((string) config('services.clinical_notes.base_url', ''), '/');
+            $endpoint = $inline ? 'view-pdf' : 'download-pdf';
+            $remoteUrl = $baseUrl . '/clinical-notes-documents/' . $endpoint . '/' . $noteId;
+
+            $query = array_filter([
+                'patientName' => $request->query('patientName'),
+                'documentId' => $request->query('documentId'),
+            ], static fn($value) => $value !== null && $value !== '');
+
+            if ($baseUrl !== '') {
+                $remote = Http::timeout(120)->withHeaders([
+                    'Accept' => 'application/pdf,*/*',
+                ])->get($remoteUrl, $query);
+
+                if ($remote->ok() && $remote->body() !== '') {
+                    $filename = 'clinical_note_' . $noteId . '.pdf';
+                    $contentType = $remote->header('Content-Type') ?: 'application/pdf';
+
+                    return response($remote->body(), 200)
+                        ->header('Content-Type', $contentType)
+                        ->header('Content-Disposition', ($inline ? 'inline' : 'attachment') . '; filename="' . $filename . '"')
+                        ->header('Cache-Control', 'no-cache, no-store, must-revalidate');
+                }
+            }
+
             $detailRes = $this->amdClinicalNoteService->getClinicalNoteDetail((int) $noteId);
             if (empty($detailRes['ok']) || empty($detailRes['json']) || !is_array($detailRes['json'])) {
                 return response()->json([
