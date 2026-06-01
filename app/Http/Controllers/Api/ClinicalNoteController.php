@@ -71,7 +71,7 @@ class ClinicalNoteController extends Controller
 
             return response()->json([
                 'success' => true,
-                'data' => $notes,
+                'clinical_notes' => $notes,
                 'file_notes' => $patientFileNotes,
             ], 200, [], JSON_UNESCAPED_SLASHES);
         } catch (\Throwable $e) {
@@ -380,7 +380,7 @@ class ClinicalNoteController extends Controller
                 'sub_folder' => (string) ($row->sub_folder ?? ''),
                 'filename' => (string) ($row->filename ?? ''),
                 'serverType' => (int) ($row->serverType ?? 2),
-                'url' => $this->resolvePreferredAttachmentUrl($row),
+                'url' => $this->buildAttachmentPreviewUrl($row),
             ];
         }
 
@@ -493,6 +493,36 @@ class ClinicalNoteController extends Controller
         }
 
         return $fallback;
+    }
+
+    private function buildAttachmentPreviewUrl(object $row): string
+    {
+        $caseId = trim((string) ($row->case_id ?? ''));
+        $folder = trim((string) ($row->folder ?? ''), '/\\');
+        $subFolder = trim((string) ($row->sub_folder ?? ''), '/\\');
+        $filename = trim((string) ($row->filename ?? ''), '/\\');
+
+        if ($caseId === '' || $folder === '' || $filename === '') {
+            return '';
+        }
+
+        $baseUrl = rtrim((string) parse_url(self::STORAGE_BASE, PHP_URL_SCHEME) . '://' . (string) parse_url(self::STORAGE_BASE, PHP_URL_HOST), '/');
+        $segments = [
+            $baseUrl,
+            'api',
+            'attach',
+            'preview',
+            rawurlencode($caseId),
+            rawurlencode($folder),
+        ];
+
+        if ($subFolder !== '') {
+            $segments[] = rawurlencode($subFolder);
+        }
+
+        $segments[] = rawurlencode($filename);
+
+        return implode('/', $segments);
     }
 
     private function localAttachmentExists(string $baseUrl, string $splitCaseId, string $folder, string $subFolder, string $filename): bool
