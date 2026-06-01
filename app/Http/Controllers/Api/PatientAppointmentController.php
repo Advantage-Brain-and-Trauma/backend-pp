@@ -23,10 +23,15 @@ use Carbon\Carbon;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 
 class PatientAppointmentController extends Controller
 {
+    private const STORAGE_BASE = 'http://10.0.0.23/storage/files/mh';
+    private const LOCAL_WEBDAV_BASE = 'http://10.0.0.23/webdav/mh';
+    private const WEBDAV_BASE = 'http://10.0.0.24/webdav/mh';
+
     /**
      * GET /api/get-patient-appointments
      *
@@ -112,6 +117,16 @@ class PatientAppointmentController extends Controller
                 ]);
             Log::channel('appointment')->info('Appointments fetched', ['patient_id' => $patientId, 'appointment_count' => $appointments->count()]);
 
+            $attachmentByAttendId = DB::connection('ahcs')
+                ->table('ahcs_attachment_logs')
+                ->select('id', 'case_id', 'attend_id', 'folder', 'sub_folder', 'filename', 'serverType')
+                ->where('case_id', $caseId)
+                ->whereIn('attend_id', $appointments->pluck('id')->all())
+                ->orderByDesc('id')
+                ->get()
+                ->unique('attend_id')
+                ->keyBy('attend_id');
+
             if ($appointments->isEmpty()) {
                 return response()->json([
                     'success' => true,
@@ -131,7 +146,7 @@ class PatientAppointmentController extends Controller
                         });
 
             // ✅ Map names
-            $appointments->transform(function ($appointment) use ($specialities, $attendTypes) {
+            $appointments->transform(function ($appointment) use ($specialities, $attendTypes, $caseId, $attachmentByAttendId) {
                 $appointment->service_full_name = $specialities[$appointment->service] ?? null;
                 $code = strtolower($appointment->attend_type);
                 $appointment->attend_type_full_name = $attendTypes[$code] ?? null;
@@ -141,6 +156,13 @@ class PatientAppointmentController extends Controller
                     : 'In-Person';
 
                 $appointment->appt_status = 'Confirmed';
+                $appointment->clinical_note_api = url('/api/clinical-note')
+                    . '?appointment_id=' . rawurlencode((string) $appointment->id)
+                    . '&case_id=' . rawurlencode((string) $caseId);
+                $attachment = $attachmentByAttendId->get($appointment->id);
+                $appointment->preview_url_api = $attachment
+                    ? $this->resolvePreferredAttachmentUrl($attachment)
+                    : null;
 
                 return $appointment;
             });
@@ -185,6 +207,52 @@ class PatientAppointmentController extends Controller
                 'message' => 'Something went wrong'
             ],500);
         }
+    }
+
+    private function resolvePreferredAttachmentUrl(object $row): string
+    {
+        $caseId = (string) ($row->case_id ?? '');
+        $folder = trim((string) ($row->folder ?? ''), '/\\');
+        $subFolder = trim((string) ($row->sub_folder ?? ''), '/\\');
+        $filename = trim((string) ($row->filename ?? ''), '/\\');
+        $attendId = (string) ($row->attend_id ?? '');
+        $serverType = (string) ($row->serverType ?? '2');
+
+        if ($caseId === '' || $folder === '' || $filename === '') {
+            return '';
+        }
+
+        $split = implode('/', str_split($caseId));
+
+        if ($serverType === '1') {
+            $bases = [self::WEBDAV_BASE, self::LOCAL_WEBDAV_BASE, self::STORAGE_BASE];
+        } elseif ($attendId === '' || $attendId === '0') {
+            $bases = [self::LOCAL_WEBDAV_BASE, self::WEBDAV_BASE, self::STORAGE_BASE];
+        } else {
+            $bases = [self::STORAGE_BASE, self::LOCAL_WEBDAV_BASE, self::WEBDAV_BASE];
+        }
+
+        $folderVariants = array_values(array_unique([$folder, strtolower($folder), strtoupper($folder)]));
+        $subVariants = array_values(array_unique([$subFolder, strtolower($subFolder), strtoupper($subFolder)]));
+        if ($subFolder === '') {
+            $subVariants = [''];
+        }
+
+        foreach ($bases as $base) {
+            $base = rtrim($base, '/');
+            foreach ($folderVariants as $f) {
+                foreach ($subVariants as $s) {
+                    $path = $s !== ''
+                        ? "{$base}/{$split}/{$f}/{$s}/{$filename}"
+                        : "{$base}/{$split}/{$f}/{$filename}";
+                    if ($path !== '') {
+                        return $path;
+                    }
+                }
+            }
+        }
+
+        return '';
     }
 
 
