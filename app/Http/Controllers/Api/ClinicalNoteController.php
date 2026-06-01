@@ -539,17 +539,11 @@ class ClinicalNoteController extends Controller
                     $pdfBytes = $remote->body();
 
                     if (!$inline) {
-                        return response()->streamDownload(
-                            static function () use ($pdfBytes): void {
-                                echo $pdfBytes;
-                            },
-                            $filename,
-                            [
-                                'Content-Type' => $contentType,
-                                'Content-Length' => (string) strlen($pdfBytes),
-                                'Cache-Control' => 'no-cache, no-store, must-revalidate',
-                            ]
-                        );
+                        return response($pdfBytes, 200)
+                            ->header('Content-Type', $contentType)
+                            ->header('Content-Length', (string) strlen($pdfBytes))
+                            ->header('Content-Disposition', 'attachment; filename="' . $filename . '"')
+                            ->header('Cache-Control', 'no-cache, no-store, must-revalidate');
                     }
 
                     return response($pdfBytes, 200)
@@ -587,17 +581,11 @@ class ClinicalNoteController extends Controller
             $filename = 'clinical_note_' . $noteId . '.pdf';
 
             if (!$inline) {
-                return response()->streamDownload(
-                    static function () use ($pdfBytes): void {
-                        echo $pdfBytes;
-                    },
-                    $filename,
-                    [
-                        'Content-Type' => 'application/pdf',
-                        'Content-Length' => (string) strlen($pdfBytes),
-                        'Cache-Control' => 'no-cache, no-store, must-revalidate',
-                    ]
-                );
+                return response($pdfBytes, 200)
+                    ->header('Content-Type', 'application/pdf')
+                    ->header('Content-Length', (string) strlen($pdfBytes))
+                    ->header('Content-Disposition', 'attachment; filename="' . $filename . '"')
+                    ->header('Cache-Control', 'no-cache, no-store, must-revalidate');
             }
 
             return response($pdfBytes, 200)
