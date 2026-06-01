@@ -990,6 +990,7 @@ class FunnelApiController extends Controller
             $existingAssignment = UserFunnel::withTrashed()
                 ->where('patient_id', $request->patient_id)
                 ->where('funnel_id', $request->funnel_id)
+                ->where('patient_case_id', $patientCase->id)
                 ->first();
 
             // Fallback check using user_id
@@ -998,6 +999,7 @@ class FunnelApiController extends Controller
                 $existingAssignment = UserFunnel::withTrashed()
                     ->where('user_id', $userId)
                     ->where('funnel_id', $request->funnel_id)
+                    ->where('patient_case_id', $patientCase->id)
                     ->first();
             }
 
@@ -1167,12 +1169,14 @@ class FunnelApiController extends Controller
             $existingAssignment = UserFunnel::withTrashed()
                 ->where('patient_id', $request->patient_id)
                 ->where('funnel_id', $request->funnel_id)
+                ->where('patient_case_id', $patientCase->id)
                 ->first();
 
             if (!$existingAssignment && $userId) {
                 $existingAssignment = UserFunnel::withTrashed()
                     ->where('user_id', $userId)
                     ->where('funnel_id', $request->funnel_id)
+                    ->where('patient_case_id', $patientCase->id)
                     ->first();
             }
 
