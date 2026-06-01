@@ -156,15 +156,11 @@ class PatientAppointmentController extends Controller
                     : 'In-Person';
 
                 $appointment->appt_status = 'Confirmed';
-                $appointment->clinical_note_api = url('/api/clinical-note')
-                    . '?appointment_id=' . rawurlencode((string) $appointment->id)
-                    . '&case_id=' . rawurlencode((string) $caseId);
                 $attachment = $attachmentByAttendId->get($appointment->id);
                 $resolvedAttachmentUrl = $attachment
                     ? $this->resolvePreferredAttachmentUrl($attachment)
                     : null;
-
-                $appointment->url = $resolvedAttachmentUrl;
+                $appointment->clinical_note = $resolvedAttachmentUrl;
 
                 return $appointment;
             });
