@@ -9,10 +9,16 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use App\Models\AhcsCase;
+use App\Services\AmdClinicalNoteService;
+use Dompdf\Dompdf;
 use Illuminate\Http\Request;
 
 class ClinicalNoteController extends Controller
 {
+    public function __construct(private readonly AmdClinicalNoteService $amdClinicalNoteService)
+    {
+    }
+
     private const PREVIEW_ALLOWED_HOSTS = ['10.0.0.23', '10.0.0.24'];
     private const STORAGE_BASE = 'http://10.0.0.23/storage/files/mh';
     private const LOCAL_WEBDAV_BASE = 'http://10.0.0.23/webdav/mh';
@@ -49,46 +55,17 @@ class ClinicalNoteController extends Controller
                 ], 422);
             }
 
-            $baseUrl = rtrim((string) config('services.clinical_notes.base_url'), '/');
-            if ($baseUrl === '') {
-                Log::channel('patient_form')->error('Clinical note base URL is not configured');
-
+            $result = $this->amdClinicalNoteService->getClinicalNotesByMedhiwaPatient((int) $patientId);
+            if (empty($result['status'])) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Clinical note API is not configured.',
-                ], 500);
+                    'message' => (string) ($result['message'] ?? 'Unable to fetch clinical notes.'),
+                ], 422);
             }
-
-            $response = Http::timeout(45)
-                ->acceptJson()
-                ->get($baseUrl . '/clinicalnotes/' . $patientId);
-
-            if ($response->failed()) {
-                return response()->json([
-                    'success' => false,
-                    'message' => $response->json('message') ?? 'Unable to fetch clinical note.',
-                    'status_code' => $response->status(),
-                ], $response->status());
-            }
-
-            $payload = $response->json();
-            $notes = $payload['notes']['notes'] ?? $payload['notes'] ?? [];
-            $notes = is_array($notes) ? $notes : [];
-
-            $normalized = collect($notes)->map(function ($note) {
-                return [
-                    'date' => $note['date'] ?? $note['Date'] ?? null,
-                    'time' => $note['time'] ?? $note['Time'] ?? null,
-                    'template_name' => $note['templateName'] ?? $note['template_name'] ?? null,
-                    'note_id' => $note['id'] ?? $note['note_id'] ?? null,
-                    'patient_id' => $note['patientId'] ?? $note['patient_id'] ?? null,
-                    'raw' => $note,
-                ];
-            })->values();
 
             return response()->json([
                 'success' => true,
-                'data' => $normalized,
+                'data' => $result['notes'] ?? [],
             ], 200, [], JSON_UNESCAPED_SLASHES);
         } catch (\Throwable $e) {
             Log::channel('patient_form')->error('Clinical note API error', [
@@ -538,34 +515,20 @@ class ClinicalNoteController extends Controller
             ], 422);
         }
 
-        $baseUrl = rtrim((string) config('services.clinical_notes.base_url'), '/');
-        if ($baseUrl === '') {
-            return response()->json([
-                'success' => false,
-                'message' => 'Clinical note API is not configured.',
-            ], 500);
-        }
-
-        $endpoint = $inline ? '/clinical-notes-documents/view-pdf/' : '/clinical-notes-documents/download-pdf/';
-
         try {
-            $remote = Http::timeout(60)
-                ->withHeaders(['Accept' => 'application/pdf,*/*'])
-                ->get($baseUrl . $endpoint . $noteId);
-
-            if ($remote->failed() || $remote->body() === '') {
+            $detailRes = $this->amdClinicalNoteService->getClinicalNoteDetail((int) $noteId);
+            if (empty($detailRes['ok']) || empty($detailRes['json']) || !is_array($detailRes['json'])) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Unable to fetch clinical note PDF.',
-                    'status_code' => $remote->status(),
-                ], $remote->status() > 0 ? $remote->status() : 502);
+                    'message' => 'Unable to fetch clinical note detail.',
+                ], 502);
             }
 
-            $contentType = $remote->header('Content-Type') ?: 'application/pdf';
+            $pdfBytes = $this->buildClinicalNotePdf($detailRes['json'], (int) $noteId);
             $filename = 'clinical_note_' . $noteId . '.pdf';
 
-            return response($remote->body(), 200)
-                ->header('Content-Type', $contentType)
+            return response($pdfBytes, 200)
+                ->header('Content-Type', 'application/pdf')
                 ->header('Content-Disposition', ($inline ? 'inline' : 'attachment') . '; filename="' . $filename . '"')
                 ->header('Cache-Control', 'no-cache, no-store, must-revalidate');
         } catch (\Throwable $e) {
@@ -583,5 +546,34 @@ class ClinicalNoteController extends Controller
                 'message' => 'Error fetching clinical note PDF.',
             ], 500);
         }
+    }
+
+    private function buildClinicalNotePdf(array $detail, int $noteId): string
+    {
+        $header = is_array($detail['header'] ?? null) ? $detail['header'] : [];
+        $templateName = (string) ($header['templateVersion']['templateName'] ?? 'Clinical Note');
+        $serviceDate = (string) ($header['serviceDate'] ?? '');
+        $providerName = (string) ($header['createdOrUpdatedByUser']['fullName'] ?? '');
+        $isSigned = !empty($header['isSigned']) ? 'Yes' : 'No';
+
+        $raw = htmlspecialchars(json_encode($detail, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) ?: '{}');
+        $html = '<html><head><style>body{font-family:DejaVu Sans,sans-serif;font-size:12px;color:#111}h1{font-size:18px}table{width:100%;border-collapse:collapse;margin:10px 0}td{border:1px solid #ccc;padding:6px;vertical-align:top}pre{font-size:10px;white-space:pre-wrap;word-break:break-word;border:1px solid #ddd;padding:10px;background:#fafafa}</style></head><body>'
+            . '<h1>Clinical Note #' . $noteId . '</h1>'
+            . '<table>'
+            . '<tr><td><strong>Template</strong></td><td>' . htmlspecialchars($templateName) . '</td></tr>'
+            . '<tr><td><strong>Service Date</strong></td><td>' . htmlspecialchars($serviceDate) . '</td></tr>'
+            . '<tr><td><strong>Provider</strong></td><td>' . htmlspecialchars($providerName) . '</td></tr>'
+            . '<tr><td><strong>Signed</strong></td><td>' . htmlspecialchars($isSigned) . '</td></tr>'
+            . '</table>'
+            . '<h2>Raw Note Data</h2>'
+            . '<pre>' . $raw . '</pre>'
+            . '</body></html>';
+
+        $dompdf = new Dompdf();
+        $dompdf->loadHtml($html);
+        $dompdf->setPaper('A4', 'portrait');
+        $dompdf->render();
+
+        return $dompdf->output();
     }
 }
