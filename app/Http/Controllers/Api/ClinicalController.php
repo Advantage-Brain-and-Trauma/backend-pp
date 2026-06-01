@@ -285,7 +285,19 @@ class ClinicalController extends Controller
                 'pdfUrls.*' => 'required|string'
             ]);
 
-            $pdfFiles = $request->pdfUrls;
+            $pdfFiles = collect($request->pdfUrls)
+                ->map(function ($value) {
+                    $value = trim((string) $value);
+                    if ($value === '') {
+                        return null;
+                    }
+
+                    // Accept file names, relative storage paths, and full URLs.
+                    return basename(urldecode($value));
+                })
+                ->filter()
+                ->values()
+                ->toArray();
             $baseUrl = "https://ptp.advantagehcs.com/storage/pdfDownload/";
 
             $tempDir = storage_path('app/temp_pdfs');
