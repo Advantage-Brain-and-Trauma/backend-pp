@@ -9,6 +9,21 @@ use Illuminate\Support\Facades\Log;
 
 class AmdClinicalNoteService
 {
+    private string $ehrOfficeCode;
+    private string $ehrUsername;
+    private string $ehrPassword;
+    private string $ehrAppName;
+    private string $ehrLoginUrl;
+
+    public function __construct()
+    {
+        $this->ehrOfficeCode = (string) env('AMD_EHR_OFFICE_CODE', env('AMD_OFFICE_CODE', ''));
+        $this->ehrUsername = (string) env('AMD_EHR_USERNAME', env('AMD_USERNAME', ''));
+        $this->ehrPassword = (string) env('AMD_EHR_PASSWORD', env('AMD_PASSWORD', ''));
+        $this->ehrAppName = (string) env('AMD_EHR_APP_NAME', env('AMD_APP_NAME', 'TEMP'));
+        $this->ehrLoginUrl = (string) env('AMD_EHR_LOGIN_URL', env('AMD_LOGIN_URL', ''));
+    }
+
     public function getClinicalNotesByMedhiwaPatient(int $medhiwaPatientId, ?int $caseId = null): array
     {
         $mappingQuery = DB::connection('ahcs')
@@ -109,6 +124,20 @@ class AmdClinicalNoteService
                 ])
                 ->send($method, $url, ['query' => $query]);
 
+            if ($response->status() === 403) {
+                $token = $this->getEhrToken(true);
+                if (!empty($token['token']) && !empty($token['server'])) {
+                    $url = rtrim($token['server'], '/') . $path;
+                    $response = Http::timeout(60)
+                        ->acceptJson()
+                        ->withHeaders([
+                            'Authorization' => 'Bearer ' . $token['token'],
+                            'appname' => $this->ehrAppName,
+                        ])
+                        ->send($method, $url, ['query' => $query]);
+                }
+            }
+
             if ($response->failed()) {
                 return ['ok' => false, 'error' => $response->body(), 'status' => $response->status()];
             }
@@ -120,20 +149,21 @@ class AmdClinicalNoteService
         }
     }
 
-    private function getEhrToken(): array
+    private function getEhrToken(bool $forceRefresh = false): array
     {
-        $officeCode = (string) config('services.advancedmd.office_code', '');
-        $username = (string) config('services.advancedmd.username', '');
-        $password = (string) config('services.advancedmd.password', '');
-        $appName = (string) config('services.advancedmd.app_name', '');
-        $loginUrl = (string) config('services.advancedmd.login_url', '');
+        $officeCode = $this->ehrOfficeCode;
+        $username = $this->ehrUsername;
+        $password = $this->ehrPassword;
+        $appName = $this->ehrAppName;
+        $loginUrl = $this->ehrLoginUrl;
 
         if ($officeCode === '' || $username === '' || $password === '' || $appName === '' || $loginUrl === '') {
             return [];
         }
 
-        $tokenRecord = AdvancedmdToken::where('office_key', $officeCode)->first();
-        if ($tokenRecord && $tokenRecord->isValid()) {
+        $officeKey = $officeCode . '|ehr|' . $username;
+        $tokenRecord = AdvancedmdToken::where('office_key', $officeKey)->first();
+        if (!$forceRefresh && $tokenRecord && $tokenRecord->isValid()) {
             return [
                 'token' => (string) $tokenRecord->token,
                 'server' => $this->toEhrServer((string) $tokenRecord->webserver),
@@ -146,7 +176,7 @@ class AmdClinicalNoteService
         }
 
         AdvancedmdToken::updateOrCreate(
-            ['office_key' => $officeCode],
+            ['office_key' => $officeKey],
             [
                 'token' => $login['token'],
                 'webserver' => $login['webserver'],
@@ -204,6 +234,7 @@ class AmdClinicalNoteService
     private function toEhrServer(string $webserver): string
     {
         $base = rtrim($webserver, '/');
-        return str_replace('/processrequest/api-102/TEMP', '/ehr-api', $base);
+        $converted = preg_replace('#/processrequest/.*$#', '/ehr-api', $base);
+        return is_string($converted) ? $converted : $base;
     }
 }
