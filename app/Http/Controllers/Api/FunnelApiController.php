@@ -1003,6 +1003,15 @@ class FunnelApiController extends Controller
                     ->first();
             }
 
+            if (!$existingAssignment) {
+                $existingAssignment = UserFunnel::withTrashed()
+                    ->where('patient_id', $request->patient_id)
+                    ->where('funnel_id', $request->funnel_id)
+                    ->whereNull('patient_case_id')
+                    ->latest('id')
+                    ->first();
+            }
+
             // Create / Restore / Update
             if (!$existingAssignment) {
                 UserFunnel::create([
@@ -1177,6 +1186,15 @@ class FunnelApiController extends Controller
                     ->where('user_id', $userId)
                     ->where('funnel_id', $request->funnel_id)
                     ->where('patient_case_id', $patientCase->id)
+                    ->first();
+            }
+
+            if (!$existingAssignment) {
+                $existingAssignment = UserFunnel::withTrashed()
+                    ->where('patient_id', $request->patient_id)
+                    ->where('funnel_id', $request->funnel_id)
+                    ->whereNull('patient_case_id')
+                    ->latest('id')
                     ->first();
             }
 
