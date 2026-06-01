@@ -536,10 +536,25 @@ class ClinicalNoteController extends Controller
                 if ($remote->ok() && $remote->body() !== '') {
                     $filename = 'clinical_note_' . $noteId . '.pdf';
                     $contentType = $remote->header('Content-Type') ?: 'application/pdf';
+                    $pdfBytes = $remote->body();
 
-                    return response($remote->body(), 200)
+                    if (!$inline) {
+                        return response()->streamDownload(
+                            static function () use ($pdfBytes): void {
+                                echo $pdfBytes;
+                            },
+                            $filename,
+                            [
+                                'Content-Type' => $contentType,
+                                'Content-Length' => (string) strlen($pdfBytes),
+                                'Cache-Control' => 'no-cache, no-store, must-revalidate',
+                            ]
+                        );
+                    }
+
+                    return response($pdfBytes, 200)
                         ->header('Content-Type', $contentType)
-                        ->header('Content-Disposition', ($inline ? 'inline' : 'attachment') . '; filename="' . $filename . '"')
+                        ->header('Content-Disposition', 'inline; filename="' . $filename . '"')
                         ->header('Cache-Control', 'no-cache, no-store, must-revalidate');
                 }
             }
@@ -571,9 +586,23 @@ class ClinicalNoteController extends Controller
             $pdfBytes = $this->buildClinicalNotePdf($detailRes['json'], (int) $noteId);
             $filename = 'clinical_note_' . $noteId . '.pdf';
 
+            if (!$inline) {
+                return response()->streamDownload(
+                    static function () use ($pdfBytes): void {
+                        echo $pdfBytes;
+                    },
+                    $filename,
+                    [
+                        'Content-Type' => 'application/pdf',
+                        'Content-Length' => (string) strlen($pdfBytes),
+                        'Cache-Control' => 'no-cache, no-store, must-revalidate',
+                    ]
+                );
+            }
+
             return response($pdfBytes, 200)
                 ->header('Content-Type', 'application/pdf')
-                ->header('Content-Disposition', ($inline ? 'inline' : 'attachment') . '; filename="' . $filename . '"')
+                ->header('Content-Disposition', 'inline; filename="' . $filename . '"')
                 ->header('Cache-Control', 'no-cache, no-store, must-revalidate');
         } catch (\Throwable $e) {
             Log::channel('patient_form')->error('Clinical note PDF proxy API error', [
