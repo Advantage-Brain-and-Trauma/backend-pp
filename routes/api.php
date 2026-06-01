@@ -45,6 +45,7 @@ Route::middleware(['auth:api', 'role.api:User'])->group(function (){
     Route::get('clinical-note/download/{noteId}', [ClinicalNoteController::class, 'downloadNote']);
     Route::get('clinical-note-preview', [ClinicalNoteController::class, 'preview']);
     Route::get('clinical-note-preview-url', [ClinicalNoteController::class, 'generatePreviewUrl']);
+    Route::get('attach/preview/{caseId}/{folder}/{subFolder}/{filename}', [ClinicalNoteController::class, 'previewAttachmentPath']);
     
     Route::get('get-patient-details',[PatientController::class, 'getPatientDetails']);
     Route::get('get-case-ids-by-patient-id', [PatientController::class, 'getCaseIdsByPatientId']);

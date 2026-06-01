@@ -262,6 +262,99 @@ class ClinicalNoteController extends Controller
         ], 200, [], JSON_UNESCAPED_SLASHES);
     }
 
+    /**
+     * GET /api/attach/preview/{caseId}/{folder}/{subFolder}/{filename}
+     *
+     * Streams patient-level attachment inline by path parameters.
+     */
+    public function previewAttachmentPath(
+        Request $request,
+        int|string $caseId,
+        string $folder,
+        string $subFolder,
+        string $filename
+    ): Response|JsonResponse {
+        $patientId = auth()->user()->patient_id;
+
+        $isValidCaseForPatient = AhcsCase::where('id', $caseId)
+            ->where('patient_id', $patientId)
+            ->exists();
+
+        if (!$isValidCaseForPatient) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Invalid Case Id for this patient.',
+            ], 422);
+        }
+
+        $row = DB::connection('ahcs')
+            ->table('ahcs_attachment_logs')
+            ->select('id', 'case_id', 'attend_id', 'folder', 'sub_folder', 'filename', 'serverType')
+            ->where('case_id', $caseId)
+            ->whereRaw('LOWER(folder) = ?', [strtolower($folder)])
+            ->whereRaw('LOWER(sub_folder) = ?', [strtolower($subFolder)])
+            ->where('filename', $filename)
+            ->orderByDesc('id')
+            ->first();
+
+        $rawUrl = $row
+            ? $this->resolvePreferredAttachmentUrl($row)
+            : $this->buildStorageAttachmentUrl((string) $caseId, $folder, $subFolder, $filename);
+
+        if ($rawUrl === '') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Document URL is required.',
+            ], 422);
+        }
+
+        $normalizedUrl = $this->normalizePreviewUrl($rawUrl);
+        if (!$normalizedUrl) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Invalid or unsupported document URL.',
+            ], 422);
+        }
+
+        try {
+            $remote = Http::timeout(30)->withHeaders([
+                'Accept' => '*/*',
+            ])->get($normalizedUrl);
+
+            if ($remote->failed() || $remote->body() === '') {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Unable to fetch preview document.',
+                    'status_code' => $remote->status(),
+                ], $remote->status() > 0 ? $remote->status() : 502);
+            }
+
+            $contentType = $remote->header('Content-Type') ?: $this->detectContentTypeByName($filename);
+
+            return response($remote->body(), 200)
+                ->header('Content-Type', $contentType)
+                ->header('Content-Disposition', 'inline; filename="' . $filename . '"')
+                ->header('Cache-Control', 'no-cache, no-store, must-revalidate');
+        } catch (\Throwable $e) {
+            Log::channel('patient_form')->error('Attachment preview API error', [
+                'case_id' => $caseId,
+                'folder' => $folder,
+                'sub_folder' => $subFolder,
+                'filename' => $filename,
+                'raw_url' => $rawUrl,
+                'normalized_url' => $normalizedUrl,
+                'error' => $e->getMessage(),
+                'line' => $e->getLine(),
+                'file' => $e->getFile(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Error previewing clinical document.',
+            ], 500);
+        }
+    }
+
     private function normalizePreviewUrl(string $rawUrl): ?string
     {
         $url = $rawUrl;
@@ -523,6 +616,29 @@ class ClinicalNoteController extends Controller
         $segments[] = rawurlencode($filename);
 
         return implode('/', $segments);
+    }
+
+    private function buildStorageAttachmentUrl(string $caseId, string $folder, string $subFolder, string $filename): string
+    {
+        $caseId = trim($caseId);
+        $folder = trim($folder, '/\\');
+        $subFolder = trim($subFolder, '/\\');
+        $filename = trim($filename, '/\\');
+
+        if ($caseId === '' || $folder === '' || $filename === '') {
+            return '';
+        }
+
+        $split = implode('/', str_split($caseId));
+        $url = rtrim(self::STORAGE_BASE, '/')
+            . '/' . $split
+            . '/' . rawurlencode($folder);
+
+        if ($subFolder !== '') {
+            $url .= '/' . rawurlencode($subFolder);
+        }
+
+        return $url . '/' . rawurlencode($filename);
     }
 
     private function localAttachmentExists(string $baseUrl, string $splitCaseId, string $folder, string $subFolder, string $filename): bool
