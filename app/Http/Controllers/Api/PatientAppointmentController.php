@@ -224,8 +224,10 @@ class PatientAppointmentController extends Controller
 
         if ($serverType === '1') {
             $bases = [self::WEBDAV_BASE, self::LOCAL_WEBDAV_BASE, self::STORAGE_BASE];
+        } elseif ($serverType === '2') {
+            $bases = [self::STORAGE_BASE, self::LOCAL_WEBDAV_BASE, self::WEBDAV_BASE];
         } elseif ($attendId === '' || $attendId === '0') {
-            $bases = [self::LOCAL_WEBDAV_BASE, self::WEBDAV_BASE, self::STORAGE_BASE];
+            $bases = [self::STORAGE_BASE, self::LOCAL_WEBDAV_BASE, self::WEBDAV_BASE];
         } else {
             $bases = [self::STORAGE_BASE, self::LOCAL_WEBDAV_BASE, self::WEBDAV_BASE];
         }
