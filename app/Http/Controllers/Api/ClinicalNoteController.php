@@ -66,9 +66,22 @@ class ClinicalNoteController extends Controller
                 ], 422);
             }
 
+            $notes = is_array($result['notes'] ?? null) ? $result['notes'] : [];
+            $attachmentMap = $this->buildCaseAttachmentMap((int) $caseId);
+            $globalFileNotes = $attachmentMap['global'];
+            $byAttendId = $attachmentMap['by_attend_id'];
+
+            $notes = array_map(function (array $note) use ($globalFileNotes, $byAttendId) {
+                $attendId = (int) ($note['medhiwa_appointmentid'] ?? 0);
+                $appointmentFileNotes = $attendId > 0 ? ($byAttendId[$attendId] ?? []) : [];
+                $note['file_notes'] = array_values(array_merge($globalFileNotes, $appointmentFileNotes));
+
+                return $note;
+            }, $notes);
+
             return response()->json([
                 'success' => true,
-                'data' => $result['notes'] ?? [],
+                'data' => $notes,
             ], 200, [], JSON_UNESCAPED_SLASHES);
         } catch (\Throwable $e) {
             Log::channel('patient_form')->error('Clinical note API error', [
@@ -294,6 +307,52 @@ class ClinicalNoteController extends Controller
             'txt' => 'text/plain',
             default => 'application/octet-stream',
         };
+    }
+
+    /**
+     * Build file-note payloads from ahcs_attachment_logs for a case.
+     *
+     * "global" includes Add/Edit Patient style uploads where attend_id is null/0.
+     * "by_attend_id" includes files tied to a specific appointment attend_id.
+     */
+    private function buildCaseAttachmentMap(int $caseId): array
+    {
+        if ($caseId <= 0) {
+            return ['global' => [], 'by_attend_id' => []];
+        }
+
+        $rows = DB::connection('ahcs')
+            ->table('ahcs_attachment_logs')
+            ->select('id', 'case_id', 'attend_id', 'folder', 'sub_folder', 'filename', 'serverType')
+            ->where('case_id', $caseId)
+            ->orderByDesc('id')
+            ->get();
+
+        $global = [];
+        $byAttendId = [];
+
+        foreach ($rows as $row) {
+            $file = [
+                'id' => (int) ($row->id ?? 0),
+                'case_id' => (int) ($row->case_id ?? 0),
+                'attend_id' => (int) ($row->attend_id ?? 0),
+                'folder' => (string) ($row->folder ?? ''),
+                'sub_folder' => (string) ($row->sub_folder ?? ''),
+                'filename' => (string) ($row->filename ?? ''),
+                'serverType' => (int) ($row->serverType ?? 2),
+                'url' => $this->resolvePreferredAttachmentUrl($row),
+            ];
+
+            $attendId = (int) ($row->attend_id ?? 0);
+            if ($attendId <= 0) {
+                $global[] = $file;
+            } else {
+                $byAttendId[$attendId] ??= [];
+                $byAttendId[$attendId][] = $file;
+            }
+        }
+
+        return ['global' => $global, 'by_attend_id' => $byAttendId];
     }
 
     private function buildUrlFromFilename(string $filename, mixed $attendId = null, mixed $caseId = null): array
