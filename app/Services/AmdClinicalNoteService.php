@@ -213,7 +213,7 @@ class AmdClinicalNoteService
             $updateData['updated_at'] = $this->resolveTokenTimestampValue($connection, $table, 'updated_at');
         }
         if (Schema::connection($connection)->hasColumn($table, 'created_at') && !isset($updateData['created_at_timestamp'])) {
-            $updateData['created_at'] = $this->resolveTokenTimestampValue($connection, $table, 'created_at');
+            $updateData['created_at'] = $this->resolveTokenTimestampValue($connection, $table, 'created_at', true);
         }
 
         AdvancedmdToken::updateOrCreate(['office_key' => $officeKey], $updateData);
@@ -271,17 +271,35 @@ class AmdClinicalNoteService
         return is_string($converted) ? $converted : $base;
     }
 
-    private function resolveTokenTimestampValue(string $connection, string $table, string $column): mixed
+    private function resolveTokenTimestampValue(string $connection, string $table, string $column, bool $preferUnix = false): mixed
     {
         try {
+            if (Schema::connection($connection)->hasColumn($table, $column)) {
+                $schemaType = strtolower((string) Schema::connection($connection)->getColumnType($table, $column));
+                if (str_contains($schemaType, 'int')) {
+                    return time();
+                }
+                if (in_array($schemaType, ['date', 'datetime', 'datetimetz', 'timestamp', 'time', 'year'], true)) {
+                    return now();
+                }
+            }
+
             $row = DB::connection($connection)->selectOne(
                 "SHOW COLUMNS FROM `{$table}` LIKE ?",
                 [$column]
             );
 
-            $type = strtolower((string) ($row->Type ?? ''));
+            $type = '';
+            if (is_object($row)) {
+                $rowArray = array_change_key_case((array) $row, CASE_LOWER);
+                $type = strtolower((string) ($rowArray['type'] ?? ''));
+            } elseif (is_array($row)) {
+                $rowArray = array_change_key_case($row, CASE_LOWER);
+                $type = strtolower((string) ($rowArray['type'] ?? ''));
+            }
+
             if ($type === '') {
-                return now();
+                return $preferUnix ? time() : now();
             }
 
             if (str_contains($type, 'int')) {
@@ -292,7 +310,7 @@ class AmdClinicalNoteService
                 return now();
             }
 
-            return now()->toDateTimeString();
+            return $preferUnix ? time() : now()->toDateTimeString();
         } catch (\Throwable $e) {
             Log::channel('patient_form')->warning('Unable to detect token timestamp column type', [
                 'connection' => $connection,
@@ -301,7 +319,7 @@ class AmdClinicalNoteService
                 'error' => $e->getMessage(),
             ]);
 
-            return now();
+            return $preferUnix ? time() : now();
         }
     }
 }
