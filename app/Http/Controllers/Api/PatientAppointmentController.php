@@ -113,7 +113,7 @@ class PatientAppointmentController extends Controller
                 ->get([
                     'id','ma_id','department','service','attend_type',
                     'provider_id','provider_name','attend_date','time',
-                    'end_time','length','attend_status','attend_notes','is_virtual'
+                    'end_time','length','attend_status','attend_notes','is_virtual','transport'
                 ]);
             Log::channel('appointment')->info('Appointments fetched', ['patient_id' => $patientId, 'appointment_count' => $appointments->count()]);
 

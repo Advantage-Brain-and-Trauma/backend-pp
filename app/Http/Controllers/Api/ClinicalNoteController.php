@@ -8,9 +8,7 @@ use Illuminate\Http\Response;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
-use App\Models\AhcsAttendance;
 use App\Models\AhcsCase;
-use App\Models\AhcsMedAuth;
 use Illuminate\Http\Request;
 
 class ClinicalNoteController extends Controller
@@ -23,18 +21,16 @@ class ClinicalNoteController extends Controller
     private const LOCAL_WEBDAV_FS_BASE = '/webdav/mh';
 
     /**
-     * GET /api/clinical-note/{appointmentId}
+     * GET /api/clinical-note?case_id={caseId}
      *
-     * Fetches clinical note attachment data from external API by appointment ID.
+     * Fetch clinical notes list from Medhiwa project API by patient.
      */
     public function show(Request $request): JsonResponse
     {
+        $caseId = $request->query('case_id');
+        $patientId = auth()->user()->patient_id;
+
         try {
-
-            $appointmentId = $request->query('appt_id');
-            $caseId = $request->query('case_id');
-            $patientId = auth()->user()->patient_id;
-
             if (empty($caseId)) {
                 return response()->json([
                     'success' => false,
@@ -53,56 +49,7 @@ class ClinicalNoteController extends Controller
                 ], 422);
             }
 
-            if (empty($appointmentId)) {
-                $rows = DB::connection('ahcs')
-                    ->table('ahcs_attachment_logs')
-                    ->select('id', 'case_id', 'attend_id', 'folder', 'sub_folder', 'filename', 'serverType')
-                    ->where('case_id', $caseId)
-                    ->orderByDesc('id')
-                    ->get();
-
-                $data = $rows->map(function ($row) use ($caseId) {
-                    $file = (string) $row->filename;
-                    $fullUrl = $this->resolvePreferredAttachmentUrl($row);
-
-                    return [
-                        'id' => (int) $row->id,
-                        'filename' => $file,
-                        'url' => $fullUrl,
-                        'serverType' => (int) ($row->serverType ?? 2),
-                        'case_id' => (int) $row->case_id,
-                        'attend_id' => (int) $row->attend_id,
-                        'folder' => $row->folder,
-                        'sub_folder' => $row->sub_folder,
-                    ];
-                })->values();
-
-                return response()->json([
-                    'success' => true,
-                    'data' => $data,
-                ], 200, [], JSON_UNESCAPED_SLASHES);
-            }
-
-            $appointment = AhcsAttendance::findorFail($appointmentId);
-            $appointmentId = $appointment->id;
-
-            $medAuth = AhcsMedAuth::where('id', $appointment->ma_id)->first();
-            if (!$medAuth || (int) $medAuth->case_id !== (int) $caseId) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Appointment does not belong to the provided Case Id.',
-                ], 422);
-            }
-
-            if(!$appointmentId) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Invalid appointment ID.',
-                ], 400);
-            }
-
             $baseUrl = rtrim((string) config('services.clinical_notes.base_url'), '/');
-
             if ($baseUrl === '') {
                 Log::channel('patient_form')->error('Clinical note base URL is not configured');
 
@@ -112,9 +59,9 @@ class ClinicalNoteController extends Controller
                 ], 500);
             }
 
-            $response = Http::timeout(30)
+            $response = Http::timeout(45)
                 ->acceptJson()
-                ->get($baseUrl . '/attachments/' . $appointmentId);
+                ->get($baseUrl . '/clinicalnotes/' . $patientId);
 
             if ($response->failed()) {
                 return response()->json([
@@ -125,15 +72,27 @@ class ClinicalNoteController extends Controller
             }
 
             $payload = $response->json();
-            $enrichedPayload = $this->enrichClinicalPayload($payload, (string) $caseId, (string) $appointmentId);
+            $notes = $payload['notes']['notes'] ?? $payload['notes'] ?? [];
+            $notes = is_array($notes) ? $notes : [];
+
+            $normalized = collect($notes)->map(function ($note) {
+                return [
+                    'date' => $note['date'] ?? $note['Date'] ?? null,
+                    'time' => $note['time'] ?? $note['Time'] ?? null,
+                    'template_name' => $note['templateName'] ?? $note['template_name'] ?? null,
+                    'note_id' => $note['id'] ?? $note['note_id'] ?? null,
+                    'patient_id' => $note['patientId'] ?? $note['patient_id'] ?? null,
+                    'raw' => $note,
+                ];
+            })->values();
 
             return response()->json([
                 'success' => true,
-                'data' => $enrichedPayload,
+                'data' => $normalized,
             ], 200, [], JSON_UNESCAPED_SLASHES);
         } catch (\Throwable $e) {
             Log::channel('patient_form')->error('Clinical note API error', [
-                'appointment_id' => $appointmentId,
+                'case_id' => $caseId,
                 'error' => $e->getMessage(),
                 'line' => $e->getLine(),
                 'file' => $e->getFile(),
@@ -144,6 +103,26 @@ class ClinicalNoteController extends Controller
                 'message' => 'Error fetching clinical note.',
             ], 500);
         }
+    }
+
+    /**
+     * GET /api/clinical-note/view/{noteId}?case_id={caseId}
+     *
+     * Stream note PDF inline from Medhiwa project API.
+     */
+    public function viewNote(Request $request, int|string $noteId): Response|JsonResponse
+    {
+        return $this->proxyNotePdf($request, $noteId, true);
+    }
+
+    /**
+     * GET /api/clinical-note/download/{noteId}?case_id={caseId}
+     *
+     * Download note PDF from Medhiwa project API.
+     */
+    public function downloadNote(Request $request, int|string $noteId): Response|JsonResponse
+    {
+        return $this->proxyNotePdf($request, $noteId, false);
     }
 
     /**
@@ -534,5 +513,75 @@ class ClinicalNoteController extends Controller
         }
 
         return $node;
+    }
+
+    private function proxyNotePdf(Request $request, int|string $noteId, bool $inline): Response|JsonResponse
+    {
+        $caseId = $request->query('case_id');
+        $patientId = auth()->user()->patient_id;
+
+        if (empty($caseId)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Case Id is required.',
+            ], 422);
+        }
+
+        $isValidCaseForPatient = AhcsCase::where('id', $caseId)
+            ->where('patient_id', $patientId)
+            ->exists();
+
+        if (!$isValidCaseForPatient) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Invalid Case Id for this patient.',
+            ], 422);
+        }
+
+        $baseUrl = rtrim((string) config('services.clinical_notes.base_url'), '/');
+        if ($baseUrl === '') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Clinical note API is not configured.',
+            ], 500);
+        }
+
+        $endpoint = $inline ? '/clinical-notes-documents/view-pdf/' : '/clinical-notes-documents/download-pdf/';
+
+        try {
+            $remote = Http::timeout(60)
+                ->withHeaders(['Accept' => 'application/pdf,*/*'])
+                ->get($baseUrl . $endpoint . $noteId);
+
+            if ($remote->failed() || $remote->body() === '') {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Unable to fetch clinical note PDF.',
+                    'status_code' => $remote->status(),
+                ], $remote->status() > 0 ? $remote->status() : 502);
+            }
+
+            $contentType = $remote->header('Content-Type') ?: 'application/pdf';
+            $filename = 'clinical_note_' . $noteId . '.pdf';
+
+            return response($remote->body(), 200)
+                ->header('Content-Type', $contentType)
+                ->header('Content-Disposition', ($inline ? 'inline' : 'attachment') . '; filename="' . $filename . '"')
+                ->header('Cache-Control', 'no-cache, no-store, must-revalidate');
+        } catch (\Throwable $e) {
+            Log::channel('patient_form')->error('Clinical note PDF proxy API error', [
+                'note_id' => $noteId,
+                'case_id' => $caseId,
+                'inline' => $inline,
+                'error' => $e->getMessage(),
+                'line' => $e->getLine(),
+                'file' => $e->getFile(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Error fetching clinical note PDF.',
+            ], 500);
+        }
     }
 }
