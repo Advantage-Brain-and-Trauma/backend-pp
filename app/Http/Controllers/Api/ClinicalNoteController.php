@@ -68,17 +68,12 @@ class ClinicalNoteController extends Controller
                     return [
                         'id' => (int) $row->id,
                         'filename' => $file,
-                        'full_url' => $fullUrl,
                         'url' => $fullUrl,
                         'serverType' => (int) ($row->serverType ?? 2),
                         'case_id' => (int) $row->case_id,
                         'attend_id' => (int) $row->attend_id,
                         'folder' => $row->folder,
                         'sub_folder' => $row->sub_folder,
-                        'preview_url_api' => url('/api/clinical-note-preview-url')
-                            . '?filename=' . rawurlencode($file)
-                            . '&attend_id=' . rawurlencode((string) $row->attend_id)
-                            . '&case_id=' . rawurlencode((string) $caseId),
                     ];
                 })->values();
 
@@ -295,7 +290,6 @@ class ClinicalNoteController extends Controller
             'data' => [
                 'filename' => $filename,
                 'url' => $generated['url'],
-                'full_url' => $generated['url'],
                 'serverType' => $generated['serverType'],
                 'case_id' => $generated['case_id'],
                 'attend_id' => $generated['attend_id'],
@@ -533,14 +527,10 @@ class ClinicalNoteController extends Controller
 
         if ($filename !== '') {
             $node['filename'] = $filename;
-            $node['preview_url_api'] = url('/api/clinical-note-preview-url')
-                . '?filename=' . rawurlencode($filename)
-                . '&attend_id=' . rawurlencode($attendId)
-                . '&case_id=' . rawurlencode($caseId);
         }
 
         if ($fullUrl !== '') {
-            $node['full_url'] = $fullUrl;
+            $node['url'] = $fullUrl;
         }
 
         return $node;
