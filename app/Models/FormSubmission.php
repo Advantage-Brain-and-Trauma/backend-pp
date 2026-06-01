@@ -10,7 +10,7 @@ class FormSubmission extends Model
     use HasFactory, SoftDeletes;
     protected $fillable = [
         'user_id',
-        'form_id', 'funnel_id',
+        'form_id', 'funnel_id', 'user_funnel_id',
         'patient_name', 'patient_email',
         'data', 'ip_address', 'user_agent', 'status',
         'pdf_url',
@@ -36,9 +36,8 @@ class FormSubmission extends Model
         return $this->hasMany(FormSubmissionNote::class, 'form_submission_id');
     }
 
-    public function userFunnel()
+    public function userFunnel(): BelongsTo
     {
-        return $this->belongsTo(UserFunnel::class, 'funnel_id', 'funnel_id')
-            ->where('patient_id', auth()->user()->patient_id);
+        return $this->belongsTo(UserFunnel::class, 'user_funnel_id');
     }
 }

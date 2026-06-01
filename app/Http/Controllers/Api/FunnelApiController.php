@@ -105,7 +105,12 @@ class FunnelApiController extends Controller
                 });
             }
 
-            $userFunnels = $userFunnelsQuery->pluck('funnel_id');
+            $userFunnelRows = $userFunnelsQuery
+                ->get(['id', 'funnel_id']);
+
+            $userFunnels = $userFunnelRows->pluck('funnel_id');
+            $userFunnelIdByFunnel = $userFunnelRows
+                ->pluck('id', 'funnel_id');
 
             Log::channel('patient_funnel')->info('User funnel IDs fetched', [
                 'funnel_ids' => $userFunnels
@@ -115,7 +120,7 @@ class FunnelApiController extends Controller
                 ->where('status', 'active')
                 ->get(['id', 'name', 'form_ids']);
 
-            $funnels->transform(function ($funnel) use ($request) {
+            $funnels->transform(function ($funnel) use ($request, $userFunnelIdByFunnel) {
 
                 $formIds = is_array($funnel->form_ids)
                     ? $funnel->form_ids
@@ -125,8 +130,11 @@ class FunnelApiController extends Controller
 
                 $totalForms = count($formIds);
 
+                $userFunnelId = $userFunnelIdByFunnel->get($funnel->id);
+
                 $submittedForms = FormSubmission::where('user_id', $request->user()->id)
                     ->where('funnel_id', $funnel->id)
+                    ->where('user_funnel_id', $userFunnelId)
                     ->whereIn('form_id', $formIds)
                     ->where('status', 'completed')
                     ->distinct('form_id')
@@ -370,6 +378,7 @@ class FunnelApiController extends Controller
             $submissions = FormSubmission::whereIn('form_id', $formIds)
                 ->where('user_id', $userId)
                 ->where('funnel_id', $funnelId)
+                ->where('user_funnel_id', $userFunnel->id)
                 ->get(['form_id', 'status']);
 
             $forms = $formDetails->map(function ($form) use ($submissions, $patientValues) {
@@ -518,9 +527,25 @@ class FunnelApiController extends Controller
                 ], 403);
             }
 
+            $userFunnel = UserFunnel::where('user_id', $userId)
+                ->where('funnel_id', $request->funnel_id)
+                ->whereHas('patientCase', function ($q) use ($caseId, $patientId) {
+                    $q->where('case_id', $caseId)
+                        ->where('patient_id', $patientId);
+                })
+                ->first();
+
+            if (!$userFunnel) {
+                return response()->json([
+                    'status'  => false,
+                    'message' => 'Funnel not assigned for this patient case.',
+                ], 404);
+            }
+
             $alreadySubmitted = FormSubmission::where('user_id', $userId)
                 ->where('form_id', $formId)
                 ->where('funnel_id', $request->funnel_id)
+                ->where('user_funnel_id', $userFunnel->id)
                 ->whereNull('deleted_at')
                 ->exists();
 
@@ -770,6 +795,7 @@ class FunnelApiController extends Controller
                     'user_id'    => $userId,
                     'form_id'    => $formId,
                     'funnel_id'  => $request->input('funnel_id'),
+                    'user_funnel_id' => $userFunnel->id,
                     'data'       => $formData,
                     'ip_address' => $request->ip(),
                     'user_agent' => $request->userAgent(),
