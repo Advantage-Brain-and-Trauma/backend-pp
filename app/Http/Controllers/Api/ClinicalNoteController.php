@@ -69,15 +69,10 @@ class ClinicalNoteController extends Controller
             $notes = is_array($result['notes'] ?? null) ? $result['notes'] : [];
             $patientFileNotes = $this->buildCasePatientAttachmentNotes((int) $caseId);
 
-            $notes = array_map(function (array $note) use ($patientFileNotes) {
-                $note['file_notes'] = $patientFileNotes;
-
-                return $note;
-            }, $notes);
-
             return response()->json([
                 'success' => true,
                 'data' => $notes,
+                'file_notes' => $patientFileNotes,
             ], 200, [], JSON_UNESCAPED_SLASHES);
         } catch (\Throwable $e) {
             Log::channel('patient_form')->error('Clinical note API error', [
