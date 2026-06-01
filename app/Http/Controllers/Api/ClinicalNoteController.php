@@ -367,16 +367,25 @@ class ClinicalNoteController extends Controller
             ->table('ahcs_attachment_logs')
             ->select('id', 'case_id', 'attend_id', 'folder', 'sub_folder', 'filename', 'serverType')
             ->where('case_id', $caseId)
-            ->where(function ($query) {
-                $query->whereNull('attend_id')
-                    ->orWhere('attend_id', 0);
-            })
             ->orderByDesc('id')
             ->get();
 
         $files = [];
 
         foreach ($rows as $row) {
+            // Match Medhiwa Add/Edit Patient upload behavior where attend_id can be null/0/'0'/''
+            // depending on legacy inserts and DB column type.
+            $rawAttendId = $row->attend_id ?? null;
+            $normalizedAttendId = is_string($rawAttendId) ? trim($rawAttendId) : $rawAttendId;
+            $isPatientLevelFile = $normalizedAttendId === null
+                || $normalizedAttendId === ''
+                || $normalizedAttendId === '0'
+                || (int) $normalizedAttendId === 0;
+
+            if (!$isPatientLevelFile) {
+                continue;
+            }
+
             $files[] = [
                 'id' => (int) ($row->id ?? 0),
                 'case_id' => (int) ($row->case_id ?? 0),
