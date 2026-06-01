@@ -527,7 +527,7 @@ class ClinicalNoteController extends Controller
                 ], 502);
             }
 
-            $sourcePdfUrl = $this->findSourcePdfUrl($detailRes['json']);
+            $sourcePdfUrl = $this->findSourcePdfUrl($detailRes['json'], (string) $caseId);
             if ($sourcePdfUrl !== '') {
                 $remote = Http::timeout(60)->withHeaders([
                     'Accept' => 'application/pdf,*/*',
@@ -567,7 +567,7 @@ class ClinicalNoteController extends Controller
         }
     }
 
-    private function findSourcePdfUrl(array $detail): string
+    private function findSourcePdfUrl(array $detail, string $caseId = ''): string
     {
         $candidates = [];
         $this->collectPdfUrlCandidates($detail, $candidates);
@@ -576,6 +576,33 @@ class ClinicalNoteController extends Controller
             $normalized = $this->normalizePreviewUrl($candidate);
             if ($normalized !== null && $normalized !== '') {
                 return $normalized;
+            }
+        }
+
+        $filenameCandidates = [];
+        $this->collectPdfFilenameCandidates($detail, $filenameCandidates);
+        $filenameCandidates = array_values(array_unique(array_filter($filenameCandidates)));
+
+        $header = is_array($detail['header'] ?? null) ? $detail['header'] : [];
+        $attendId = (string) ($header['appointmentId'] ?? '');
+
+        foreach ($filenameCandidates as $filename) {
+            $generated = $this->buildUrlFromFilename($filename, $attendId, $caseId);
+            if (!empty($generated['url'])) {
+                $normalized = $this->normalizePreviewUrl((string) $generated['url']);
+                if ($normalized !== null && $normalized !== '') {
+                    return $normalized;
+                }
+            }
+        }
+
+        foreach ($filenameCandidates as $filename) {
+            $generated = $this->buildUrlFromFilename($filename, null, $caseId);
+            if (!empty($generated['url'])) {
+                $normalized = $this->normalizePreviewUrl((string) $generated['url']);
+                if ($normalized !== null && $normalized !== '') {
+                    return $normalized;
+                }
             }
         }
 
@@ -606,6 +633,37 @@ class ClinicalNoteController extends Controller
 
         foreach ($value as $item) {
             $this->collectPdfUrlCandidates($item, $candidates);
+        }
+    }
+
+    private function collectPdfFilenameCandidates(mixed $value, array &$candidates): void
+    {
+        if (is_string($value)) {
+            $trimmed = trim($value);
+            if ($trimmed !== '' && str_ends_with(strtolower($trimmed), '.pdf')) {
+                $path = (string) (parse_url($trimmed, PHP_URL_PATH) ?? $trimmed);
+                $name = basename($path);
+                if ($name !== '') {
+                    $candidates[] = $name;
+                }
+            }
+
+            return;
+        }
+
+        if (!is_array($value)) {
+            return;
+        }
+
+        foreach ($value as $key => $item) {
+            if (is_string($key) && in_array(strtolower($key), ['filename', 'file_name', 'name'], true) && is_string($item)) {
+                $name = trim($item);
+                if ($name !== '' && str_ends_with(strtolower($name), '.pdf')) {
+                    $candidates[] = basename($name);
+                }
+            }
+
+            $this->collectPdfFilenameCandidates($item, $candidates);
         }
     }
 
