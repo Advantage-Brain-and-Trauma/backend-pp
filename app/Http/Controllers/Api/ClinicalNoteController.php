@@ -527,6 +527,22 @@ class ClinicalNoteController extends Controller
                 ], 502);
             }
 
+            $sourcePdfUrl = $this->findSourcePdfUrl($detailRes['json']);
+            if ($sourcePdfUrl !== '') {
+                $remote = Http::timeout(60)->withHeaders([
+                    'Accept' => 'application/pdf,*/*',
+                ])->get($sourcePdfUrl);
+
+                if ($remote->ok() && $remote->body() !== '') {
+                    $filename = 'clinical_note_' . $noteId . '.pdf';
+
+                    return response($remote->body(), 200)
+                        ->header('Content-Type', 'application/pdf')
+                        ->header('Content-Disposition', ($inline ? 'inline' : 'attachment') . '; filename="' . $filename . '"')
+                        ->header('Cache-Control', 'no-cache, no-store, must-revalidate');
+                }
+            }
+
             $pdfBytes = $this->buildClinicalNotePdf($detailRes['json'], (int) $noteId);
             $filename = 'clinical_note_' . $noteId . '.pdf';
 
@@ -548,6 +564,48 @@ class ClinicalNoteController extends Controller
                 'success' => false,
                 'message' => 'Error fetching clinical note PDF.',
             ], 500);
+        }
+    }
+
+    private function findSourcePdfUrl(array $detail): string
+    {
+        $candidates = [];
+        $this->collectPdfUrlCandidates($detail, $candidates);
+
+        foreach ($candidates as $candidate) {
+            $normalized = $this->normalizePreviewUrl($candidate);
+            if ($normalized !== null && $normalized !== '') {
+                return $normalized;
+            }
+        }
+
+        return '';
+    }
+
+    private function collectPdfUrlCandidates(mixed $value, array &$candidates): void
+    {
+        if (is_string($value)) {
+            $trimmed = trim($value);
+            if ($trimmed === '') {
+                return;
+            }
+
+            $lower = strtolower($trimmed);
+            if (str_ends_with($lower, '.pdf')
+                || str_contains($lower, '/storage/files/mh/')
+                || str_contains($lower, '/webdav/mh/')) {
+                $candidates[] = $trimmed;
+            }
+
+            return;
+        }
+
+        if (!is_array($value)) {
+            return;
+        }
+
+        foreach ($value as $item) {
+            $this->collectPdfUrlCandidates($item, $candidates);
         }
     }
 
