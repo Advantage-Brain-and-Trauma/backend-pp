@@ -24,14 +24,14 @@ class PasswordResetApiController extends Controller
     /** Max forgot-password attempts per email per window */
     private const FORGOT_MAX_ATTEMPTS = 3;
 
-    /** Rate-limit decay window in seconds (15 minutes) */
-    private const FORGOT_DECAY_SECONDS = 900;
+    /** Rate-limit decay window in seconds (1.5 minutes) */
+    private const FORGOT_DECAY_SECONDS = 90;
 
     /** Max reset attempts per token per window (brute-force guard) */
     private const RESET_MAX_ATTEMPTS = 5;
 
-    /** Reset rate-limit decay window in seconds (15 minutes) */
-    private const RESET_DECAY_SECONDS = 900;
+    /** Reset rate-limit decay window in seconds (1.5 minutes) */
+    private const RESET_DECAY_SECONDS = 90;
 
     // ─── Forgot Password ──────────────────────────────────────────────────────
 
