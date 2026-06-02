@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\PatientController;
 use App\Http\Controllers\Api\ClinicalController;
 use App\Http\Controllers\Api\ClinicalNoteController;
 use App\Http\Controllers\Api\Auth\AuthApiController;
+use App\Http\Controllers\Api\Auth\PasswordResetApiController;
 use App\Http\Controllers\Api\FunnelApiController;
 use App\Http\Controllers\Api\FormSubmissionNoteController;
 use App\Http\Controllers\Api\RecentActivityController;
@@ -24,6 +25,13 @@ use App\Http\Controllers\Api\RecentActivityController;
 
 Route::post('login',[AuthApiController::class, 'login']);
 Route::post('magic-link/verify',[AuthApiController::class, 'magicLinkVerify']);
+
+// ── Password Reset (public – no auth required) ────────────────────────────
+Route::middleware('throttle:10,1')->group(function () {
+    Route::post('password/forgot',          [PasswordResetApiController::class, 'forgotPassword']);
+    Route::post('password/reset',           [PasswordResetApiController::class, 'resetPassword']);
+    Route::get('password/validate-token',   [PasswordResetApiController::class, 'validateToken']);
+});
 
 Route::middleware('auth:api')->group(function () {
     Route::post('logout',[AuthApiController::class, 'logout']);

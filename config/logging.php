@@ -239,6 +239,14 @@ return [
             'replace_placeholders' => true,
         ],
 
+        'password_reset' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/auth/password_reset.log'),
+            'level' => env('LOG_LEVEL', 'debug'),
+            'days' => 30,
+            'replace_placeholders' => true,
+        ],
+
     ],
 
 ];
