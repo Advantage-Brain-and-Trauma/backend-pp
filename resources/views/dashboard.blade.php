@@ -8,7 +8,7 @@
 <!-- Stats Grid -->
 <div class="stats-grid">
     <div class="stat-card">
-        <div class="stat-icon blue"><i class="fas fa-wpforms"></i></div>
+        <div class="stat-icon blue"><i class="fas fa-clipboard-list"></i></div>
         <div class="stat-info">
             <div class="stat-value">{{ $stats['total_forms'] }}</div>
             <div class="stat-label">Total Forms</div>

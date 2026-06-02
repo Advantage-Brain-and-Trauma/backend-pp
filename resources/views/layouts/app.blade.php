@@ -575,7 +575,7 @@
 
         <div class="nav-section-label">Forms & Funnels</div>
         <a href="{{ route('forms.index') }}" class="nav-item {{ request()->routeIs('forms.*') ? 'active' : '' }}">
-            <i class="fas fa-wpforms"></i> Forms
+            <i class="fas fa-clipboard-list"></i> Forms
         </a>
         <a href="{{ route('old-forms.index') }}" class="nav-item {{ request()->routeIs('old-forms.*') ? 'active' : '' }}">
             <i class="fas fa-file-alt"></i> Old Forms
