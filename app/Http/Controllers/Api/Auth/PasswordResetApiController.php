@@ -12,6 +12,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rules\Password as PasswordRule;
@@ -58,86 +59,102 @@ class PasswordResetApiController extends Controller
      */
     public function forgotPassword(Request $request): JsonResponse
     {
-        // ── Validate input ────────────────────────────────────────────────────
         try {
+            // ── Validate ──────────────────────────────────────────────────────
             $request->validate([
                 'email' => ['required', 'email', 'max:255'],
             ]);
-        } catch (\Illuminate\Validation\ValidationException $e) {
-            return response()->json([
-                'status'  => false,
-                'message' => $e->validator->errors()->first(),
-            ], 422);
-        }
 
-        $email = strtolower(trim($request->input('email')));
+            $email = strtolower(trim($request->input('email')));
 
-        // ── Rate-limit per email address ──────────────────────────────────────
-        $rateLimitKey = 'password.forgot.' . sha1($email);
+            // ── Rate-limit per email address ──────────────────────────────────
+            $rateLimitKey = 'password.forgot.' . sha1($email);
 
-        if (RateLimiter::tooManyAttempts($rateLimitKey, self::FORGOT_MAX_ATTEMPTS)) {
-            $seconds = RateLimiter::availableIn($rateLimitKey);
+            if (RateLimiter::tooManyAttempts($rateLimitKey, self::FORGOT_MAX_ATTEMPTS)) {
+                $seconds = RateLimiter::availableIn($rateLimitKey);
 
-            Log::channel('password_reset')->warning('Forgot-password rate limit hit', [
-                'email'            => $email,
-                'ip'               => $request->ip(),
-                'retry_after_secs' => $seconds,
-            ]);
+                Log::channel('password_reset')->warning('Forgot-password rate limit hit', [
+                    'email'            => $email,
+                    'ip'               => $request->ip(),
+                    'retry_after_secs' => $seconds,
+                ]);
 
-            return response()->json([
-                'status'  => false,
-                'message' => "Too many password-reset requests. Please try again in {$seconds} seconds.",
-            ], 429);
-        }
+                return response()->json([
+                    'status'  => false,
+                    'message' => "Too many password-reset requests. Please try again in {$seconds} seconds.",
+                ], 429);
+            }
 
-        RateLimiter::hit($rateLimitKey, self::FORGOT_DECAY_SECONDS);
+            RateLimiter::hit($rateLimitKey, self::FORGOT_DECAY_SECONDS);
 
-        Log::channel('password_reset')->info('Forgot-password request received', [
-            'email' => $email,
-            'ip'    => $request->ip(),
-        ]);
-
-        // ── Look up user ──────────────────────────────────────────────────────
-        $user = User::where('email', $email)->first();
-
-        if (!$user) {
-            // Log silently — do NOT reveal to the caller that the email is unknown
-            Log::channel('password_reset')->warning('Forgot-password: no user found for email', [
+            Log::channel('password_reset')->info('Forgot-password request received', [
                 'email' => $email,
                 'ip'    => $request->ip(),
             ]);
+
+            // ── Look up user (no early return to avoid enumeration) ───────────
+            $user = User::where('email', $email)->first();
+
+            if ($user) {
+                // Delete any stale token for this email so the table stays tidy
+                DB::table('password_reset_tokens')->where('email', $email)->delete();
+
+                // Generate a plain-text token (64 random bytes → 128 hex chars)
+                $plainToken = Str::random(64);
+
+                // Store the hashed version — Hash::check() used on verify
+                DB::table('password_reset_tokens')->insert([
+                    'email'      => $email,
+                    'token'      => Hash::make($plainToken),
+                    'created_at' => now(),
+                ]);
+
+                // Build the frontend reset URL
+                // The frontend reads `token` + `email` from the query string
+                $resetUrl = rtrim(config('app.frontend_url', 'https://app.advantagehcs.com'), '/')
+                    . '/reset-password'
+                    . '?token=' . urlencode($plainToken)
+                    . '&email=' . urlencode($email);
+
+                $expiresInMinutes = (int) config('auth.passwords.users.expire', 60);
+
+                Mail::to($email)->send(
+                    new PasswordResetMail(
+                        $user->name ?? 'Patient',
+                        $resetUrl,
+                        $expiresInMinutes,
+                    )
+                );
+
+                Log::channel('password_reset')->info('Password-reset email dispatched', [
+                    'user_id' => $user->id,
+                    'email'   => $email,
+                ]);
+            } else {
+                // Log silently; do NOT reveal to the caller that the email is unknown
+                Log::channel('password_reset')->info('Forgot-password: email not found (no action taken)', [
+                    'email' => $email,
+                    'ip'    => $request->ip(),
+                ]);
+            }
 
             // Always return the same response (anti-enumeration)
             return response()->json([
                 'status'  => true,
                 'message' => 'If that email is registered, a password reset link has been sent. Please check your inbox.',
             ], 200);
-        }
 
-        // ── Generate & store token ────────────────────────────────────────────
-        try {
-            // Delete any stale token for this email first
-            DB::table('password_reset_tokens')->where('email', $email)->delete();
-
-            // 64 random chars → stored only as bcrypt hash (plain token goes in the link)
-            $plainToken = Str::random(64);
-
-            DB::table('password_reset_tokens')->insert([
-                'email'      => $email,
-                'token'      => Hash::make($plainToken),
-                'created_at' => now(),
-            ]);
-
-            Log::channel('password_reset')->info('Reset token created', [
-                'user_id' => $user->id,
-                'email'   => $email,
-            ]);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json([
+                'status'  => false,
+                'message' => $e->validator->errors()->first(),
+            ], 422);
 
         } catch (\Throwable $e) {
-            Log::channel('password_reset')->error('Failed to create reset token', [
-                'user_id' => $user->id,
-                'email'   => $email,
-                'error'   => $e->getMessage(),
+            Log::channel('password_reset')->error('Forgot-password error', [
+                'email'   => $request->input('email') ?? null,
+                'ip'      => $request->ip(),
+                'message' => $e->getMessage(),
                 'line'    => $e->getLine(),
                 'file'    => $e->getFile(),
             ]);
@@ -147,66 +164,6 @@ class PasswordResetApiController extends Controller
                 'message' => 'Something went wrong. Please try again later.',
             ], 500);
         }
-
-        // ── Build reset URL ───────────────────────────────────────────────────
-        $resetUrl = rtrim(config('app.frontend_url', 'https://app.advantagehcs.com'), '/')
-            . '/reset-password'
-            . '?token=' . urlencode($plainToken)
-            . '&email='  . urlencode($email);
-
-        $expiresInMinutes = (int) config('auth.passwords.users.expire', 60);
-
-        // ── Send email — isolated so SMTP errors are fully visible in logs ────
-        $mailSent = false;
-        try {
-            Mail::to($email)->send(
-                new PasswordResetMail(
-                    $user->name ?? 'Patient',
-                    $resetUrl,
-                    $expiresInMinutes,
-                )
-            );
-
-            $mailSent = true;
-
-            Log::channel('password_reset')->info('Password-reset email sent successfully', [
-                'user_id'   => $user->id,
-                'email'     => $email,
-                'mailer'    => config('mail.default'),
-                'mail_host' => config('mail.mailers.smtp.host'),
-                'mail_port' => config('mail.mailers.smtp.port'),
-                'mail_enc'  => config('mail.mailers.smtp.encryption'),
-                'mail_from' => config('mail.from.address'),
-            ]);
-
-        } catch (\Throwable $mailError) {
-            // Token was created — delete it so a retry is clean
-            DB::table('password_reset_tokens')->where('email', $email)->delete();
-
-            Log::channel('password_reset')->error('SMTP / Mail sending FAILED — token rolled back', [
-                'user_id'       => $user->id,
-                'email'         => $email,
-                'mailer'        => config('mail.default'),
-                'mail_host'     => config('mail.mailers.smtp.host'),
-                'mail_port'     => config('mail.mailers.smtp.port'),
-                'mail_enc'      => config('mail.mailers.smtp.encryption'),
-                'mail_from'     => config('mail.from.address'),
-                'error_class'   => get_class($mailError),
-                'error_message' => $mailError->getMessage(),
-                'error_line'    => $mailError->getLine(),
-                'error_file'    => $mailError->getFile(),
-            ]);
-
-            return response()->json([
-                'status'  => false,
-                'message' => 'We were unable to send the reset email. Please try again or contact support.',
-            ], 500);
-        }
-
-        return response()->json([
-            'status'  => true,
-            'message' => 'If that email is registered, a password reset link has been sent. Please check your inbox.',
-        ], 200);
     }
 
     // ─── Reset Password ───────────────────────────────────────────────────────
