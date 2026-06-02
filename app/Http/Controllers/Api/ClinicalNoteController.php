@@ -274,8 +274,7 @@ class ClinicalNoteController extends Controller
         string $subFolder,
         string $filename
     ): Response|JsonResponse {
-
-    return response(['success' => false, 'message' => 'Attachment preview is temporarily unavailable.'], 503);
+        
         $patientId = auth()->user()->patient_id;
 
         $isValidCaseForPatient = AhcsCase::where('id', $caseId)
