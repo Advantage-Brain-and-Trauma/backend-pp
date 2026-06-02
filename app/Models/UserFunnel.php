@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 class UserFunnel extends Model
 {
     use SoftDeletes;
+
     protected $fillable = [
         'user_id',
         'patient_id',
@@ -16,6 +17,24 @@ class UserFunnel extends Model
         'assigned_via',
         'assigned_at',
     ];
+
+    /**
+     * When soft-deleting, stamp deleted_id = id so the unique constraint
+     * (user_id, funnel_id, patient_case_id, deleted_id) is never blocked by
+     * a previously deleted row. Active rows always have deleted_id = 0.
+     */
+    protected static function boot(): void
+    {
+        parent::boot();
+
+        static::deleting(function (self $model) {
+            if (! $model->isForceDeleting()) {
+                $model->deleted_id = $model->id;
+                // Save only this column so we don't accidentally touch others.
+                $model->saveQuietly(['deleted_id']);
+            }
+        });
+    }
 
     protected $casts = [
         'assigned_at' => 'datetime',

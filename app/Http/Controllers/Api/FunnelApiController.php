@@ -1015,17 +1015,6 @@ class FunnelApiController extends Controller
                 ], 422);
             }
 
-            // Permanently remove any soft-deleted record that would collide with the
-            // unique constraint (user_id, funnel_id, patient_case_id). Without this,
-            // the INSERT below fails with a duplicate-key error even though the active
-            // guard above passed (soft-deleted rows are invisible to that query).
-            UserFunnel::withTrashed()
-                ->where('user_id', $userId)
-                ->where('funnel_id', $request->funnel_id)
-                ->where('patient_case_id', $patientCase->id)
-                ->whereNotNull('deleted_at')
-                ->forceDelete();
-
             // Always create a brand-new UserFunnel record.
             //
             // WHY: Restoring a soft-deleted record reuses the same primary key
@@ -1178,17 +1167,6 @@ class FunnelApiController extends Controller
                     'message' => 'A funnel is already assigned for this patient and case.',
                 ], 422);
             }
-
-            // Permanently remove any soft-deleted record that would collide with the
-            // unique constraint (user_id, funnel_id, patient_case_id). Without this,
-            // the INSERT below fails with a duplicate-key error even though the active
-            // guard above passed (soft-deleted rows are invisible to that query).
-            UserFunnel::withTrashed()
-                ->where('user_id', $userId)
-                ->where('funnel_id', $request->funnel_id)
-                ->where('patient_case_id', $patientCase->id)
-                ->whereNotNull('deleted_at')
-                ->forceDelete();
 
             // Always create a brand-new UserFunnel record.
             //
