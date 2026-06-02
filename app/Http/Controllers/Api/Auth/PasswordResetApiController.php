@@ -216,7 +216,6 @@ class PasswordResetApiController extends Controller
                         ->letters()       // at least one letter
                         ->numbers()       // at least one number
                         ->symbols()       // at least one special character
-                        ->uncompromised(), // checked against known breach lists
                 ],
             ]);
 
