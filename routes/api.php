@@ -9,6 +9,7 @@ use App\Http\Controllers\Api\ClinicalNoteController;
 use App\Http\Controllers\Api\Auth\AuthApiController;
 use App\Http\Controllers\Api\FunnelApiController;
 use App\Http\Controllers\Api\FormSubmissionNoteController;
+use App\Http\Controllers\Api\RecentActivityController;
 
 /*
 |--------------------------------------------------------------------------
@@ -58,6 +59,9 @@ Route::middleware(['auth:api', 'role.api:User'])->group(function (){
     // Form Submissions API
     Route::post('patient-forms/{formId}/submit', [FunnelApiController::class, 'patientSubmitForm']);
     
+    // Recent Activity
+    Route::get('recent-activity', [RecentActivityController::class, 'index']);
+
     // Form Submission Notes API
     Route::get('form-submissions/{submissionId}/notes',             [FormSubmissionNoteController::class, 'index']);
     Route::post('form-submissions/{submissionId}/notes',            [FormSubmissionNoteController::class, 'store']);
