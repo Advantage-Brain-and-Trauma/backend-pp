@@ -274,7 +274,7 @@ class ClinicalNoteController extends Controller
         string $subFolder,
         string $filename
     ): Response|JsonResponse {
-        
+
         $patientId = auth()->user()->patient_id;
 
         $isValidCaseForPatient = AhcsCase::where('id', $caseId)
@@ -474,7 +474,6 @@ class ClinicalNoteController extends Controller
                 'sub_folder' => (string) ($row->sub_folder ?? ''),
                 'filename' => (string) ($row->filename ?? ''),
                 'serverType' => (int) ($row->serverType ?? 2),
-                'url' => $this->buildAttachmentPreviewUrl($row),
             ];
         }
 
