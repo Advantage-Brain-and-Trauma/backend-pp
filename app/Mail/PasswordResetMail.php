@@ -30,8 +30,13 @@ class PasswordResetMail extends Mailable
 
     public function envelope(): Envelope
     {
+        // Do NOT use config('app.name') — APP_NAME=Laravel in .env, which makes the
+        // subject "Reset Your Password – Laravel" and triggers spam filters immediately.
+        // Use MAIL_FROM_NAME instead which is set to the real app name ("Advantage").
+        $appName = config('mail.from.name', 'MedHiWa Patient Portal');
+
         return new Envelope(
-            subject: 'Reset Your Password – ' . config('app.name'),
+            subject: 'Your ' . $appName . ' Account – Action Required (' . now()->format('M d, Y') . ')',
         );
     }
 

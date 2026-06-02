@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Reset Your Password</title>
+    <title>Account Access Request</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -30,8 +30,8 @@
         .header h1 {
             color: #ffffff;
             margin: 0;
-            font-size: 22px;
-            letter-spacing: 0.5px;
+            font-size: 20px;
+            letter-spacing: 0.4px;
         }
         .body {
             padding: 36px 40px;
@@ -54,20 +54,20 @@
             font-weight: bold;
             letter-spacing: 0.3px;
         }
-        .fallback-url {
-            word-break: break-all;
-            font-size: 13px;
-            color: #666666;
-            margin-top: 8px;
-        }
-        .notice {
-            background-color: #fff8e1;
-            border-left: 4px solid #f9a825;
+        .info-box {
+            background-color: #f0f4ff;
+            border-left: 4px solid #1a73e8;
             padding: 12px 16px;
             border-radius: 4px;
             font-size: 13px;
-            color: #555555;
+            color: #444444;
             margin-bottom: 20px;
+        }
+        .fallback-url {
+            word-break: break-all;
+            font-size: 12px;
+            color: #888888;
+            margin-top: 8px;
         }
         .footer {
             background-color: #f4f4f4;
@@ -80,40 +80,43 @@
 </head>
 <body>
     <div class="wrapper">
+
         <div class="header">
-            <h1>MedHiWa – Password Reset</h1>
+            <h1>MedHiWa Patient Portal</h1>
         </div>
+
         <div class="body">
             <p>Hello, <strong>{{ $patientName }}</strong>,</p>
 
-            <p>We received a request to reset the password for your MedHiWa patient portal account.
-               Click the button below to create a new password.</p>
+            <p>We received a request to update the login credentials for your patient portal account.
+               Please click the button below to proceed.</p>
 
             <div class="btn-wrap">
-                <a href="{{ $resetUrl }}" class="btn">Reset My Password</a>
+                <a href="{{ $resetUrl }}" class="btn">Update My Credentials</a>
+            </div>
+
+            <div class="info-box">
+                ℹ️ This link is valid for <strong>{{ $expiresInMinutes }} minutes</strong>
+                and can only be used once.<br>
+                If you did not make this request, no action is needed.
             </div>
 
             <p class="fallback-url">
-                If the button above does not work, copy and paste this link into your browser:<br>
+                If the button does not work, copy and paste this link into your browser:<br>
                 {{ $resetUrl }}
             </p>
-
-            <div class="notice">
-                ⚠️ This link will expire in <strong>{{ $expiresInMinutes }} minutes</strong> and can only be used <strong>once</strong>.
-                If you did not request a password reset, you can safely ignore this email — your account is not at risk.
-            </div>
-
-            <p>For your security, please do not share this link with anyone.</p>
 
             <p>If you have any questions, please contact our support team.</p>
 
             <br>
             <p>Best Regards,<br><strong>MedHiWa Team</strong></p>
         </div>
+
         <div class="footer">
             &copy; {{ date('Y') }} MedHiWa. All rights reserved.<br>
-            This is an automated message. Please do not reply to this email.
+            This is an automated message — please do not reply to this email.
         </div>
+
     </div>
 </body>
 </html>
