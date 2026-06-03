@@ -70,8 +70,8 @@ class FunnelApiController extends Controller
     {
         try {
 
-            $caseId = $request->input('case_id');
-            $patientId = $request->user()->patient_id;
+            $caseId     = $request->input('case_id');
+            $patientIds = $request->user()->getAllPatientIds();
 
             if (empty($caseId)) {
                 return response()->json([
@@ -81,7 +81,7 @@ class FunnelApiController extends Controller
             }
 
             $isValidCaseForPatient = AhcsCase::where('id', $caseId)
-                ->where('patient_id', $patientId)
+                ->whereIn('patient_id', $patientIds)
                 ->exists();
 
             if (!$isValidCaseForPatient) {
@@ -196,9 +196,9 @@ class FunnelApiController extends Controller
     public function getPatientFunnelSubmissionDetails(Request $request, $funnelId)
     {
         try {
-            $userId = auth()->id();
-            $caseId = $request->input('case_id');
-            $patientId = auth()->user()->patient_id;
+            $userId     = auth()->id();
+            $caseId     = $request->input('case_id');
+            $patientIds = auth()->user()->getAllPatientIds();
 
             if (empty($caseId)) {
                 return response()->json([
@@ -207,16 +207,20 @@ class FunnelApiController extends Controller
                 ], 422);
             }
 
-            $isValidCaseForPatient = AhcsCase::where('id', $caseId)
-                ->where('patient_id', $patientId)
-                ->exists();
+            // Validate the case belongs to one of this user's patient IDs and
+            // resolve the exact patient_id associated with the case in one query.
+            $caseRecord = AhcsCase::where('id', $caseId)
+                ->whereIn('patient_id', $patientIds)
+                ->first(['patient_id']);
 
-            if (!$isValidCaseForPatient) {
+            if (!$caseRecord) {
                 return response()->json([
                     'status' => false,
                     'message' => 'Invalid Case Id for this patient.',
                 ], 422);
             }
+
+            $patientId = $caseRecord->patient_id;
 
             $fieldMapping = [
                 "first_name" => "First Name:",
@@ -471,9 +475,9 @@ class FunnelApiController extends Controller
     {
         try {
 
-            $userId    = auth()->id();
-            $patientId = auth()->user()->patient_id;
-            $caseId    = $request->input('case_id');
+            $userId     = auth()->id();
+            $patientIds = auth()->user()->getAllPatientIds();
+            $caseId     = $request->input('case_id');
 
             if (empty($caseId)) {
                 return response()->json([
@@ -481,7 +485,15 @@ class FunnelApiController extends Controller
                     'message' => 'Case Id is required.',
                 ], 422);
             }
-            
+
+            // Validate case and resolve the exact patient_id for this case (needed
+            // later for AMD sync which requires a single integer).
+            $caseRecord = AhcsCase::where('id', $caseId)
+                ->whereIn('patient_id', $patientIds)
+                ->first(['patient_id']);
+
+            $patientId = $caseRecord?->patient_id;
+
             Log::channel('patient_form')->info('Patient form submission started', [
                 'user_id'    => $userId,
                 'patient_id' => $patientId,
@@ -511,14 +523,10 @@ class FunnelApiController extends Controller
                 ], 422);
             }
 
-            $checkPatientCase = AhcsCase::where('id', $caseId)
-                ->where('patient_id', $patientId)
-                ->exists();
-
-            if (!$checkPatientCase) {
+            if (!$caseRecord) {
                 Log::channel('patient_form')->warning('Invalid patient or case', [
                     'user_id'    => $userId,
-                    'patient_id' => $patientId,
+                    'patient_ids'=> $patientIds,
                     'case_id'    => $caseId,
                 ]);
                 return response()->json([
@@ -987,9 +995,14 @@ class FunnelApiController extends Controller
 
             $patient = AhcsPatient::find($request->patient_id);
 
-            // Check for an existing user by email OR patient_id array membership.
+            // Check for an existing user by email OR patient_id membership
+            // (handles both old plain-int and new JSON-array storage formats).
             $user = User::where('email', $request->email)
-                ->orWhereJsonContains('patient_id', (int) $request->patient_id)
+                ->orWhere(function ($q) use ($request) {
+                    $pid = (int) $request->patient_id;
+                    $q->whereJsonContains('patient_id', $pid)
+                      ->orWhere('patient_id', $pid);
+                })
                 ->first();
 
             $userId = $user?->id;
@@ -1153,8 +1166,9 @@ class FunnelApiController extends Controller
 
             $patient = AhcsPatient::find($request->patient_id);
 
-            // Check for an existing user by patient_id array membership (SMS has no email).
-            $user   = User::whereJsonContains('patient_id', (int) $request->patient_id)->first();
+            // Check for an existing user by patient_id membership
+            // (handles both old plain-int and new JSON-array storage formats).
+            $user = User::hasPatientId((int) $request->patient_id)->first();
             $userId = $user?->id;
             $flag   = $user ? 'user_exists' : 'no_user';
             $patientName = $patient->patient_name
@@ -1428,13 +1442,17 @@ class FunnelApiController extends Controller
             // No existing ID is ever removed.
             $requestPatientId = (int) $request->patient_id;
 
-            // Find existing user by email OR patient_id array membership (including soft-deleted).
+            // Find existing user by email OR patient_id membership (handles both old plain-int
+            // and new JSON-array storage formats).
             $user = User::withTrashed()
                 ->where('email', $request->email)
-                ->orWhereJsonContains('patient_id', $requestPatientId)
+                ->orWhere(function ($q) use ($requestPatientId) {
+                    $q->whereJsonContains('patient_id', $requestPatientId)
+                      ->orWhere('patient_id', $requestPatientId);
+                })
                 ->first();
 
-            $existingIds = $user ? ($user->patient_id ?? []) : [];
+            $existingIds = $user ? $user->getAllPatientIds() : [];
             $mergedIds   = array_values(array_unique(array_merge(
                 array_map('intval', $existingIds),
                 $funnelPatientIds,

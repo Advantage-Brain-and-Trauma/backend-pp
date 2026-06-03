@@ -30,7 +30,7 @@ class FormSubmissionNoteController extends Controller
     public function index(Request $request, int $submissionId)
     {
         $caseId = $request->input('case_id');
-        $patientId = auth()->user()->patient_id;
+        $patientIds = auth()->user()->getAllPatientIds();
 
         if (empty($caseId)) {
             return response()->json([
@@ -40,7 +40,7 @@ class FormSubmissionNoteController extends Controller
         }
 
         $isValidCaseForPatient = AhcsCase::where('id', $caseId)
-            ->where('patient_id', $patientId)
+            ->whereIn('patient_id', $patientIds)
             ->exists();
 
         if (!$isValidCaseForPatient) {
@@ -49,6 +49,8 @@ class FormSubmissionNoteController extends Controller
                 'message' => 'Invalid Case Id for this patient.',
             ], 422);
         }
+
+        $patientId = AhcsCase::where('id', $caseId)->value('patient_id');
 
         Log::channel('patient_form')->info('Fetching form submission notes started', [
             'submission_id' => $submissionId,
@@ -108,7 +110,7 @@ class FormSubmissionNoteController extends Controller
     public function store(Request $request, int $submissionId)
     {
         $caseId = $request->input('case_id');
-        $patientId = auth()->user()->patient_id;
+        $patientIds = auth()->user()->getAllPatientIds();
 
         if (empty($caseId)) {
             return response()->json([
@@ -118,7 +120,7 @@ class FormSubmissionNoteController extends Controller
         }
 
         $isValidCaseForPatient = AhcsCase::where('id', $caseId)
-            ->where('patient_id', $patientId)
+            ->whereIn('patient_id', $patientIds)
             ->exists();
 
         if (!$isValidCaseForPatient) {
@@ -127,6 +129,8 @@ class FormSubmissionNoteController extends Controller
                 'message' => 'Invalid Case Id for this patient.',
             ], 422);
         }
+
+        $patientId = AhcsCase::where('id', $caseId)->value('patient_id');
 
         Log::channel('patient_form')->info('Creating form submission note started', [
             'submission_id' => $submissionId,
@@ -200,7 +204,7 @@ class FormSubmissionNoteController extends Controller
     public function update(Request $request, int $submissionId, int $noteId)
     {
         $caseId = $request->input('case_id');
-        $patientId = auth()->user()->patient_id;
+        $patientIds = auth()->user()->getAllPatientIds();
 
         if (empty($caseId)) {
             return response()->json([
@@ -210,7 +214,7 @@ class FormSubmissionNoteController extends Controller
         }
 
         $isValidCaseForPatient = AhcsCase::where('id', $caseId)
-            ->where('patient_id', $patientId)
+            ->whereIn('patient_id', $patientIds)
             ->exists();
 
         if (!$isValidCaseForPatient) {
@@ -219,6 +223,8 @@ class FormSubmissionNoteController extends Controller
                 'message' => 'Invalid Case Id for this patient.',
             ], 422);
         }
+
+        $patientId = AhcsCase::where('id', $caseId)->value('patient_id');
 
         Log::channel('patient_form')->info('Updating form submission note started', [
             'submission_id' => $submissionId,
@@ -302,7 +308,7 @@ class FormSubmissionNoteController extends Controller
     public function destroy(Request $request, int $submissionId, int $noteId)
     {
         $caseId = $request->input('case_id');
-        $patientId = auth()->user()->patient_id;
+        $patientIds = auth()->user()->getAllPatientIds();
 
         if (empty($caseId)) {
             return response()->json([
@@ -312,7 +318,7 @@ class FormSubmissionNoteController extends Controller
         }
 
         $isValidCaseForPatient = AhcsCase::where('id', $caseId)
-            ->where('patient_id', $patientId)
+            ->whereIn('patient_id', $patientIds)
             ->exists();
 
         if (!$isValidCaseForPatient) {
@@ -321,6 +327,8 @@ class FormSubmissionNoteController extends Controller
                 'message' => 'Invalid Case Id for this patient.',
             ], 422);
         }
+
+        $patientId = AhcsCase::where('id', $caseId)->value('patient_id');
 
         Log::channel('patient_form')->info('Deleting form submission note started', [
             'submission_id' => $submissionId,

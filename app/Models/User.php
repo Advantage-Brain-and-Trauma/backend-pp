@@ -55,26 +55,49 @@ class User extends Authenticatable implements JWTSubject
     // -------------------------------------------------------------------------
 
     /**
-     * Return the primary (first) patient ID from the JSON array.
-     * Used wherever a single integer patient ID is required (queries, JWT, etc.).
+     * Normalise the patient_id column into a plain PHP int[].
+     *
+     * Handles three storage formats that may exist in the database:
+     *   1. NULL                     → []
+     *   2. Plain integer  (old rows where the column is still a scalar,
+     *                      or JSON numeric literal 123 stored without array)
+     *                               → [123]
+     *   3. JSON array     [123, 456] (new format)
+     *                               → [123, 456]
      */
-    public function getPrimaryPatientId(): ?int
+    public function getAllPatientIds(): array
     {
-        $ids = $this->patient_id;
-        if (empty($ids) || !is_array($ids)) {
-            return null;
+        $raw = $this->patient_id; // may be null | int | array after 'array' cast
+
+        if (is_null($raw)) {
+            return [];
         }
-        $first = $ids[0] ?? null;
-        return $first !== null ? (int) $first : null;
+
+        if (is_array($raw)) {
+            return array_values(array_unique(array_filter(array_map('intval', $raw))));
+        }
+
+        // Scalar fallback: old rows stored as plain integer
+        return [(int) $raw];
     }
 
     /**
-     * Append a patient ID to this user's patient_id JSON array if it is not
-     * already present.  Saves the model afterwards.
+     * Return the primary (first) patient ID.
+     * Works whether patient_id is stored as a plain int or a JSON array.
+     */
+    public function getPrimaryPatientId(): ?int
+    {
+        $ids = $this->getAllPatientIds();
+        return $ids[0] ?? null;
+    }
+
+    /**
+     * Append a patient ID to this user's patient_id array without overwriting
+     * any existing IDs.  Saves the model.
      */
     public function appendPatientId(int $patientId): void
     {
-        $ids = $this->patient_id ?? [];
+        $ids = $this->getAllPatientIds();
         if (!in_array($patientId, $ids, true)) {
             $ids[] = $patientId;
             $this->patient_id = $ids;
@@ -83,18 +106,33 @@ class User extends Authenticatable implements JWTSubject
     }
 
     /**
-     * Merge an array of patient IDs into this user's patient_id column without
-     * removing any existing values.  Saves the model afterwards.
+     * Merge multiple patient IDs into this user's array without removing
+     * any existing IDs.  Saves the model.
      */
     public function mergePatientIds(array $newIds): void
     {
-        $existing = $this->patient_id ?? [];
+        $existing = $this->getAllPatientIds();
         $merged   = array_values(array_unique(array_merge(
-            array_map('intval', $existing),
+            $existing,
             array_map('intval', $newIds),
         )));
         $this->patient_id = $merged;
         $this->save();
+    }
+
+    /**
+     * Query scope: match rows whose patient_id column contains the given ID.
+     *
+     * Handles both storage formats without breaking:
+     *   - New format: JSON array  → MySQL JSON_CONTAINS
+     *   - Old format: plain int   → direct equality
+     */
+    public function scopeHasPatientId(\Illuminate\Database\Eloquent\Builder $query, int $patientId): \Illuminate\Database\Eloquent\Builder
+    {
+        return $query->where(function ($q) use ($patientId) {
+            $q->whereJsonContains('patient_id', $patientId)
+              ->orWhere('patient_id', $patientId);
+        });
     }
 
     // -------------------------------------------------------------------------

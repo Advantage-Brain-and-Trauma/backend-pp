@@ -44,16 +44,12 @@ class PatientController extends Controller
             ]);
 
             $userDetails = auth()->user();
-            $patient_id = $userDetails->patient_id;
-            // $case_id = $userDetails->case_id ?? 10004802;
+            // Use the primary patient ID for single-patient lookups.
+            $patient_id = $userDetails->getPrimaryPatientId();
 
             if (!$patient_id) {
                 throw new \Exception("Patient ID is required", 400);
             }
-
-            // if (!$case_id) {
-            //     throw new \Exception("Case ID is required", 400);
-            // }
 
             // ✅ Use findOrFail (auto throw)
             $patient = AhcsPatient::findOrFail($patient_id);
@@ -146,23 +142,20 @@ class PatientController extends Controller
             ]);
 
             $userDetails = auth()->user();
-            $patient_id = $userDetails->patient_id;
+            // Collect ALL patient IDs so cases for every linked patient are returned.
+            $patient_ids = $userDetails->getAllPatientIds();
 
-            if (!$patient_id) {
+            if (empty($patient_ids)) {
                 throw new \Exception("Patient ID is required", 400);
             }
 
-            // $caseIds = PatientCase::where('patient_id', $patient_id)
-            //     ->pluck('case_id')
-            //     ->toArray();
-
-            $caseIds = AhcsCase::where('patient_id', $patient_id)
+            $caseIds = AhcsCase::whereIn('patient_id', $patient_ids)
                 ->pluck('id')
                 ->toArray();
 
             Log::channel('patient')->info('Case IDs fetched successfully', [
-                'patient_id' => $patient_id,
-                'case_count' => count($caseIds),
+                'patient_ids' => $patient_ids,
+                'case_count'  => count($caseIds),
             ]);
 
             return response()->json([

@@ -34,8 +34,8 @@ class ClinicalNoteController extends Controller
      */
     public function show(Request $request): JsonResponse
     {
-        $caseId = $request->query('case_id');
-        $patientId = auth()->user()->patient_id;
+        $caseId     = $request->query('case_id');
+        $patientIds = auth()->user()->getAllPatientIds();
 
         try {
             if (empty($caseId)) {
@@ -45,16 +45,20 @@ class ClinicalNoteController extends Controller
                 ], 422);
             }
 
-            $isValidCaseForPatient = AhcsCase::where('id', $caseId)
-                ->where('patient_id', $patientId)
-                ->exists();
+            // Validate and resolve the specific patient_id for this case
+            // (AMD service requires a single integer patient ID).
+            $caseRecord = AhcsCase::where('id', $caseId)
+                ->whereIn('patient_id', $patientIds)
+                ->first(['patient_id']);
 
-            if (!$isValidCaseForPatient) {
+            if (!$caseRecord) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Invalid Case Id for this patient.',
                 ], 422);
             }
+
+            $patientId = $caseRecord->patient_id;
 
             $result = $this->amdClinicalNoteService->getClinicalNotesByMedhiwaPatient((int) $patientId, (int) $caseId);
             if (empty($result['status'])) {
@@ -114,9 +118,9 @@ class ClinicalNoteController extends Controller
      */
     public function preview(Request $request): Response|JsonResponse
     {
-        $rawUrl = trim((string) $request->query('url', ''));
-        $caseId = $request->query('case_id');
-        $patientId = auth()->user()->patient_id;
+        $rawUrl     = trim((string) $request->query('url', ''));
+        $caseId     = $request->query('case_id');
+        $patientIds = auth()->user()->getAllPatientIds();
 
         if (empty($caseId)) {
             return response()->json([
@@ -126,7 +130,7 @@ class ClinicalNoteController extends Controller
         }
 
         $isValidCaseForPatient = AhcsCase::where('id', $caseId)
-            ->where('patient_id', $patientId)
+            ->whereIn('patient_id', $patientIds)
             ->exists();
 
         if (!$isValidCaseForPatient) {
@@ -214,10 +218,10 @@ class ClinicalNoteController extends Controller
      */
     public function generatePreviewUrl(Request $request): JsonResponse
     {
-        $filename = trim((string) $request->query('filename', ''));
-        $attendId = $request->query('attend_id');
-        $caseId = $request->query('case_id');
-        $patientId = auth()->user()->patient_id;
+        $filename   = trim((string) $request->query('filename', ''));
+        $attendId   = $request->query('attend_id');
+        $caseId     = $request->query('case_id');
+        $patientIds = auth()->user()->getAllPatientIds();
 
         if (empty($caseId)) {
             return response()->json([
@@ -227,7 +231,7 @@ class ClinicalNoteController extends Controller
         }
 
         $isValidCaseForPatient = AhcsCase::where('id', $caseId)
-            ->where('patient_id', $patientId)
+            ->whereIn('patient_id', $patientIds)
             ->exists();
 
         if (!$isValidCaseForPatient) {
@@ -273,10 +277,10 @@ class ClinicalNoteController extends Controller
         string $filename
     ): Response|JsonResponse {
 
-        $patientId = auth()->user()->patient_id;
+        $patientIds = auth()->user()->getAllPatientIds();
 
         $isValidCaseForPatient = AhcsCase::where('id', $caseId)
-            ->where('patient_id', $patientId)
+            ->whereIn('patient_id', $patientIds)
             ->exists();
 
         if (!$isValidCaseForPatient) {
@@ -732,8 +736,8 @@ class ClinicalNoteController extends Controller
 
     private function proxyNotePdf(Request $request, int|string $noteId, bool $inline): Response|JsonResponse
     {
-        $caseId = $request->query('case_id');
-        $patientId = auth()->user()->patient_id;
+        $caseId     = $request->query('case_id');
+        $patientIds = auth()->user()->getAllPatientIds();
 
         if (empty($caseId)) {
             return response()->json([
@@ -743,7 +747,7 @@ class ClinicalNoteController extends Controller
         }
 
         $isValidCaseForPatient = AhcsCase::where('id', $caseId)
-            ->where('patient_id', $patientId)
+            ->whereIn('patient_id', $patientIds)
             ->exists();
 
         if (!$isValidCaseForPatient) {

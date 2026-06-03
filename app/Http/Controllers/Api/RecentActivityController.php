@@ -44,10 +44,10 @@ class RecentActivityController extends Controller
     public function index(Request $request): JsonResponse
     {
         try {
-            $userId    = auth()->id();
-            $patientId = auth()->user()->patient_id;
-            $caseId    = $request->query('case_id');
-            $limit     = min((int) $request->query('limit', 20), 50);
+            $userId     = auth()->id();
+            $patientIds = auth()->user()->getAllPatientIds();
+            $caseId     = $request->query('case_id');
+            $limit      = min((int) $request->query('limit', 20), 50);
 
             if (empty($caseId)) {
                 return response()->json([
@@ -57,7 +57,7 @@ class RecentActivityController extends Controller
             }
 
             $isValidCase = AhcsCase::where('id', $caseId)
-                ->where('patient_id', $patientId)
+                ->whereIn('patient_id', $patientIds)
                 ->exists();
 
             if (!$isValidCase) {
@@ -67,10 +67,13 @@ class RecentActivityController extends Controller
                 ], 422);
             }
 
+            // Resolve the exact patient_id for this case for sub-queries.
+            $patientId = AhcsCase::where('id', $caseId)->value('patient_id');
+
             Log::channel('patient_funnel')->info('Fetching recent activity', [
-                'user_id'   => $userId,
-                'patient_id'=> $patientId,
-                'case_id'   => $caseId,
+                'user_id'    => $userId,
+                'patient_ids'=> $patientIds,
+                'case_id'    => $caseId,
             ]);
 
             $activities = collect();

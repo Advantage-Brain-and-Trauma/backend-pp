@@ -209,7 +209,7 @@ class AuthApiController extends Controller
             ], 422);
         }
 
-        $exists = User::whereJsonContains('patient_id', (int) $request->patient_id)->exists();
+        $exists = User::hasPatientId((int) $request->patient_id)->exists();
 
         return response()->json([
             'success' => true,

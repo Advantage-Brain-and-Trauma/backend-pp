@@ -152,7 +152,9 @@ class ClinicalController extends Controller
     public function getPatientSubmitedFormData(Request $request)
     {
         try {
-            $patientId = auth()->user()->patient_id;
+            // Use primary patient ID for the external patient_portal query
+            // which only accepts a single integer.
+            $patientId = auth()->user()->getPrimaryPatientId();
 
             $patient = DB::connection('patient_portal')
                 ->table('users')
@@ -442,8 +444,8 @@ class ClinicalController extends Controller
                 'user_id' => auth()->id(),
             ]);
 
-            $caseId = $request->input('case_id');
-            $patientId = auth()->user()->patient_id;
+            $caseId     = $request->input('case_id');
+            $patientIds = auth()->user()->getAllPatientIds();
 
             if (empty($caseId)) {
                 return response()->json([
@@ -453,7 +455,7 @@ class ClinicalController extends Controller
             }
 
             $isValidCaseForPatient = AhcsCase::where('id', $caseId)
-                ->where('patient_id', $patientId)
+                ->whereIn('patient_id', $patientIds)
                 ->exists();
 
             if (!$isValidCaseForPatient) {
@@ -462,6 +464,8 @@ class ClinicalController extends Controller
                     'message' => 'Invalid Case Id for this patient',
                 ], 422);
             }
+
+            $patientId = AhcsCase::where('id', $caseId)->value('patient_id');
 
             $formSubmission = FormSubmission::with([
                 'form' => function ($query) {
@@ -616,8 +620,8 @@ class ClinicalController extends Controller
     public function downloadPatientFormPdf(Request $request)
     {
         try {
-            $caseId = $request->input('case_id');
-            $patientId = auth()->user()->patient_id;
+            $caseId     = $request->input('case_id');
+            $patientIds = auth()->user()->getAllPatientIds();
 
             if (empty($caseId)) {
                 return response()->json([
@@ -627,7 +631,7 @@ class ClinicalController extends Controller
             }
 
             $isValidCaseForPatient = AhcsCase::where('id', $caseId)
-                ->where('patient_id', $patientId)
+                ->whereIn('patient_id', $patientIds)
                 ->exists();
 
             if (!$isValidCaseForPatient) {
@@ -636,6 +640,8 @@ class ClinicalController extends Controller
                     'message' => 'Invalid Case Id for this patient',
                 ], 422);
             }
+
+            $patientId = AhcsCase::where('id', $caseId)->value('patient_id');
 
             Log::channel('patient')->info('PDF download request started', [
                 'user_id'  => auth()->id(),
