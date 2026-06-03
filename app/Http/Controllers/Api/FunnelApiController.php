@@ -1115,6 +1115,7 @@ class FunnelApiController extends Controller
      * - funnel_id (required, int, exists in funnels)
      * - funnel_name (required, string)
      * - phone (required, string)
+     * - email (optional, valid email) — stored in user_funnels and used for user lookup
      *
      * Response:
      * - 200: { status: true, message: string }
@@ -1136,6 +1137,7 @@ class FunnelApiController extends Controller
                 'funnel_id'   => 'required|integer|exists:funnels,id',
                 'funnel_name' => 'required|string|max:255',
                 'phone'       => 'required|string|max:20',
+                'email'       => 'nullable|email|max:255',
             ]);
 
             if ($validator->fails()) {
@@ -1166,9 +1168,18 @@ class FunnelApiController extends Controller
 
             $patient = AhcsPatient::find($request->patient_id);
 
-            // Check for an existing user by patient_id membership
+            // Check for an existing user by email OR patient_id membership
             // (handles both old plain-int and new JSON-array storage formats).
-            $user = User::hasPatientId((int) $request->patient_id)->first();
+            $user = $request->filled('email')
+                ? User::where('email', $request->email)
+                      ->orWhere(function ($q) use ($request) {
+                          $pid = (int) $request->patient_id;
+                          $q->whereJsonContains('patient_id', $pid)
+                            ->orWhere('patient_id', $pid);
+                      })
+                      ->first()
+                : User::hasPatientId((int) $request->patient_id)->first();
+
             $userId = $user?->id;
             $flag   = $user ? 'user_exists' : 'no_user';
             $patientName = $patient->patient_name
@@ -1215,6 +1226,7 @@ class FunnelApiController extends Controller
                 'patient_case_id' => $patientCase->id,
                 'assigned_via'    => 'sms',
                 'assigned_at'     => now(),
+                'email'           => $request->email ?: null,
             ]);
 
             $funnelUrl = (new AssignFunnelMail(
@@ -1487,9 +1499,17 @@ class FunnelApiController extends Controller
                 ]);
             }
 
-            // Update all funnel assignments for this patient (including soft-deleted history)
+            // Update user_id on ALL funnel assignment rows that belong to this account:
+            //   1. Rows matched by patient_id  (the patient from the current request)
+            //   2. Rows matched by email        (other patients assigned to the same email)
+            // This covers the scenario where 2+ patients were assigned funnels to the
+            // same email address before the user registered — all rows get linked to the
+            // newly created / updated user record.
             $updatedUserFunnelRows = UserFunnel::withTrashed()
-                ->where('patient_id', $requestPatientId)
+                ->where(function ($q) use ($requestPatientId, $request) {
+                    $q->where('patient_id', $requestPatientId)
+                      ->orWhere('email', $request->email);
+                })
                 ->update([
                     'user_id' => $user->id,
                 ]);
