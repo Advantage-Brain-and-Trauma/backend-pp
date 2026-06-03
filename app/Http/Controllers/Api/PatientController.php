@@ -179,6 +179,65 @@ class PatientController extends Controller
         }
     }
 
+    /**
+     * GET /api/get-case-ids-by-email
+     *
+     * Returns all case IDs for the authenticated patient.
+     *
+     * Request Payload:
+     * - None
+     *
+     * Response:
+     * - 200: { success: true, case_ids: int[] }
+     * - 500: { success: false, message: string }
+     */
+    public function getCaseIdsByEmail(): JsonResponse
+    {
+        try {
+            Log::channel('patient')->info('Get case IDs API hit', [
+                'user_id' => auth()->id(),
+                'email'   => auth()->user()->email,
+            ]);
+
+            $email = auth()->user()->email;
+
+            $user = User::where('email', $email)->first();
+
+            if (!$user) {
+                throw new \Exception('User not found', 404);
+            }
+
+            if (!$user->patient_id) {
+                throw new \Exception('Patient ID not found for user', 400);
+            }
+
+            $caseIds = AhcsCase::where('patient_id', $user->patient_id)
+                ->pluck('case_id') // or ->pluck('id') if you need primary key IDs
+                ->toArray();
+
+            Log::channel('patient')->info('Case IDs fetched successfully', [
+                'email'      => $email,
+                'patient_id' => $user->patient_id,
+                'case_count' => count($caseIds),
+            ]);
+
+            return response()->json([
+                'success'  => true,
+                'case_ids' => $caseIds,
+            ], 200);
+
+        } catch (\Throwable $e) {
+            Log::channel('patient')->error('Error fetching case IDs', [
+                'message' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
 
     /**
      * POST /api/change-patient-case
