@@ -60,10 +60,7 @@ class ClinicalNoteController extends Controller
             if (empty($result['status'])) {
                 return response()->json([
                     'success' => false,
-                    'message' => (string) ($result['message'] ?? 'Unable to fetch clinical notes.'),
-                    'status_code' => $result['status_code'] ?? null,
-                    'error' => $result['error'] ?? null,
-                    // 'message' => 'Unable to fetch clinical notes.',
+                    'message' => 'Unable to fetch clinical notes.',
                 ], 422);
             }
 
