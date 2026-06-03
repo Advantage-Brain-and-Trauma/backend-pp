@@ -835,7 +835,7 @@ class FunnelApiController extends Controller
             } catch (\Throwable $amdError) {
                 $amdSyncResult = [
                     'status' => 'failed',
-                    'message' => $amdError->getMessage(),
+                    'message' => 'Sync failed.',
                 ];
 
                 Log::channel('patient_form')->error('AMD sync failed after patient form submit', [
@@ -1447,8 +1447,14 @@ class FunnelApiController extends Controller
             } catch (\Throwable $amdError) {
                 $amdSyncResult = [
                     'status' => 'failed',
-                    'message' => $amdError->getMessage(),
+                    'message' => 'Sync failed.',
                 ];
+
+                Log::channel('patient_funnel')->error('AMD sync failed after patient added to funnel', [
+                    'patient_id' => $request->patient_id,
+                    'case_id'    => $request->case_id,
+                    'error'      => $amdError->getMessage(),
+                ]);
             }
 
             Log::channel('patient_funnel')->info('Patient added to funnel successfully', [
