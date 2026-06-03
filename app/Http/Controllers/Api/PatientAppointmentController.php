@@ -49,11 +49,11 @@ class PatientAppointmentController extends Controller
     {
         try {
             Log::channel('appointment')->info('Fetching patient appointments - Start');
-            $user = auth()->user();
-            $patientId = $user->getPrimaryPatientId();
-            $caseId = $request->input('case_id');
+            $user       = auth()->user();
+            $patientIds = $user->getAllPatientIds();
+            $caseId     = $request->input('case_id');
 
-            if (!$patientId) {
+            if (empty($patientIds)) {
                 throw new \Exception("Patient ID is required", 400);
             }
 
@@ -64,22 +64,28 @@ class PatientAppointmentController extends Controller
                 ], 422);
             }
 
-            // ✅ Check patient exists
-            AhcsPatient::findOrFail($patientId);
-            Log::channel('appointment')->info('Patient found', ['patient_id' => $patientId]);
+            // Validate the case belongs to one of this user's patient IDs and
+            // resolve the specific patient_id for logging / patient lookup.
+            $caseRecord = AhcsCase::where('id', $caseId)
+                ->whereIn('patient_id', $patientIds)
+                ->first(['id', 'patient_id']);
 
-            $isValidCaseForPatient = AhcsCase::where('id', $caseId)
-                ->where('patient_id', $patientId)
-                ->exists();
-
-            if (!$isValidCaseForPatient) {
+            if (!$caseRecord) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Invalid Case Id for this patient',
                 ], 422);
             }
 
-            $caseQuery = AhcsCase::where('patient_id', $patientId);
+            $patientId = $caseRecord->patient_id;
+
+            // ✅ Check the resolved patient exists
+            AhcsPatient::findOrFail($patientId);
+            Log::channel('appointment')->info('Patient found', ['patient_id' => $patientId]);
+
+            // Fetch all case IDs across every patient linked to this user,
+            // filtered to the requested case_id when provided.
+            $caseQuery = AhcsCase::whereIn('patient_id', $patientIds);
 
             if (!empty($caseId)) {
                 $caseQuery->where('id', $caseId);
