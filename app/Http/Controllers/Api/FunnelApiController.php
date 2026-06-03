@@ -987,12 +987,22 @@ class FunnelApiController extends Controller
 
             $patient = AhcsPatient::find($request->patient_id);
 
-            $user = User::where('patient_id', $request->patient_id)->first();
+            // Check for an existing user by email OR patient_id array membership.
+            $user = User::where('email', $request->email)
+                ->orWhereJsonContains('patient_id', (int) $request->patient_id)
+                ->first();
+
             $userId = $user?->id;
-            $flag = $user ? 'user_exists' : 'no_user';
+            $flag   = $user ? 'user_exists' : 'no_user';
             $patientName = $patient->patient_name
                 ?? $user?->name
                 ?? 'Patient';
+
+            // If user already exists, append the patient_id to their array without
+            // overwriting any previously stored patient IDs.
+            if ($user) {
+                $user->appendPatientId((int) $request->patient_id);
+            }
 
             // Create patient case if not exists
             $patientCase = PatientCase::firstOrCreate([
@@ -1029,6 +1039,7 @@ class FunnelApiController extends Controller
                 'patient_case_id' => $patientCase->id,
                 'assigned_via'    => 'email',
                 'assigned_at'     => now(),
+                'email'           => $request->email,
             ]);
 
             // Send email
@@ -1141,12 +1152,20 @@ class FunnelApiController extends Controller
             }
 
             $patient = AhcsPatient::find($request->patient_id);
-            $user = User::where('patient_id', $request->patient_id)->first();
+
+            // Check for an existing user by patient_id array membership (SMS has no email).
+            $user   = User::whereJsonContains('patient_id', (int) $request->patient_id)->first();
             $userId = $user?->id;
-            $flag = $user ? 'user_exists' : 'no_user';
+            $flag   = $user ? 'user_exists' : 'no_user';
             $patientName = $patient->patient_name
                 ?? $user?->name
                 ?? 'Patient';
+
+            // If user already exists, append the patient_id to their array without
+            // overwriting any previously stored patient IDs.
+            if ($user) {
+                $user->appendPatientId((int) $request->patient_id);
+            }
 
             $patientCase = PatientCase::firstOrCreate([
                 'patient_id' => $request->patient_id,
@@ -1292,7 +1311,7 @@ class FunnelApiController extends Controller
                 'case_id'          => 'required|integer',
                 'funnel_id'        => 'required|integer',
                 'name'             => 'required|string|max:255',
-                'email'            => 'required|email|unique:users,email|max:255',
+                'email'            => 'required|email|max:255',
                 'phone'            => 'nullable|string|max:20',
                 'password' => [
                     'required',
@@ -1391,19 +1410,44 @@ class FunnelApiController extends Controller
                 'email' => $request->email,
             ]);
 
-            // Find existing user by email or patient_id (including soft-deleted records)
+            // Collect every patient_id from user_funnels rows whose email matches
+            // the registering patient.  This ensures all previous funnel assignments
+            // sent to this email address are consolidated into one user account.
+            $funnelPatientIds = UserFunnel::withTrashed()
+                ->where('email', $request->email)
+                ->pluck('patient_id')
+                ->map(fn ($id) => (int) $id)
+                ->unique()
+                ->values()
+                ->toArray();
+
+            // Build the merged patient_id array:
+            //   - patient IDs already stored on a matching user (if any)
+            //   - patient IDs from user_funnels rows for this email
+            //   - the patient_id from the current request
+            // No existing ID is ever removed.
+            $requestPatientId = (int) $request->patient_id;
+
+            // Find existing user by email OR patient_id array membership (including soft-deleted).
             $user = User::withTrashed()
                 ->where('email', $request->email)
-                ->orWhere('patient_id', $request->patient_id)
+                ->orWhereJsonContains('patient_id', $requestPatientId)
                 ->first();
 
+            $existingIds = $user ? ($user->patient_id ?? []) : [];
+            $mergedIds   = array_values(array_unique(array_merge(
+                array_map('intval', $existingIds),
+                $funnelPatientIds,
+                [$requestPatientId],
+            )));
+
             if ($user) {
-                // Restore soft-deleted user if needed and update their details
+                // Restore soft-deleted user if needed and update their details.
                 if ($user->trashed()) {
                     $user->restore();
                 }
                 $user->update([
-                    'patient_id'        => $request->patient_id,
+                    'patient_id'        => $mergedIds,
                     'name'              => $request->name,
                     'email'             => $request->email,
                     'phone'             => $request->phone,
@@ -1414,7 +1458,7 @@ class FunnelApiController extends Controller
                 ]);
             } else {
                 $user = User::create([
-                    'patient_id'        => $request->patient_id,
+                    'patient_id'        => $mergedIds,
                     'name'              => $request->name,
                     'email'             => $request->email,
                     'phone'             => $request->phone,
@@ -1427,7 +1471,7 @@ class FunnelApiController extends Controller
 
             // Update all funnel assignments for this patient (including soft-deleted history)
             $updatedUserFunnelRows = UserFunnel::withTrashed()
-                ->where('patient_id', $request->patient_id)
+                ->where('patient_id', $requestPatientId)
                 ->update([
                     'user_id' => $user->id,
                 ]);

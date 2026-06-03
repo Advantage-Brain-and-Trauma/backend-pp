@@ -376,14 +376,14 @@ class PatientController extends Controller
 
             $caseId = $request->case_id;
             
-            $checkCaseId = AhcsCase::where('patient_id', $user->patient_id)
+            $checkCaseId = AhcsCase::where('patient_id', $user->getPrimaryPatientId())
                 ->where('id', $caseId)
                 ->exists();
 
             if (!$checkCaseId) {
                 Log::channel('auth')->warning('Change patient case failed: invalid case', [
                     'user_id' => $user->id,
-                    'patient_id' => $user->patient_id,
+                    'patient_id' => $user->getPrimaryPatientId(),
                     'case_id' => $caseId,
                 ]);
 
