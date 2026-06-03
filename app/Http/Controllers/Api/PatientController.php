@@ -192,49 +192,118 @@ class PatientController extends Controller
      * - 200: { success: true, case_ids: int[] }
      * - 500: { success: false, message: string }
      */
+    // public function getCaseIdsByEmail(): JsonResponse
+    // {
+    //     try {
+    //         Log::channel('patient')->info('Get case IDs API hit', [
+    //             'user_id' => auth()->id(),
+    //             'email'   => auth()->user()->email,
+    //         ]);
+
+    //         $email = auth()->user()->email;
+
+    //         $user = User::where('email', $email)->first();
+
+    //         if (!$user) {
+    //             throw new \Exception('User not found', 404);
+    //         }
+
+    //         $patientIds = [];
+    //         $patientIds = AhcsPatient::where('email', $email)
+    //             ->pluck('id')
+    //             ->toArray();
+
+    //         $caseIds = AhcsCase::whereIn('patient_id', $patientIds)
+    //             ->pluck('id')
+    //             ->toArray();
+
+    //         Log::channel('patient')->info('Case IDs fetched successfully', [
+    //             'email'      => $email,
+    //             'patient_id' => $user->patient_id,
+    //             'case_count' => count($caseIds),
+    //         ]);
+
+    //         return response()->json([
+    //             'success'  => true,
+    //             'case_ids' => $caseIds,
+    //         ], 200);
+
+    //     } catch (\Throwable $e) {
+    //         Log::channel('patient')->error('Error fetching case IDs', [
+    //             'message' => $e->getMessage(),
+    //         ]);
+
+    //         return response()->json([
+    //             'success' => false,
+    //             'message' => $e->getMessage(),
+    //         ], 500);
+    //     }
+    // }
+
     public function getCaseIdsByEmail(): JsonResponse
     {
         try {
+            $authUser = auth()->user();
+
+            if (!$authUser) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Unauthenticated user',
+                ], 401);
+            }
+
+            $email = $authUser->email;
+
             Log::channel('patient')->info('Get case IDs API hit', [
-                'user_id' => auth()->id(),
-                'email'   => auth()->user()->email,
+                'user_id' => $authUser->id,
+                'email'   => $email,
             ]);
 
-            $email = auth()->user()->email;
-
-            $user = User::where('email', $email)->first();
-
-            if (!$user) {
-                throw new \Exception('User not found', 404);
-            }
-
-            if (!$user->patient_id) {
-                throw new \Exception('Patient ID not found for user', 400);
-            }
-
-            $caseIds = AhcsCase::where('patient_id', $user->patient_id)
+            $patientIds = AhcsPatient::where('email', $email)
+                ->whereNull('deleted_at')
                 ->pluck('id')
+                ->unique()
+                ->values()
+                ->toArray();
+
+            if (empty($patientIds)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No patients found for this email',
+                    'case_ids' => [],
+                ], 404);
+            }
+
+            $caseIds = AhcsCase::whereIn('patient_id', $patientIds)
+                ->whereNull('deleted_at')
+                ->pluck('id') // change to 'case_id' if you want actual case_id
+                ->unique()
+                ->values()
                 ->toArray();
 
             Log::channel('patient')->info('Case IDs fetched successfully', [
-                'email'      => $email,
-                'patient_id' => $user->patient_id,
-                'case_count' => count($caseIds),
+                'email'       => $email,
+                'patient_ids' => $patientIds,
+                'case_count'  => count($caseIds),
             ]);
 
             return response()->json([
-                'success'  => true,
-                'case_ids' => $caseIds,
+                'success'     => true,
+                'email'       => $email,
+                'patient_ids' => $patientIds,
+                'case_ids'    => $caseIds,
             ], 200);
 
         } catch (\Throwable $e) {
             Log::channel('patient')->error('Error fetching case IDs', [
                 'message' => $e->getMessage(),
+                'line'    => $e->getLine(),
+                'file'    => $e->getFile(),
             ]);
 
             return response()->json([
                 'success' => false,
-                'message' => $e->getMessage(),
+                'message' => 'Something went wrong while fetching case IDs',
             ], 500);
         }
     }
