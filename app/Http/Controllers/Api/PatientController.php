@@ -213,7 +213,7 @@ class PatientController extends Controller
             }
 
             $caseIds = AhcsCase::where('patient_id', $user->patient_id)
-                ->pluck('case_id') // or ->pluck('id') if you need primary key IDs
+                ->pluck('id')
                 ->toArray();
 
             Log::channel('patient')->info('Case IDs fetched successfully', [
