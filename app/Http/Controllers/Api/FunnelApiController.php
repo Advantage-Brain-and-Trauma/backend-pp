@@ -1168,10 +1168,18 @@ class FunnelApiController extends Controller
 
             $patient = AhcsPatient::find($request->patient_id);
 
+            // Resolve the email to store in user_funnels:
+            //   1. Use the email from the request if provided.
+            //   2. Otherwise fall back to the patient's existing email on file.
+            // This ensures user_funnels.email is never NULL, so that
+            // addPatientToFunnel can later consolidate all patient IDs that
+            // share the same email address into one user account.
+            $resolvedEmail = $request->email ?: ($patient->email ?? null);
+
             // Check for an existing user by email OR patient_id membership
             // (handles both old plain-int and new JSON-array storage formats).
-            $user = $request->filled('email')
-                ? User::where('email', $request->email)
+            $user = $resolvedEmail
+                ? User::where('email', $resolvedEmail)
                       ->orWhere(function ($q) use ($request) {
                           $pid = (int) $request->patient_id;
                           $q->whereJsonContains('patient_id', $pid)
@@ -1226,7 +1234,7 @@ class FunnelApiController extends Controller
                 'patient_case_id' => $patientCase->id,
                 'assigned_via'    => 'sms',
                 'assigned_at'     => now(),
-                'email'           => $request->email ?: null,
+                'email'           => $resolvedEmail,
             ]);
 
             $funnelUrl = (new AssignFunnelMail(
