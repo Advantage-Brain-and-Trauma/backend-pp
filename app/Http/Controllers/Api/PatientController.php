@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\User;
 use App\Models\AhcsPatient;
 use App\Models\AhcsCase;
 use App\Models\AhcsIntake;
