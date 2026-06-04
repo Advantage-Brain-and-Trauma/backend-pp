@@ -50,7 +50,7 @@ class PatientAppointmentController extends Controller
         try {
             Log::channel('appointment')->info('Fetching patient appointments - Start');
             $user       = auth()->user();
-            $patientIds = $user->getAllPatientIds();
+            $patientIds = $user->getActivePatientIds();
             $caseId     = $request->input('case_id');
 
             if (empty($patientIds)) {

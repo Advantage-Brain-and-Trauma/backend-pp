@@ -444,7 +444,7 @@ class ClinicalController extends Controller
             ]);
 
             $caseId     = $request->input('case_id');
-            $patientIds = auth()->user()->getAllPatientIds();
+            $patientIds = auth()->user()->getActivePatientIds();
 
             if (empty($caseId)) {
                 return response()->json([
@@ -620,7 +620,7 @@ class ClinicalController extends Controller
     {
         try {
             $caseId     = $request->input('case_id');
-            $patientIds = auth()->user()->getAllPatientIds();
+            $patientIds = auth()->user()->getActivePatientIds();
 
             if (empty($caseId)) {
                 return response()->json([

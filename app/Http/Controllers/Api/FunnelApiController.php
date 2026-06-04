@@ -71,7 +71,7 @@ class FunnelApiController extends Controller
         try {
 
             $caseId     = $request->input('case_id');
-            $patientIds = $request->user()->getAllPatientIds();
+            $patientIds = $request->user()->getActivePatientIds();
 
             if (empty($caseId)) {
                 return response()->json([
@@ -198,7 +198,7 @@ class FunnelApiController extends Controller
         try {
             $userId     = auth()->id();
             $caseId     = $request->input('case_id');
-            $patientIds = auth()->user()->getAllPatientIds();
+            $patientIds = auth()->user()->getActivePatientIds();
 
             if (empty($caseId)) {
                 return response()->json([
@@ -476,7 +476,7 @@ class FunnelApiController extends Controller
         try {
 
             $userId     = auth()->id();
-            $patientIds = auth()->user()->getAllPatientIds();
+            $patientIds = auth()->user()->getActivePatientIds();
             $caseId     = $request->input('case_id');
 
             if (empty($caseId)) {

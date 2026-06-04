@@ -35,7 +35,7 @@ class ClinicalNoteController extends Controller
     public function show(Request $request): JsonResponse
     {
         $caseId     = $request->query('case_id');
-        $patientIds = auth()->user()->getAllPatientIds();
+        $patientIds = auth()->user()->getActivePatientIds();
 
         try {
             if (empty($caseId)) {
@@ -120,7 +120,7 @@ class ClinicalNoteController extends Controller
     {
         $rawUrl     = trim((string) $request->query('url', ''));
         $caseId     = $request->query('case_id');
-        $patientIds = auth()->user()->getAllPatientIds();
+        $patientIds = auth()->user()->getActivePatientIds();
 
         if (empty($caseId)) {
             return response()->json([
@@ -221,7 +221,7 @@ class ClinicalNoteController extends Controller
         $filename   = trim((string) $request->query('filename', ''));
         $attendId   = $request->query('attend_id');
         $caseId     = $request->query('case_id');
-        $patientIds = auth()->user()->getAllPatientIds();
+        $patientIds = auth()->user()->getActivePatientIds();
 
         if (empty($caseId)) {
             return response()->json([
@@ -277,7 +277,7 @@ class ClinicalNoteController extends Controller
         string $filename
     ): Response|JsonResponse {
 
-        $patientIds = auth()->user()->getAllPatientIds();
+        $patientIds = auth()->user()->getActivePatientIds();
 
         $isValidCaseForPatient = AhcsCase::where('id', $caseId)
             ->whereIn('patient_id', $patientIds)
@@ -737,7 +737,7 @@ class ClinicalNoteController extends Controller
     private function proxyNotePdf(Request $request, int|string $noteId, bool $inline): Response|JsonResponse
     {
         $caseId     = $request->query('case_id');
-        $patientIds = auth()->user()->getAllPatientIds();
+        $patientIds = auth()->user()->getActivePatientIds();
 
         if (empty($caseId)) {
             return response()->json([

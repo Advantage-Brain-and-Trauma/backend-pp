@@ -45,7 +45,7 @@ class RecentActivityController extends Controller
     {
         try {
             $userId     = auth()->id();
-            $patientIds = auth()->user()->getAllPatientIds();
+            $patientIds = auth()->user()->getActivePatientIds();
             $caseId     = $request->query('case_id');
             $limit      = min((int) $request->query('limit', 20), 50);
 

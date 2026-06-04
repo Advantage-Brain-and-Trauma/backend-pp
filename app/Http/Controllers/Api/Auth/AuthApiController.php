@@ -210,7 +210,7 @@ class AuthApiController extends Controller
 
             // Resolve case_id: prefer the request param, fall back to the old token claim.
             $caseId     = $request->input('case_id') ?? $oldPayload->get('case_id');
-            $patientIds = $freshUser->getAllPatientIds();
+            $patientIds = $freshUser->getActivePatientIds();
 
             if (empty($caseId)) {
                 return response()->json([

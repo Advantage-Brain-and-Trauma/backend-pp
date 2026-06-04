@@ -45,7 +45,7 @@ class PatientController extends Controller
 
             $caseId      = $request->query('case_id');
             $userDetails = auth()->user();
-            $patientIds  = $userDetails->getAllPatientIds();
+            $patientIds  = $userDetails->getActivePatientIds();
 
             if (empty($caseId)) {
                 return response()->json([
@@ -132,7 +132,7 @@ class PatientController extends Controller
 
             $userDetails = auth()->user();
             // Collect ALL patient IDs so cases for every linked patient are returned.
-            $patient_ids = $userDetails->getAllPatientIds();
+            $patient_ids = $userDetails->getActivePatientIds();
 
             if (empty($patient_ids)) {
                 throw new \Exception("Patient ID is required", 400);

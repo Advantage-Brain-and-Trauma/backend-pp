@@ -30,7 +30,7 @@ class FormSubmissionNoteController extends Controller
     public function index(Request $request, int $submissionId)
     {
         $caseId = $request->input('case_id');
-        $patientIds = auth()->user()->getAllPatientIds();
+        $patientIds = auth()->user()->getActivePatientIds();
 
         if (empty($caseId)) {
             return response()->json([
@@ -110,7 +110,7 @@ class FormSubmissionNoteController extends Controller
     public function store(Request $request, int $submissionId)
     {
         $caseId = $request->input('case_id');
-        $patientIds = auth()->user()->getAllPatientIds();
+        $patientIds = auth()->user()->getActivePatientIds();
 
         if (empty($caseId)) {
             return response()->json([
@@ -204,7 +204,7 @@ class FormSubmissionNoteController extends Controller
     public function update(Request $request, int $submissionId, int $noteId)
     {
         $caseId = $request->input('case_id');
-        $patientIds = auth()->user()->getAllPatientIds();
+        $patientIds = auth()->user()->getActivePatientIds();
 
         if (empty($caseId)) {
             return response()->json([
@@ -308,7 +308,7 @@ class FormSubmissionNoteController extends Controller
     public function destroy(Request $request, int $submissionId, int $noteId)
     {
         $caseId = $request->input('case_id');
-        $patientIds = auth()->user()->getAllPatientIds();
+        $patientIds = auth()->user()->getActivePatientIds();
 
         if (empty($caseId)) {
             return response()->json([

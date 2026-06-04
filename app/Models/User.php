@@ -82,6 +82,26 @@ class User extends Authenticatable implements JWTSubject
     }
 
     /**
+     * Return only the patient IDs whose records are NOT soft-deleted in AhcsPatient.
+     * Use this for all data-fetching queries so that deleted patients' data is excluded.
+     */
+    public function getActivePatientIds(): array
+    {
+        $allIds = $this->getAllPatientIds();
+
+        if (empty($allIds)) {
+            return [];
+        }
+
+        return AhcsPatient::whereIn('id', $allIds)
+            ->whereNull('deleted_at')
+            ->pluck('id')
+            ->map(fn($id) => (int) $id)
+            ->values()
+            ->toArray();
+    }
+
+    /**
      * Return the primary (first) patient ID.
      * Works whether patient_id is stored as a plain int or a JSON array.
      */
