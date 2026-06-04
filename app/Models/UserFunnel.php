@@ -17,6 +17,7 @@ class UserFunnel extends Model
         'assigned_via',
         'assigned_at',
         'email',
+        'phone_no',
     ];
 
     /**

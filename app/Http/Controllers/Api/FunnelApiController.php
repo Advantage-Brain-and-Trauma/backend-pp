@@ -1104,6 +1104,102 @@ class FunnelApiController extends Controller
         }
     }
 
+    public function checkAssignFunnel(Request $request)
+    {
+        try {
+            Log::channel('patient_funnel')->info('Assign funnel request received', [
+                'patient_id' => $request->patient_id,
+                'case_id'    => $request->case_id,
+                'funnel_id'  => $request->funnel_id,
+            ]);
+
+            $validator = Validator::make($request->all(), [
+                'patient_id'  => 'required|integer|exists:ahcs.ahcs_patients,id',
+                'case_id'     => 'required|integer|exists:ahcs.ahcs_cases,id',
+                'funnel_id'   => 'required|integer|exists:funnels,id',
+                'funnel_name' => 'required|string|max:255',
+                'email'       => 'required|email',
+                'phone'       => 'nullable|string|max:20',
+            ]);
+
+            if ($validator->fails()) {
+                Log::channel('patient_funnel')->warning('Assign funnel validation failed', [
+                    'patient_id' => $request->patient_id,
+                    'case_id'    => $request->case_id,
+                    'funnel_id'  => $request->funnel_id,
+                    'error'      => $validator->errors()->first(),
+                ]);
+
+                return response()->json([
+                    'status'  => false,
+                    'message' => 'Validation failed.',
+                    'errors'  => $validator->errors()->first(),
+                ], 422);
+            }
+
+            DB::beginTransaction();
+
+            $patient = AhcsPatient::find($request->patient_id);
+
+            // Check for an existing user by email OR patient_id membership
+            // (handles both old plain-int and new JSON-array storage formats).
+            $user = User::where('email', $request->email)
+                ->orWhere(function ($q) use ($request) {
+                    $pid = (int) $request->patient_id;
+                    $q->whereJsonContains('patient_id', $pid)
+                      ->orWhere('patient_id', $pid);
+                })
+                ->first();
+
+            $userId = $user?->id;
+            $flag   = $user ? 'user_exists' : 'no_user';
+            $patientName = $patient->patient_name
+                ?? $user?->name
+                ?? 'Patient';
+
+            // If user already exists, append the patient_id to their array without
+            // overwriting any previously stored patient IDs.
+            if ($user) {
+                $user->appendPatientId((int) $request->patient_id);
+            }
+
+            // Create patient case if not exists
+            $patientCase = PatientCase::firstOrCreate([
+                'patient_id' => $request->patient_id,
+                'case_id'    => $request->case_id,
+            ]);
+
+            // Guard: reject if an ACTIVE (non-deleted) assignment already exists for
+            // this patient + case. A previously DELETED assignment is intentionally
+            // ignored here — re-assigning after deletion must always start fresh.
+            $existingActiveAssignment = UserFunnel::where('patient_id', $request->patient_id)
+                ->where('patient_case_id', $patientCase->id)
+                ->first();
+
+            if ($existingActiveAssignment) {
+                // $flag = true;
+                DB::rollBack();
+                return response()->json([
+                    'status'  => false,
+                    'assign_funnel' => true,
+                ]);
+            }
+
+            return response()->json([
+                'status'  => true,
+                'assign_funnel' => false,
+            ]);
+
+        } catch (\Throwable $e) {
+
+            DB::rollBack();
+
+            return response()->json([
+                'status'  => false,
+                'message' => 'Something went wrong while assigning the funnel.',
+            ], 500);
+        }
+    }
     /**
      * POST /api/assign-funnel-sms
      *
@@ -1227,6 +1323,7 @@ class FunnelApiController extends Controller
                 'assigned_via'    => 'sms',
                 'assigned_at'     => now(),
                 'email'           => $request->email ?: null,
+                'phone_no'        => $normalizedPhone,
             ]);
 
             $funnelUrl = (new AssignFunnelMail(
@@ -1326,31 +1423,45 @@ class FunnelApiController extends Controller
     public function addPatientToFunnel(Request $request)
     {
         try {
+            $source = $request->input('source', 'email'); // 'email' | 'sms'
+
             Log::channel('patient_funnel')->info('Add patient to funnel request received', [
                 'patient_id' => $request->patient_id,
                 'case_id'    => $request->case_id,
                 'funnel_id'  => $request->funnel_id,
+                'source'     => $source,
             ]);
 
-            $validator = Validator::make($request->all(), [
+            // ── Validation ──────────────────────────────────────────────────────
+            $rules = [
                 'patient_id'       => 'required|integer',
                 'case_id'          => 'required|integer',
                 'funnel_id'        => 'required|integer',
+                'source'           => 'required|string|in:email,sms',
                 'name'             => 'required|string|max:255',
-                'email'            => 'required|email|max:255',
                 'phone'            => 'nullable|string|max:20',
-                'password' => [
+                'password'         => [
                     'required',
                     'string',
                     Password::min(8)
-                        ->mixedCase()   // uppercase + lowercase
-                        ->letters()     // at least one letter
-                        ->numbers()     // at least one number
-                        ->symbols()     // at least one special character
-                       
+                        ->mixedCase()
+                        ->letters()
+                        ->numbers()
+                        ->symbols(),
                 ],
                 'confirm_password' => 'required|string|same:password',
-            ]);
+            ];
+
+            // email is required only for email-based registration
+            if ($source === 'email') {
+                $rules['email'] = 'required|email|max:255';
+            } else {
+                $rules['email'] = 'nullable|email|max:255';
+                // For SMS source, phone is required and must include enough digits
+                $rules['phone'] = 'required|string|max:20';
+            }
+
+            $validator = Validator::make($request->all(), $rules);
 
             if ($validator->fails()) {
                 Log::channel('patient_funnel')->warning('Add patient to funnel validation failed', [
@@ -1363,64 +1474,53 @@ class FunnelApiController extends Controller
                 return response()->json([
                     'status'  => false,
                     'message' => $validator->errors()->first(),
-                    // 'errors'  => $validator->errors(),
                 ], 422);
             }
 
-            // Check patient
+            // ── Extra phone validation for SMS source ────────────────────────────
+            if ($source === 'sms') {
+                $normalizedPhone  = $this->normalizePhoneForSms((string) $request->phone);
+                $normalizedDigits = preg_replace('/\D+/', '', $normalizedPhone);
+                if (strlen($normalizedDigits) < 11) {
+                    return response()->json([
+                        'status'  => false,
+                        'message' => 'Please provide a valid phone number.',
+                    ], 422);
+                }
+            }
+
+            // ── Check patient ────────────────────────────────────────────────────
             $patient = AhcsPatient::find($request->patient_id);
-
             if (!$patient) {
-                Log::channel('patient_funnel')->warning('Add patient to funnel failed: patient not found', [
-                    'patient_id' => $request->patient_id,
-                    'funnel_id'  => $request->funnel_id,
-                ]);
-
-                return response()->json([
-                    'status'  => false,
-                    'message' => 'Patient not found.',
-                ], 404);
+                return response()->json(['status' => false, 'message' => 'Patient not found.'], 404);
             }
 
-            $case = AhcsCase::find($request->case_id);
-
-            if (!$case) {
-                Log::channel('patient_funnel')->warning('Add patient to funnel failed: case not found', [
-                    'patient_id' => $request->patient_id,
-                    'case_id'    => $request->case_id,
-                    'funnel_id'  => $request->funnel_id,
-                ]);
-
-                return response()->json([
-                    'status'  => false,
-                    'message' => 'Case not found.',
-                ], 404);
+            // ── Check case ───────────────────────────────────────────────────────
+            if (!AhcsCase::find($request->case_id)) {
+                return response()->json(['status' => false, 'message' => 'Case not found.'], 404);
             }
 
-            // Check funnel
-            $funnel = Funnel::find($request->funnel_id);
-
-            if (!$funnel) {
-                Log::channel('patient_funnel')->warning('Add patient to funnel failed: funnel not found', [
-                    'patient_id' => $request->patient_id,
-                    'funnel_id'  => $request->funnel_id,
-                ]);
-
-                return response()->json([
-                    'status'  => false,
-                    'message' => 'Funnel not found.',
-                ], 404);
+            // ── Check funnel ─────────────────────────────────────────────────────
+            if (!Funnel::find($request->funnel_id)) {
+                return response()->json(['status' => false, 'message' => 'Funnel not found.'], 404);
             }
 
-            // Check funnel assignment
-            $userFunnel = UserFunnel::where('patient_id', $request->patient_id)
-                ->where('funnel_id', $request->funnel_id)
-                ->first();
+            // ── Check funnel assignment exists ───────────────────────────────────
+            $assignmentQuery = UserFunnel::where('patient_id', $request->patient_id)
+                ->where('funnel_id', $request->funnel_id);
+
+            if ($source === 'sms') {
+                // For SMS: match by patient_id + phone_no stored during assignFunnelSms
+                $assignmentQuery->where('phone_no', $normalizedPhone);
+            }
+
+            $userFunnel = $assignmentQuery->first();
 
             if (!$userFunnel) {
                 Log::channel('patient_funnel')->warning('Add patient to funnel failed: assignment not found', [
                     'patient_id' => $request->patient_id,
                     'funnel_id'  => $request->funnel_id,
+                    'source'     => $source,
                 ]);
 
                 return response()->json([
@@ -1431,106 +1531,164 @@ class FunnelApiController extends Controller
 
             DB::beginTransaction();
 
-            // Keep AHCS patient email in sync with the assignment email.
-            AhcsPatient::where('id', $request->patient_id)->update([
-                'email' => $request->email,
-            ]);
-
-            // Collect every patient_id from user_funnels rows whose email matches
-            // the registering patient.  This ensures all previous funnel assignments
-            // sent to this email address are consolidated into one user account.
-            $funnelPatientIds = UserFunnel::withTrashed()
-                ->where('email', $request->email)
-                ->pluck('patient_id')
-                ->map(fn ($id) => (int) $id)
-                ->unique()
-                ->values()
-                ->toArray();
-
-            // Build the merged patient_id array:
-            //   - patient IDs already stored on a matching user (if any)
-            //   - patient IDs from user_funnels rows for this email
-            //   - the patient_id from the current request
-            // No existing ID is ever removed.
             $requestPatientId = (int) $request->patient_id;
 
-            // Find existing user by email OR patient_id membership (handles both old plain-int
-            // and new JSON-array storage formats).
-            $user = User::withTrashed()
-                ->where('email', $request->email)
-                ->orWhere(function ($q) use ($requestPatientId) {
-                    $q->whereJsonContains('patient_id', $requestPatientId)
-                      ->orWhere('patient_id', $requestPatientId);
-                })
-                ->first();
+            // ── Source: EMAIL ────────────────────────────────────────────────────
+            if ($source === 'email') {
 
-            $existingIds = $user ? $user->getAllPatientIds() : [];
-            $mergedIds   = array_values(array_unique(array_merge(
-                array_map('intval', $existingIds),
-                $funnelPatientIds,
-                [$requestPatientId],
-            )));
+                // Keep AHCS patient email in sync.
+                AhcsPatient::where('id', $requestPatientId)->update([
+                    'email' => $request->email,
+                ]);
 
-            if ($user) {
-                // Restore soft-deleted user if needed and update their details.
-                if ($user->trashed()) {
-                    $user->restore();
+                // Collect every patient_id from user_funnels rows whose email matches
+                // the registering patient so all previous assignments consolidate into
+                // one user account.
+                $funnelPatientIds = UserFunnel::withTrashed()
+                    ->where('email', $request->email)
+                    ->pluck('patient_id')
+                    ->map(fn ($id) => (int) $id)
+                    ->unique()
+                    ->values()
+                    ->toArray();
+
+                // Find existing user by email OR patient_id membership.
+                $user = User::withTrashed()
+                    ->where('email', $request->email)
+                    ->orWhere(function ($q) use ($requestPatientId) {
+                        $q->whereJsonContains('patient_id', $requestPatientId)
+                          ->orWhere('patient_id', $requestPatientId);
+                    })
+                    ->first();
+
+                $existingIds = $user ? $user->getAllPatientIds() : [];
+                $mergedIds   = array_values(array_unique(array_merge(
+                    array_map('intval', $existingIds),
+                    $funnelPatientIds,
+                    [$requestPatientId],
+                )));
+
+                if ($user) {
+                    if ($user->trashed()) {
+                        $user->restore();
+                    }
+                    $user->update([
+                        'patient_id'        => $mergedIds,
+                        'name'              => $request->name,
+                        'email'             => $request->email,
+                        'phone'             => $request->phone,
+                        'password'          => bcrypt($request->password),
+                        'country_code'      => 'US',
+                        'email_verified_at' => now(),
+                        'phone_verified_at' => now(),
+                    ]);
+                } else {
+                    $user = User::create([
+                        'patient_id'        => $mergedIds,
+                        'name'              => $request->name,
+                        'email'             => $request->email,
+                        'phone'             => $request->phone,
+                        'password'          => bcrypt($request->password),
+                        'country_code'      => 'US',
+                        'email_verified_at' => now(),
+                        'phone_verified_at' => now(),
+                    ]);
                 }
-                $user->update([
-                    'patient_id'        => $mergedIds,
-                    'name'              => $request->name,
-                    'email'             => $request->email,
-                    'phone'             => $request->phone,
-                    'password'          => bcrypt($request->password),
-                    'country_code'      => 'US',
-                    'email_verified_at' => now(),
-                    'phone_verified_at' => now(),
-                ]);
+
+                // Link ALL funnel rows for this patient or email to the user.
+                $updatedUserFunnelRows = UserFunnel::withTrashed()
+                    ->where(function ($q) use ($requestPatientId, $request) {
+                        $q->where('patient_id', $requestPatientId)
+                          ->orWhere('email', $request->email);
+                    })
+                    ->update(['user_id' => $user->id]);
+
+                // AMD sync — keep email up to date
+                $amdSyncPayload = ['email' => $request->email];
+
+            // ── Source: SMS ──────────────────────────────────────────────────────
             } else {
-                $user = User::create([
-                    'patient_id'        => $mergedIds,
-                    'name'              => $request->name,
-                    'email'             => $request->email,
-                    'phone'             => $request->phone,
-                    'password'          => bcrypt($request->password),
-                    'country_code'      => 'US',
-                    'email_verified_at' => now(),
-                    'phone_verified_at' => now(),
-                ]);
+
+                // Collect every patient_id from user_funnels rows whose phone_no
+                // matches the registering patient's normalised phone number, so all
+                // previous SMS assignments consolidate into one user account.
+                $funnelPatientIds = UserFunnel::withTrashed()
+                    ->where('phone_no', $normalizedPhone)
+                    ->pluck('patient_id')
+                    ->map(fn ($id) => (int) $id)
+                    ->unique()
+                    ->values()
+                    ->toArray();
+
+                // Find existing user by email (if provided) OR patient_id membership.
+                $user = User::withTrashed()
+                    ->when($request->filled('email'), fn ($q) => $q->where('email', $request->email))
+                    ->orWhere(function ($q) use ($requestPatientId) {
+                        $q->whereJsonContains('patient_id', $requestPatientId)
+                          ->orWhere('patient_id', $requestPatientId);
+                    })
+                    ->first();
+
+                $existingIds = $user ? $user->getAllPatientIds() : [];
+                $mergedIds   = array_values(array_unique(array_merge(
+                    array_map('intval', $existingIds),
+                    $funnelPatientIds,
+                    [$requestPatientId],
+                )));
+
+                if ($user) {
+                    if ($user->trashed()) {
+                        $user->restore();
+                    }
+                    $user->update([
+                        'patient_id'        => $mergedIds,
+                        'name'              => $request->name,
+                        'email'             => $request->filled('email') ? $request->email : $user->email,
+                        'phone'             => $request->phone,
+                        'password'          => bcrypt($request->password),
+                        'country_code'      => 'US',
+                        'email_verified_at' => now(),
+                        'phone_verified_at' => now(),
+                    ]);
+                } else {
+                    $user = User::create([
+                        'patient_id'        => $mergedIds,
+                        'name'              => $request->name,
+                        'email'             => $request->input('email'),
+                        'phone'             => $request->phone,
+                        'password'          => bcrypt($request->password),
+                        'country_code'      => 'US',
+                        'email_verified_at' => now(),
+                        'phone_verified_at' => now(),
+                    ]);
+                }
+
+                // Link ALL funnel rows for this patient or phone_no to the user.
+                $updatedUserFunnelRows = UserFunnel::withTrashed()
+                    ->where(function ($q) use ($requestPatientId, $normalizedPhone) {
+                        $q->where('patient_id', $requestPatientId)
+                          ->orWhere('phone_no', $normalizedPhone);
+                    })
+                    ->update(['user_id' => $user->id]);
+
+                // AMD sync — keep phone up to date
+                $amdSyncPayload = ['cell_no' => $request->phone];
             }
-
-            // Update user_id on ALL funnel assignment rows that belong to this account:
-            //   1. Rows matched by patient_id  (the patient from the current request)
-            //   2. Rows matched by email        (other patients assigned to the same email)
-            // This covers the scenario where 2+ patients were assigned funnels to the
-            // same email address before the user registered — all rows get linked to the
-            // newly created / updated user record.
-            $updatedUserFunnelRows = UserFunnel::withTrashed()
-                ->where(function ($q) use ($requestPatientId, $request) {
-                    $q->where('patient_id', $requestPatientId)
-                      ->orWhere('email', $request->email);
-                })
-                ->update([
-                    'user_id' => $user->id,
-                ]);
-
 
             DB::commit();
 
+            // ── AMD sync (outside transaction — non-critical) ────────────────────
             $amdSyncResult = null;
             try {
                 $amdSyncService = app(PatientFormAmdSyncService::class);
-                $amdSyncResult = $amdSyncService->syncDemographics(
+                $amdSyncResult  = $amdSyncService->syncDemographics(
                     (int) $request->patient_id,
                     (int) $request->case_id,
-                    ['email' => $request->email],
+                    $amdSyncPayload,
                     $patient->toArray()
                 );
             } catch (\Throwable $amdError) {
-                $amdSyncResult = [
-                    'status' => 'failed',
-                    'message' => 'Something went wrong',
-                ];
+                $amdSyncResult = ['status' => 'failed', 'message' => 'Something went wrong'];
 
                 Log::channel('patient_funnel')->error('AMD sync failed after patient added to funnel', [
                     'patient_id' => $request->patient_id,
@@ -1540,23 +1698,24 @@ class FunnelApiController extends Controller
             }
 
             Log::channel('patient_funnel')->info('Patient added to funnel successfully', [
-                'patient_id' => $request->patient_id,
-                'case_id'    => $request->case_id,
-                'funnel_id'  => $request->funnel_id,
-                'user_id'    => $user->id,
-                'amd_sync'   => $amdSyncResult,
-                'updated_user_funnel_rows' => $updatedUserFunnelRows,
+                'patient_id'              => $request->patient_id,
+                'case_id'                 => $request->case_id,
+                'funnel_id'               => $request->funnel_id,
+                'source'                  => $source,
+                'user_id'                 => $user->id,
+                'amd_sync'                => $amdSyncResult,
+                'updated_user_funnel_rows'=> $updatedUserFunnelRows,
             ]);
 
             return response()->json([
-                'status'  => true,
-                'message' => 'Patient added to funnel successfully.',
-                'data'    => [
+                'status'   => true,
+                'message'  => 'Patient added to funnel successfully.',
+                'data'     => [
                     'user_id'    => $user->id,
                     'patient_id' => $user->patient_id,
                     'funnel_id'  => $request->funnel_id,
                 ],
-                'amd_sync'   => $amdSyncResult,
+                'amd_sync' => $amdSyncResult,
             ], 200);
 
         } catch (\Throwable $e) {
@@ -1566,6 +1725,7 @@ class FunnelApiController extends Controller
             Log::channel('patient_funnel')->error('Error adding patient to funnel', [
                 'patient_id' => $request->patient_id ?? null,
                 'funnel_id'  => $request->funnel_id ?? null,
+                'source'     => $request->input('source') ?? null,
                 'message'    => $e->getMessage(),
                 'line'       => $e->getLine(),
                 'file'       => $e->getFile(),
@@ -1573,7 +1733,7 @@ class FunnelApiController extends Controller
 
             return response()->json([
                 'status'  => false,
-                'error' => $e->getMessage(),
+                'error'   => $e->getMessage(),
                 'message' => 'Something went wrong while adding patient to the funnel.',
             ], 500);
         }
