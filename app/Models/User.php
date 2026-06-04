@@ -194,29 +194,37 @@ class User extends Authenticatable implements JWTSubject
         return $this->getKey();
     }
 
+    /** Injected at token-issue time to embed patient details into the JWT. */
+    public ?array $jwtPatientDetails = null;
+
+    /** Injected at token-issue time to embed a specific case_id into the JWT. */
+    public ?int $jwtCaseId = null;
+
     public function getJWTCustomClaims()
     {
         $primaryPatientId = $this->getPrimaryPatientId();
 
+        $caseId = $this->jwtCaseId
+            ?? ($primaryPatientId
+                ? optional(
+                    PatientCase::where('patient_id', $primaryPatientId)
+                               ->latest()
+                               ->first()
+                  )->case_id
+                : null);
+
         return [
-            'id'          => $this->id,
-            'name'        => $primaryPatientId && $this->patient
-                                ? $this->patient->patient_name
-                                : $this->name,
-            'email'       => $this->email,
-            'phone'       => $this->phone,
-            'role'        => $this->role,
-            // Primary patient ID (single integer) for backward compatibility.
-            'patient_id'  => $primaryPatientId,
-            // Full array of patient IDs associated with this user.
-            'patient_ids' => $this->patient_id ?? [],
-            'case_id'     => $primaryPatientId
-                                ? optional(
-                                    PatientCase::where('patient_id', $primaryPatientId)
-                                               ->latest()
-                                               ->first()
-                                  )->case_id
-                                : null,
+            'id'              => $this->id,
+            'name'            => $primaryPatientId && $this->patient
+                                    ? $this->patient->patient_name
+                                    : $this->name,
+            'email'           => $this->email,
+            'phone'           => $this->phone,
+            'role'            => $this->role,
+            'patient_id'      => $primaryPatientId,
+            'patient_ids'     => $this->patient_id ?? [],
+            'case_id'         => $caseId,
+            'patient_details' => $this->jwtPatientDetails,
         ];
     }
 }
