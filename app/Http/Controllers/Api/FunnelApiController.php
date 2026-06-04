@@ -1110,57 +1110,21 @@ class FunnelApiController extends Controller
             Log::channel('patient_funnel')->info('Assign funnel request received', [
                 'patient_id' => $request->patient_id,
                 'case_id'    => $request->case_id,
-                'funnel_id'  => $request->funnel_id,
             ]);
 
             $validator = Validator::make($request->all(), [
                 'patient_id'  => 'required|integer|exists:ahcs.ahcs_patients,id',
                 'case_id'     => 'required|integer|exists:ahcs.ahcs_cases,id',
-                'funnel_id'   => 'nullable|integer|exists:funnels,id',
-                'funnel_name' => 'required|string|max:255',
-                'email'       => 'required|email',
+                'email'       => 'nullable|email',
                 'phone'       => 'nullable|string|max:20',
             ]);
 
             if ($validator->fails()) {
-                Log::channel('patient_funnel')->warning('Assign funnel validation failed', [
-                    'patient_id' => $request->patient_id,
-                    'case_id'    => $request->case_id,
-                    'funnel_id'  => $request->funnel_id,
-                    'error'      => $validator->errors()->first(),
-                ]);
-
                 return response()->json([
                     'status'  => false,
                     'message' => 'Validation failed.',
-                    'errors'  => $validator->errors()->first(),
+                    'errors'  => $validator->errors(),
                 ], 422);
-            }
-
-            DB::beginTransaction();
-
-            $patient = AhcsPatient::find($request->patient_id);
-
-            // Check for an existing user by email OR patient_id membership
-            // (handles both old plain-int and new JSON-array storage formats).
-            $user = User::where('email', $request->email)
-                ->orWhere(function ($q) use ($request) {
-                    $pid = (int) $request->patient_id;
-                    $q->whereJsonContains('patient_id', $pid)
-                      ->orWhere('patient_id', $pid);
-                })
-                ->first();
-
-            $userId = $user?->id;
-            $flag   = $user ? 'user_exists' : 'no_user';
-            $patientName = $patient->patient_name
-                ?? $user?->name
-                ?? 'Patient';
-
-            // If user already exists, append the patient_id to their array without
-            // overwriting any previously stored patient IDs.
-            if ($user) {
-                $user->appendPatientId((int) $request->patient_id);
             }
 
             // Create patient case if not exists
@@ -1169,16 +1133,11 @@ class FunnelApiController extends Controller
                 'case_id'    => $request->case_id,
             ]);
 
-            // Guard: reject if an ACTIVE (non-deleted) assignment already exists for
-            // this patient + case. A previously DELETED assignment is intentionally
-            // ignored here — re-assigning after deletion must always start fresh.
             $existingActiveAssignment = UserFunnel::where('patient_id', $request->patient_id)
                 ->where('patient_case_id', $patientCase->id)
                 ->first();
 
             if ($existingActiveAssignment) {
-                // $flag = true;
-                DB::rollBack();
                 return response()->json([
                     'status'  => false,
                     'assign_funnel' => true,
@@ -1189,17 +1148,15 @@ class FunnelApiController extends Controller
                 'status'  => true,
                 'assign_funnel' => false,
             ]);
-
-        } catch (\Throwable $e) {
-
-            DB::rollBack();
+        } catch (\Exception $e) {
 
             return response()->json([
                 'status'  => false,
-                'message' => 'Something went wrong while assigning the funnel.',
+                'message' => 'An error occurred while checking funnel assignment: ' . $e->getMessage(),
             ], 500);
         }
     }
+
     /**
      * POST /api/assign-funnel-sms
      *
