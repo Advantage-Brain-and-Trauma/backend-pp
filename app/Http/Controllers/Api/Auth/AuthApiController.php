@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Api\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Models\AhcsPatient;
+use App\Models\AhcsCase;
 use Illuminate\Http\Request;
 use App\Models\UserSession;
 use Illuminate\Support\Facades\Auth;
@@ -136,8 +138,7 @@ class AuthApiController extends Controller
             }
 
             $oldPayload = JWTAuth::parseToken()->getPayload();
-            $oldJwtId = $oldPayload->get('jti');
-            $activeCaseId = $oldPayload->get('case_id');
+            $oldJwtId   = $oldPayload->get('jti');
 
             $user = Auth::guard('api')->user();
             if (!$user) {
@@ -155,33 +156,73 @@ class AuthApiController extends Controller
                 ], 401);
             }
 
-            $claimOverrides = [];
-            if (!is_null($activeCaseId)) {
-                $claimOverrides['case_id'] = $activeCaseId;
+            // Resolve case_id: prefer the request param, fall back to the old token claim.
+            $caseId     = $request->input('case_id') ?? $oldPayload->get('case_id');
+            $patientIds = $freshUser->getAllPatientIds();
+
+            if (empty($caseId)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Case ID is required.',
+                ], 422);
             }
+
+            $caseRecord = AhcsCase::where('id', $caseId)
+                ->whereIn('patient_id', $patientIds)
+                ->first(['patient_id']);
+
+            if (!$caseRecord) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Invalid Case ID for this patient.',
+                ], 422);
+            }
+
+            $patientId = $caseRecord->patient_id;
+            $patient   = AhcsPatient::find($patientId);
+
+            $claimOverrides = ['case_id' => (int) $caseId];
 
             // Force claim generation via User::getJWTCustomClaims()
             $newToken = JWTAuth::fromUser($freshUser, $claimOverrides);
             JWTAuth::setToken($oldToken)->invalidate();
             $newPayload = JWTAuth::manager()->decode(new Token($newToken));
-            $newJwtId = $newPayload->get('jti');
+            $newJwtId   = $newPayload->get('jti');
 
             UserSession::where('user_id', $user->id)
                 ->where('jwt_id', $oldJwtId)
                 ->where('is_active', 1)
                 ->update([
-                    'jwt_id' => $newJwtId,
-                    'token' => $newToken,
-                    'ip_address' => $request->ip(),
-                    'user_agent' => $request->userAgent(),
+                    'jwt_id'        => $newJwtId,
+                    'token'         => $newToken,
+                    'ip_address'    => $request->ip(),
+                    'user_agent'    => $request->userAgent(),
                     'last_activity' => now(),
-                    'updated_at' => now(),
+                    'updated_at'    => now(),
                 ]);
 
+            Log::channel('auth')->info('Token refreshed successfully', [
+                'user_id'    => $user->id,
+                'case_id'    => $caseId,
+                'patient_id' => $patientId,
+            ]);
+
+            $patientDetails = $patient ? [
+                'id'         => $patient->id,
+                'first_name' => $patient->first_name,
+                'last_name'  => $patient->last_name,
+                'full_name'  => $patient->patient_name,
+                'dob'        => $patient->dob,
+                'email'      => $patient->email,
+                'home_phone' => $patient->cell_no ?? $patient->home_ph,
+                'address1'   => $patient->address1,
+            ] : null;
+
             return response()->json([
-                'success' => true,
-                'message' => 'Token refreshed successfully',
-                'token' => $newToken,
+                'success'         => true,
+                'message'         => 'Token refreshed successfully',
+                'token'           => $newToken,
+                'patient_details' => $patientDetails,
             ], 200);
         } catch (\Throwable $e) {
             Log::channel('auth')->error('Refresh token failed', [

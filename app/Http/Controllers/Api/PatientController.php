@@ -36,25 +36,42 @@ class PatientController extends Controller
      * - 404: { success: false, message: string }
      * - 500: { success: false, message: string }
      */
-    public function getPatientDetails(): JsonResponse
+    public function getPatientDetails(Request $request): JsonResponse
     {
         try {
             Log::channel('patient')->info('Get Patient Details API hit', [
                 'user_id' => auth()->id()
             ]);
 
+            $caseId      = $request->query('case_id');
             $userDetails = auth()->user();
-            // Use the primary patient ID for single-patient lookups.
-            $patient_id = $userDetails->getPrimaryPatientId();
+            $patientIds  = $userDetails->getAllPatientIds();
 
-            if (!$patient_id) {
-                throw new \Exception("Patient ID is required", 400);
+            if (empty($caseId)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Case ID is required.',
+                ], 422);
             }
+
+            $caseRecord = AhcsCase::where('id', $caseId)
+                ->whereIn('patient_id', $patientIds)
+                ->first(['patient_id']);
+
+            if (!$caseRecord) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Invalid Case ID for this patient.',
+                ], 422);
+            }
+
+            $patient_id = $caseRecord->patient_id;
 
             // ✅ Use findOrFail (auto throw)
             $patient = AhcsPatient::findOrFail($patient_id);
             Log::channel('patient')->info('Patient details fetched successfully', [
                 'patient_id' => $patient_id,
+                'case_id'    => $caseId,
             ]);
 
             $patientDetails = [
@@ -69,41 +86,13 @@ class PatientController extends Controller
 
             ];
 
-            // ✅ Ensure case belongs to patient
-            // $case = AhcsCase::where('patient_id', $patient_id)
-            //     ->where('id', $case_id)
-            //     ->first();
-
-            // if (!$case) {
-            //     throw new \Exception("Case not found for the given patient", 404);
-            // }
-
-            // $med_auth = AhcsMedAuth::where('case_id', $case_id)->first();
-            // if (!$med_auth) {
-            //     throw new \Exception("MedAuth not found for the given case", 404);
-            // }
-
-            // $intake = AhcsIntake::where('patient_id', $patient_id)->first();
-            // if (!$intake) {
-            //     throw new \Exception("Intake not found for the given patient", 404);
-            // }
-
-            // $workcamp = AhcsWorkComp::where('patient_id', $patient_id)->first();
-            // if (!$workcamp) {
-            //     throw new \Exception("WorkComp not found for the given patient", 404);
-            // }
-
             Log::channel('patient')->info('Patient details returned successfully', [
                 'patient_id' => $patient_id,
             ]);
 
             return response()->json([
-                'success' => true,
+                'success'         => true,
                 'patient_details' => $patientDetails,
-                // 'case_details' => $case->toArray(),
-                // 'med_auth_details' => $med_auth->toArray(),
-                // 'intake_details' => $intake->toArray(),
-                // 'workcamp_details' => $workcamp->toArray(),
             ], 200);
 
         } catch (ModelNotFoundException $e) {
