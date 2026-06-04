@@ -148,7 +148,7 @@ class AuthApiController extends Controller
                 ], 401);
             }
 
-            $freshUser = User::with('patient')->find($user->id);
+            $freshUser = User::find($user->id);
             if (!$freshUser) {
                 return response()->json([
                     'success' => false,
