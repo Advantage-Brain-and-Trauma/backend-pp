@@ -220,10 +220,9 @@ class AuthApiController extends Controller
             ]);
 
             return response()->json([
-                'success'         => true,
-                'message'         => 'Token refreshed successfully',
-                'token'           => $newToken,
-                'patient_details' => $patientDetails,
+                'success' => true,
+                'message' => 'Token refreshed successfully',
+                'token'   => $newToken,
             ], 200);
         } catch (\Throwable $e) {
             Log::channel('auth')->error('Refresh token failed', [

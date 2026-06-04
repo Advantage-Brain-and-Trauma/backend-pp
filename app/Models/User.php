@@ -213,18 +213,34 @@ class User extends Authenticatable implements JWTSubject
                   )->case_id
                 : null);
 
+        // Use explicitly injected details, or auto-fetch from AhcsPatient.
+        $patientDetails = $this->jwtPatientDetails;
+        if ($patientDetails === null && $primaryPatientId) {
+            $patient = AhcsPatient::find($primaryPatientId);
+            if ($patient) {
+                $patientDetails = [
+                    'id'         => $patient->id,
+                    'first_name' => $patient->first_name,
+                    'last_name'  => $patient->last_name,
+                    'full_name'  => $patient->patient_name,
+                    'dob'        => $patient->dob,
+                    'email'      => $patient->email,
+                    'home_phone' => $patient->cell_no ?? $patient->home_ph,
+                    'address1'   => $patient->address1,
+                ];
+            }
+        }
+
         return [
             'id'              => $this->id,
-            'name'            => $primaryPatientId && $this->patient
-                                    ? $this->patient->patient_name
-                                    : $this->name,
+            'name'            => $this->name,
             'email'           => $this->email,
             'phone'           => $this->phone,
             'role'            => $this->role,
             'patient_id'      => $primaryPatientId,
             'patient_ids'     => $this->patient_id ?? [],
             'case_id'         => $caseId,
-            'patient_details' => $this->jwtPatientDetails,
+            'patient_details' => $patientDetails,
         ];
     }
 }
