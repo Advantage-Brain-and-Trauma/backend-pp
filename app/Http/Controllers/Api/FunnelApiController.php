@@ -1143,7 +1143,7 @@ class FunnelApiController extends Controller
                     $flag = true;
                 }
                 return response()->json([
-                    'status'  => false,
+                    'status'  => true,
                     'assign_funnel' => $flag,
                 ]);
             }
