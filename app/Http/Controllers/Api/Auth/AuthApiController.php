@@ -181,7 +181,21 @@ class AuthApiController extends Controller
             $patientId = $caseRecord->patient_id;
             $patient   = AhcsPatient::find($patientId);
 
-            $claimOverrides = ['case_id' => (int) $caseId];
+            $patientDetails = $patient ? [
+                'id'         => $patient->id,
+                'first_name' => $patient->first_name,
+                'last_name'  => $patient->last_name,
+                'full_name'  => $patient->patient_name,
+                'dob'        => $patient->dob,
+                'email'      => $patient->email,
+                'home_phone' => $patient->cell_no ?? $patient->home_ph,
+                'address1'   => $patient->address1,
+            ] : null;
+
+            $claimOverrides = [
+                'case_id'         => (int) $caseId,
+                'patient_details' => $patientDetails,
+            ];
 
             // Force claim generation via User::getJWTCustomClaims()
             $newToken = JWTAuth::fromUser($freshUser, $claimOverrides);
@@ -206,17 +220,6 @@ class AuthApiController extends Controller
                 'case_id'    => $caseId,
                 'patient_id' => $patientId,
             ]);
-
-            $patientDetails = $patient ? [
-                'id'         => $patient->id,
-                'first_name' => $patient->first_name,
-                'last_name'  => $patient->last_name,
-                'full_name'  => $patient->patient_name,
-                'dob'        => $patient->dob,
-                'email'      => $patient->email,
-                'home_phone' => $patient->cell_no ?? $patient->home_ph,
-                'address1'   => $patient->address1,
-            ] : null;
 
             return response()->json([
                 'success'         => true,
