@@ -31,11 +31,11 @@ class CheckPatientActive
             return $next($request);
         }
 
-        $activePatientExists = AhcsPatient::whereIn('id', $patientIds)
-            ->whereNull('deleted_at')
+        $anyPatientDeleted = AhcsPatient::whereIn('id', $patientIds)
+            ->whereNotNull('deleted_at')
             ->exists();
 
-        if (!$activePatientExists) {
+        if ($anyPatientDeleted) {
             // Deactivate all active sessions for this user in the DB.
             UserSession::where('user_id', $user->id)
                 ->where('is_active', 1)
@@ -44,7 +44,7 @@ class CheckPatientActive
                     'updated_at' => now(),
                 ]);
 
-            Log::channel('auth')->warning('Session invalidated: all linked patients are deleted', [
+            Log::channel('auth')->warning('Session invalidated: one or more linked patients are deleted', [
                 'user_id'     => $user->id,
                 'email'       => $user->email,
                 'patient_ids' => $patientIds,
