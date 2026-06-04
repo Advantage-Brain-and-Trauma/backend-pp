@@ -231,16 +231,18 @@ class User extends Authenticatable implements JWTSubject
             }
         }
 
-        return [
-            'id'              => $this->id,
-            'name'            => $this->name,
-            'email'           => $this->email,
-            'phone'           => $this->phone,
-            'role'            => $this->role,
-            'patient_id'      => $primaryPatientId,
-            'patient_ids'     => $this->patient_id ?? [],
-            'case_id'         => $caseId,
-            'patient_details' => $patientDetails,
-        ];
+        return array_merge(
+            [
+                'id'          => $this->id,
+                'name'        => $this->name,
+                'email'       => $this->email,
+                'phone'       => $this->phone,
+                'role'        => $this->role,
+                'patient_id'  => $primaryPatientId,
+                'patient_ids' => $this->patient_id ?? [],
+                'case_id'     => $caseId,
+            ],
+            $patientDetails ?? []
+        );
     }
 }
