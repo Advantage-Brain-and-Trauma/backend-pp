@@ -50,29 +50,81 @@ class AuthApiController extends Controller
                     'message' => 'Invalid credentials'
                 ], 401);
             }
+
             // ✅ Get logged-in user
             $user = Auth::guard('api')->user();
-            $user->forceFill([
-                'last_login_at' => now(),
-            ])->save();
+
+            // ── Patient active check ──────────────────────────────────────────
+            // Reject login if ALL linked patients are soft-deleted in AhcsPatient.
+            $patientIds = $user->getAllPatientIds();
+
+            if (!empty($patientIds)) {
+                $activePatientExists = AhcsPatient::whereIn('id', $patientIds)
+                    ->whereNull('deleted_at')
+                    ->exists();
+
+                if (!$activePatientExists) {
+                    Auth::guard('api')->logout();
+
+                    Log::channel('auth')->warning('Login blocked: all linked patients are deleted', [
+                        'user_id'     => $user->id,
+                        'email'       => $user->email,
+                        'patient_ids' => $patientIds,
+                    ]);
+
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Your account is no longer active. Please contact support.',
+                    ], 403);
+                }
+            }
+
+            // ── Invalidate any existing active sessions ───────────────────────
+            $activeSessions = UserSession::where('user_id', $user->id)
+                ->where('is_active', 1)
+                ->get();
+
+            foreach ($activeSessions as $session) {
+                try {
+                    JWTAuth::setToken($session->token)->invalidate();
+                } catch (\Throwable) {
+                    // Token may already be expired — safe to ignore.
+                }
+            }
+
+            UserSession::where('user_id', $user->id)
+                ->where('is_active', 1)
+                ->update([
+                    'is_active'     => 0,
+                    'updated_at'    => now(),
+                ]);
+
+            Log::channel('auth')->info('Previous active sessions invalidated', [
+                'user_id'       => $user->id,
+                'session_count' => $activeSessions->count(),
+            ]);
+
+            // ── Create new session ────────────────────────────────────────────
+            $user->forceFill(['last_login_at' => now()])->save();
+
             $payload = JWTAuth::setToken($token)->getPayload();
-            $jwtId = $payload->get('jti');
+            $jwtId   = $payload->get('jti');
 
             UserSession::create([
-                'user_id' => $user->id,
-                'jwt_id'       => $jwtId,
-                'token' => $token,
-                'ip_address' => $request->ip(),
-                'user_agent' => $request->userAgent(),
-                'is_active' => 1,
+                'user_id'       => $user->id,
+                'jwt_id'        => $jwtId,
+                'token'         => $token,
+                'ip_address'    => $request->ip(),
+                'user_agent'    => $request->userAgent(),
+                'is_active'     => 1,
                 'last_activity' => now(),
-                'created_at' => now(),
-                'updated_at' => now(),
+                'created_at'    => now(),
+                'updated_at'    => now(),
             ]);
 
             Log::channel('auth')->info('Login successful', [
                 'user_id' => $user->id,
-                'email' => $user->email
+                'email'   => $user->email,
             ]);
 
             return response()->json([
