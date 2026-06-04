@@ -1138,9 +1138,13 @@ class FunnelApiController extends Controller
                 ->first();
 
             if ($existingActiveAssignment) {
+                $flag = false;
+                if(isset($existingActiveAssignment->user_id) and !is_null($existingActiveAssignment->user_id)){
+                    $flag = true;
+                }
                 return response()->json([
                     'status'  => false,
-                    'assign_funnel' => true,
+                    'assign_funnel' => $flag,
                 ]);
             }
 
