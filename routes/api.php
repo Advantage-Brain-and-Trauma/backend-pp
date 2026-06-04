@@ -38,7 +38,7 @@ Route::middleware('auth:api')->group(function () {
     Route::post('refresh-token',[AuthApiController::class, 'refreshToken']);
 });
 
-Route::middleware(['auth:api', 'role.api:User'])->group(function (){
+Route::middleware(['auth:api', 'role.api:User', 'patient.active'])->group(function (){
     Route::get('get-patient-appointments',[PatientAppointmentController::class,'getPatientAppointments']);
     Route::get('get-appointment-departments',[PatientAppointmentController::class, 'getAppointmentDepartments']);
     Route::get('get-department-speciality-with-physician',[PatientAppointmentController::class, 'getDepartmentSpecialityWithPhysician']);
