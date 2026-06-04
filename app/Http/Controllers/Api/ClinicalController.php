@@ -170,7 +170,7 @@ class ClinicalController extends Controller
 
             $url = "https://ptp.advantagehcs.com/api/submittedData/" . $patientId;
 
-            $response = Http::timeout(30)
+            $response = Http::timeout(60)
                 ->acceptJson()
                 ->asJson()
                 ->post($url, []);
@@ -255,7 +255,6 @@ class ClinicalController extends Controller
 
             return response()->json([
                 'success' => false,
-                'error' => $e->getMessage(),
                 'message' => 'Error fetching patient form data'
             ], 500);
         }
