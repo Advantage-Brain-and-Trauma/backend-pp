@@ -1027,17 +1027,18 @@ class FunnelApiController extends Controller
             // this patient + case. A previously DELETED assignment is intentionally
             // ignored here — re-assigning after deletion must always start fresh.
 
-            // $existingActiveAssignment = UserFunnel::where('patient_id', $request->patient_id)
-            //     ->where('patient_case_id', $patientCase->id)
-            //     ->first();
+            $existingActiveAssignment = UserFunnel::where('patient_id', $request->patient_id)
+                ->where('patient_case_id', $patientCase->id)
+                ->first();
 
-            // if ($existingActiveAssignment) {
-            //     DB::rollBack();
-            //     return response()->json([
-            //         'status'  => false,
-            //         'message' => 'A funnel is already assigned for this patient and case.',
-            //     ], 422);
-            // }
+            if ($existingActiveAssignment) {
+                Log::channel('patient_funnel')->warning('Active funnel assignment already exists for this patient case. Sending reminder.', [
+                    'patient_id' => $request->patient_id,
+                    'case_id'    => $request->case_id,
+                    'funnel_id'  => $existingActiveAssignment->funnel_id,
+                    'user_id'    => $existingActiveAssignment->user_id,
+                ]);
+            }
 
             // Always create a brand-new UserFunnel record.
             //
@@ -1046,15 +1047,17 @@ class FunnelApiController extends Controller
             // would instantly re-appear, making the patient look like they already
             // completed everything even though the assignment was deleted and
             // re-created intentionally. A new record = new ID = clean slate.
-            UserFunnel::create([
-                'user_id'         => $userId,
-                'patient_id'      => $request->patient_id,
-                'funnel_id'       => $request->funnel_id,
-                'patient_case_id' => $patientCase->id,
-                'assigned_via'    => 'email',
-                'assigned_at'     => now(),
-                'email'           => $request->email,
-            ]);
+            if(!$existingActiveAssignment) {
+                UserFunnel::create([
+                    'user_id'         => $userId,
+                    'patient_id'      => $request->patient_id,
+                    'funnel_id'       => $request->funnel_id,
+                    'patient_case_id' => $patientCase->id,
+                    'assigned_via'    => 'email',
+                    'assigned_at'     => now(),
+                    'email'           => $request->email,
+                ]);
+            }
 
             // Send email
             Mail::to($request->email)->send(
@@ -1139,7 +1142,7 @@ class FunnelApiController extends Controller
                 ->first();
 
             if ($existingActiveAssignment) {
-                
+
                 $flag = false;
                 $funnelName = Funnel::where('id', $existingActiveAssignment->funnel_id ?? null)->value('name');
                 if(isset($existingActiveAssignment->user_id) and !is_null($existingActiveAssignment->user_id)){
@@ -1263,17 +1266,18 @@ class FunnelApiController extends Controller
             // this patient + case. A previously DELETED assignment is intentionally
             // ignored here — re-assigning after deletion must always start fresh.
 
-            // $existingActiveAssignment = UserFunnel::where('patient_id', $request->patient_id)
-            //     ->where('patient_case_id', $patientCase->id)
-            //     ->first();
+            $existingActiveAssignment = UserFunnel::where('patient_id', $request->patient_id)
+                ->where('patient_case_id', $patientCase->id)
+                ->first();
 
-            // if ($existingActiveAssignment) {
-            //     DB::rollBack();
-            //     return response()->json([
-            //         'status'  => false,
-            //         'message' => 'A funnel is already assigned for this patient and case.',
-            //     ], 422);
-            // }
+            if ($existingActiveAssignment) {
+               Log::channel('patient_funnel')->warning('Active funnel assignment already exists for this patient case. Sending reminder.', [
+                    'patient_id' => $request->patient_id,
+                    'case_id'    => $request->case_id,
+                    'funnel_id'  => $existingActiveAssignment->funnel_id,
+                    'user_id'    => $existingActiveAssignment->user_id,
+                ]);
+            }
 
             // Always create a brand-new UserFunnel record.
             //
@@ -1282,16 +1286,18 @@ class FunnelApiController extends Controller
             // would instantly re-appear, making the patient look like they already
             // completed everything even though the assignment was deleted and
             // re-created intentionally. A new record = new ID = clean slate.
-            UserFunnel::create([
-                'user_id'         => $userId,
-                'patient_id'      => $request->patient_id,
-                'funnel_id'       => $request->funnel_id,
-                'patient_case_id' => $patientCase->id,
-                'assigned_via'    => 'sms',
-                'assigned_at'     => now(),
-                'email'           => $request->email ?: null,
-                'phone_no'        => $normalizedPhone,
-            ]);
+            if(!$existingActiveAssignment) {
+                UserFunnel::create([
+                    'user_id'         => $userId,
+                    'patient_id'      => $request->patient_id,
+                    'funnel_id'       => $request->funnel_id,
+                    'patient_case_id' => $patientCase->id,
+                    'assigned_via'    => 'sms',
+                    'assigned_at'     => now(),
+                    'email'           => $request->email ?: null,
+                    'phone_no'        => $normalizedPhone,
+                ]);
+            }
 
             $funnelUrl = (new AssignFunnelMail(
                 (string) $request->patient_id,
