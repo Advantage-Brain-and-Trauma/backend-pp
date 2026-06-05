@@ -1026,17 +1026,18 @@ class FunnelApiController extends Controller
             // Guard: reject if an ACTIVE (non-deleted) assignment already exists for
             // this patient + case. A previously DELETED assignment is intentionally
             // ignored here — re-assigning after deletion must always start fresh.
-            $existingActiveAssignment = UserFunnel::where('patient_id', $request->patient_id)
-                ->where('patient_case_id', $patientCase->id)
-                ->first();
 
-            if ($existingActiveAssignment) {
-                DB::rollBack();
-                return response()->json([
-                    'status'  => false,
-                    'message' => 'A funnel is already assigned for this patient and case.',
-                ], 422);
-            }
+            // $existingActiveAssignment = UserFunnel::where('patient_id', $request->patient_id)
+            //     ->where('patient_case_id', $patientCase->id)
+            //     ->first();
+
+            // if ($existingActiveAssignment) {
+            //     DB::rollBack();
+            //     return response()->json([
+            //         'status'  => false,
+            //         'message' => 'A funnel is already assigned for this patient and case.',
+            //     ], 422);
+            // }
 
             // Always create a brand-new UserFunnel record.
             //
@@ -1144,6 +1145,8 @@ class FunnelApiController extends Controller
                 }
                 return response()->json([
                     'status'  => true,
+                    'funnel_id' => $request->funnel_id,
+                    'funnel_name' => $request->funnel_name,
                     'assign_funnel' => $flag,
                 ]);
             }
@@ -1257,17 +1260,18 @@ class FunnelApiController extends Controller
             // Guard: reject if an ACTIVE (non-deleted) assignment already exists for
             // this patient + case. A previously DELETED assignment is intentionally
             // ignored here — re-assigning after deletion must always start fresh.
-            $existingActiveAssignment = UserFunnel::where('patient_id', $request->patient_id)
-                ->where('patient_case_id', $patientCase->id)
-                ->first();
 
-            if ($existingActiveAssignment) {
-                DB::rollBack();
-                return response()->json([
-                    'status'  => false,
-                    'message' => 'A funnel is already assigned for this patient and case.',
-                ], 422);
-            }
+            // $existingActiveAssignment = UserFunnel::where('patient_id', $request->patient_id)
+            //     ->where('patient_case_id', $patientCase->id)
+            //     ->first();
+
+            // if ($existingActiveAssignment) {
+            //     DB::rollBack();
+            //     return response()->json([
+            //         'status'  => false,
+            //         'message' => 'A funnel is already assigned for this patient and case.',
+            //     ], 422);
+            // }
 
             // Always create a brand-new UserFunnel record.
             //
