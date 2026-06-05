@@ -236,29 +236,35 @@ class PatientController extends Controller
 
             $email = $authUser->email;
 
-            Log::channel('patient')->info('Get case IDs API hit', [
+            Log::channel('patient')->info('Get case IDs by email API hit', [
                 'user_id' => $authUser->id,
                 'email'   => $email,
             ]);
 
+            // Patient IDs stored on the users table (JSON array column).
+            $userPatientIds = array_values(array_map('intval', $authUser->getActivePatientIds()));
+
+            // Match AhcsPatient records where id is in the user's patient_ids OR email matches.
             $patientIds = AhcsPatient::where('email', $email)
+                ->orWhereIn('id', $userPatientIds)
                 ->whereNull('deleted_at')
                 ->pluck('id')
+                ->map(fn ($id) => (int) $id)
                 ->unique()
                 ->values()
                 ->toArray();
 
             if (empty($patientIds)) {
                 return response()->json([
-                    'success' => false,
-                    'message' => 'No patients found for this email',
+                    'success'  => false,
+                    'message'  => 'No patients found for this email',
                     'case_ids' => [],
                 ], 404);
             }
 
             $caseIds = AhcsCase::whereIn('patient_id', $patientIds)
                 ->whereNull('deleted_at')
-                ->pluck('id') // change to 'case_id' if you want actual case_id
+                ->pluck('id')
                 ->unique()
                 ->values()
                 ->toArray();
