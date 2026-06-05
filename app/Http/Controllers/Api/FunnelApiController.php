@@ -1711,8 +1711,11 @@ class FunnelApiController extends Controller
                     })
                     ->update(['user_id' => $user->id]);
 
-                // AMD sync — keep phone up to date
+                // AMD sync — keep phone and email up to date
                 $amdSyncPayload = ['cell_no' => $request->phone];
+                if ($request->filled('email')) {
+                    $amdSyncPayload['email'] = $request->email;
+                }
             }
 
             DB::commit();
