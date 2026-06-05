@@ -97,8 +97,6 @@
 
             <div class="info-box">
                 ℹ️ This link is valid for <strong>{{ $expiresInMinutes }} minutes</strong>
-                and can only be used once.<br>
-                If you did not make this request, no action is needed.
             </div>
 
             <p class="fallback-url">
