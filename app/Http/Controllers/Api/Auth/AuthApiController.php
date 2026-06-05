@@ -144,85 +144,32 @@ class AuthApiController extends Controller
         }
     }
 
-    // public function logout(Request $request)
-    // {
-    //     try {
-    //         $token = $request->bearerToken();
-    //         UserSession::where('token', $token)->update([
-    //             'is_active' => 0,
-    //         ]);
-
-    //         $user = Auth::guard('api')->user();
-    //         Log::channel('auth')->info('Logout API hit', [
-    //             'user_id' => $user->id ?? null
-    //         ]);
-    //         // invalidate current token
-    //         Auth::guard('api')->logout();
-    //         Log::channel('auth')->info('Logout successful', [
-    //             'user_id' => $user->id ?? null
-    //         ]);
-    //         return response()->json([
-    //             'success' => true,
-    //             'message' => 'Logout successful'
-    //         ]);
-    //     } catch (\Exception $e) {
-    //         Log::channel('auth')->error('Logout failed', [
-    //             'user_id' => Auth::guard('api')->id(),
-    //             'message' => $e->getMessage()
-    //         ]);
-    //         return response()->json([
-    //             'success' => false,
-    //             'message' => 'Failed to logout'
-    //         ], 500);
-    //     }
-    // }
-
     public function logout(Request $request)
     {
         try {
-            $user = Auth::guard('api')->user();
-            $token = JWTAuth::getToken();
+            $token = $request->bearerToken();
+            UserSession::where('token', $token)->update([
+                'is_active' => 0,
+            ]);
 
+            $user = Auth::guard('api')->user();
             Log::channel('auth')->info('Logout API hit', [
                 'user_id' => $user->id ?? null
             ]);
-
-            if (!$token) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Token not provided'
-                ], 401);
-            }
-
-            $payload = JWTAuth::setToken($token)->getPayload();
-            $jwtId = $payload->get('jti');
-
-            UserSession::where('user_id', $user->id)
-                ->where('jwt_id', $jwtId)
-                ->where('is_active', 1)
-                ->update([
-                    'is_active' => 0,
-                    'updated_at' => now(),
-                ]);
-
-            JWTAuth::setToken($token)->invalidate();
-
-            Log::channel('auth')->info('Logout successful for current device', [
-                'user_id' => $user->id,
-                'jwt_id'  => $jwtId,
+            // invalidate current token
+            Auth::guard('api')->logout();
+            Log::channel('auth')->info('Logout successful', [
+                'user_id' => $user->id ?? null
             ]);
-
             return response()->json([
                 'success' => true,
                 'message' => 'Logout successful'
-            ], 200);
-
-        } catch (\Throwable $e) {
+            ]);
+        } catch (\Exception $e) {
             Log::channel('auth')->error('Logout failed', [
                 'user_id' => Auth::guard('api')->id(),
                 'message' => $e->getMessage()
             ]);
-
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to logout'
