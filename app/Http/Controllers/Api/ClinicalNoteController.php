@@ -277,18 +277,18 @@ class ClinicalNoteController extends Controller
         string $filename
     ): Response|JsonResponse {
 
-        $patientIds = auth()->user()->getActivePatientIds();
+        // $patientIds = auth()->user()->getActivePatientIds();
 
-        $isValidCaseForPatient = AhcsCase::where('id', $caseId)
-            ->whereIn('patient_id', $patientIds)
-            ->exists();
+        // $isValidCaseForPatient = AhcsCase::where('id', $caseId)
+        //     ->whereIn('patient_id', $patientIds)
+        //     ->exists();
 
-        if (!$isValidCaseForPatient) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Invalid Case Id for this patient.',
-            ], 422);
-        }
+        // if (!$isValidCaseForPatient) {
+        //     return response()->json([
+        //         'success' => false,
+        //         'message' => 'Invalid Case Id for this patient.',
+        //     ], 422);
+        // }
 
         $row = DB::connection('ahcs')
             ->table('ahcs_attachment_logs')
