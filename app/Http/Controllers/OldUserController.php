@@ -88,8 +88,20 @@ class OldUserController extends Controller
                 ->whereRaw('LOWER(email) = ?', [Str::lower($oldUser->email)])
                 ->first();
 
+            $rawPatientId = $oldUser->patient_id ?? null;
+            if (is_string($rawPatientId) && str_starts_with(trim($rawPatientId), '[')) {
+                $decoded = json_decode($rawPatientId, true);
+                $patientIdArray = is_array($decoded) ? array_values(array_unique(array_filter(array_map('intval', $decoded)))) : null;
+            } elseif (is_string($rawPatientId) && str_contains($rawPatientId, ',')) {
+                $patientIdArray = array_values(array_unique(array_filter(array_map('intval', explode(',', $rawPatientId)))));
+            } elseif (!is_null($rawPatientId) && $rawPatientId !== '') {
+                $patientIdArray = [(int) $rawPatientId];
+            } else {
+                $patientIdArray = null;
+            }
+
             $syncData = [
-                'patient_id' => $oldUser->patient_id ?? null,
+                'patient_id' => $patientIdArray,
                 'name' => $oldUser->name ?? 'Unknown User',
                 'email' => $oldUser->email,
                 'email_verified_at' => $oldUser->email_verified_at ?? null,
