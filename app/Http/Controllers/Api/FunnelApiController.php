@@ -1644,6 +1644,11 @@ class FunnelApiController extends Controller
             // ── Source: SMS ──────────────────────────────────────────────────────
             } else {
 
+                // Keep AHCS patient email in sync.
+                AhcsPatient::where('id', $requestPatientId)->update([
+                    'email' => $request->email,
+                ]);
+
                 // Collect every patient_id from user_funnels rows whose phone_no
                 // matches the registering patient's normalised phone number, so all
                 // previous SMS assignments consolidate into one user account.
