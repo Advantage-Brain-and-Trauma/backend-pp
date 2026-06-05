@@ -244,9 +244,9 @@ class PatientController extends Controller
             // Patient IDs stored on the users table (JSON array column).
             $userPatientIds = array_values(array_map('intval', $authUser->getActivePatientIds()));
 
-            // Match AhcsPatient records where id is in the user's patient_ids OR email matches.
-            $patientIds = AhcsPatient::where('email', $email)
-                ->orWhereIn('id', $userPatientIds)
+            // Only keep patient IDs from the user table that also match by email in AhcsPatient.
+            $patientIds = AhcsPatient::whereIn('id', $userPatientIds)
+                ->where('email', $email)
                 ->whereNull('deleted_at')
                 ->pluck('id')
                 ->map(fn ($id) => (int) $id)
