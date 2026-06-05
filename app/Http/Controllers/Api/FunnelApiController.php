@@ -1139,14 +1139,16 @@ class FunnelApiController extends Controller
                 ->first();
 
             if ($existingActiveAssignment) {
+                
                 $flag = false;
+                $funnelName = Funnel::where('id', $existingActiveAssignment->funnel_id ?? null)->value('name');
                 if(isset($existingActiveAssignment->user_id) and !is_null($existingActiveAssignment->user_id)){
                     $flag = true;
                 }
                 return response()->json([
                     'status'  => true,
-                    'funnel_id' => $request->funnel_id,
-                    'funnel_name' => $request->funnel_name,
+                    'funnel_id' => $existingActiveAssignment->funnel_id,
+                    'funnel_name' => $funnelName,
                     'assign_funnel' => $flag,
                 ]);
             }
