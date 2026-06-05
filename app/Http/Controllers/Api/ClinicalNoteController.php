@@ -346,26 +346,67 @@ class ClinicalNoteController extends Controller
             ]);
         }
 
-        // Fallback: fetch remotely (works when the storage host is reachable).
+        // Fallback: try every base + path combination until one succeeds.
+        // The split-path URL may 404 on a web server that uses flat caseId paths,
+        // and some servers only expose files via WebDAV — so we probe all variants.
         try {
-            $remote = Http::timeout(30)->withHeaders([
-                'Accept' => '*/*',
-            ])->get($normalizedUrl);
+            $splitCaseId = implode('/', str_split((string) $caseId));
+            $flatCaseId  = (string) $caseId;
+            $filePath    = rawurlencode($folder)
+                . '/' . rawurlencode($subFolder)
+                . '/' . rawurlencode($filename);
 
-            if ($remote->failed() || $remote->body() === '') {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Unable to fetch preview document.',
-                    'status_code' => $remote->status(),
-                ], $remote->status() > 0 ? $remote->status() : 502);
+            $candidates = array_unique([
+                // Primary resolved URL (split path, storage base)
+                $normalizedUrl,
+                // Flat caseId, storage base
+                rtrim(self::STORAGE_BASE, '/') . '/' . $flatCaseId . '/' . $filePath,
+                // Split caseId, local WebDAV
+                rtrim(self::LOCAL_WEBDAV_BASE, '/') . '/' . $splitCaseId . '/' . $filePath,
+                // Flat caseId, local WebDAV
+                rtrim(self::LOCAL_WEBDAV_BASE, '/') . '/' . $flatCaseId . '/' . $filePath,
+                // Split caseId, remote WebDAV
+                rtrim(self::WEBDAV_BASE, '/') . '/' . $splitCaseId . '/' . $filePath,
+                // Flat caseId, remote WebDAV
+                rtrim(self::WEBDAV_BASE, '/') . '/' . $flatCaseId . '/' . $filePath,
+            ]);
+
+            $lastStatus = 0;
+            foreach ($candidates as $candidateUrl) {
+                try {
+                    $remote = Http::timeout(15)->withHeaders(['Accept' => '*/*'])->get($candidateUrl);
+                    $lastStatus = $remote->status();
+
+                    if (!$remote->failed() && $remote->body() !== '') {
+                        Log::channel('patient_form')->info('Attachment preview fetched successfully', [
+                            'case_id'       => $caseId,
+                            'fetched_from'  => $candidateUrl,
+                        ]);
+
+                        $contentType = $remote->header('Content-Type') ?: $this->detectContentTypeByName($filename);
+
+                        return response($remote->body(), 200)
+                            ->header('Content-Type', $contentType)
+                            ->header('Content-Disposition', 'inline; filename="' . $filename . '"')
+                            ->header('Cache-Control', 'no-cache, no-store, must-revalidate');
+                    }
+                } catch (\Throwable) {
+                    // This candidate is unreachable — try the next one.
+                }
             }
 
-            $contentType = $remote->header('Content-Type') ?: $this->detectContentTypeByName($filename);
+            Log::channel('patient_form')->error('Attachment preview: all candidate URLs failed', [
+                'case_id'    => $caseId,
+                'candidates' => $candidates,
+                'last_status'=> $lastStatus,
+            ]);
 
-            return response($remote->body(), 200)
-                ->header('Content-Type', $contentType)
-                ->header('Content-Disposition', 'inline; filename="' . $filename . '"')
-                ->header('Cache-Control', 'no-cache, no-store, must-revalidate');
+            return response()->json([
+                'success'     => false,
+                'message'     => 'Unable to fetch preview document.',
+                'status_code' => $lastStatus,
+            ], $lastStatus > 0 ? $lastStatus : 502);
+
         } catch (\Throwable $e) {
             Log::channel('patient_form')->error('Attachment preview API error', [
                 'case_id'        => $caseId,
