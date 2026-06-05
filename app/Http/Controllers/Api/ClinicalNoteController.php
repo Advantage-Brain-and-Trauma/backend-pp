@@ -324,6 +324,19 @@ class ClinicalNoteController extends Controller
         // unreachable from the public server.
         $localPath = $this->resolveLocalFilesystemPath($normalizedUrl);
 
+        Log::channel('patient_form')->info('Attachment preview debug', [
+            'case_id'        => $caseId,
+            'folder'         => $folder,
+            'sub_folder'     => $subFolder,
+            'filename'       => $filename,
+            'db_row_found'   => $row ? true : false,
+            'db_row'         => $row ? (array) $row : null,
+            'raw_url'        => $rawUrl,
+            'normalized_url' => $normalizedUrl,
+            'local_path'     => $localPath,
+            'local_exists'   => $localPath !== null ? is_file($localPath) : false,
+        ]);
+
         if ($localPath !== null && is_file($localPath)) {
             $contentType = $this->detectContentTypeByName($filename);
             return response()->file($localPath, [
