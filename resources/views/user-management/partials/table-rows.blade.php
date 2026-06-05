@@ -36,7 +36,7 @@
                 data-role="{{ $user->role }}"
                 data-phone="{{ $user->phone }}"
                 data-country="{{ $user->country_code }}"
-                data-patient="{{ $user->patient_id }}"
+                data-patient="{{ is_array($user->patient_id) ? implode(',', $user->patient_id) : $user->patient_id }}"
                 onclick="openEditModalFromBtn(this)"
                 class="btn btn-secondary btn-sm" title="View User">
                 <i class="fas fa-eye"></i>
