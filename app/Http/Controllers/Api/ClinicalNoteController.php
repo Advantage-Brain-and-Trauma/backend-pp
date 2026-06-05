@@ -319,6 +319,21 @@ class ClinicalNoteController extends Controller
             ], 422);
         }
 
+        // Try to resolve a local filesystem path from the URL so the file can be
+        // served directly without an HTTP round-trip to a LAN IP that may be
+        // unreachable from the public server.
+        $localPath = $this->resolveLocalFilesystemPath($normalizedUrl);
+
+        if ($localPath !== null && is_file($localPath)) {
+            $contentType = $this->detectContentTypeByName($filename);
+            return response()->file($localPath, [
+                'Content-Type'        => $contentType,
+                'Content-Disposition' => 'inline; filename="' . $filename . '"',
+                'Cache-Control'       => 'no-cache, no-store, must-revalidate',
+            ]);
+        }
+
+        // Fallback: fetch remotely (works when the storage host is reachable).
         try {
             $remote = Http::timeout(30)->withHeaders([
                 'Accept' => '*/*',
@@ -340,15 +355,16 @@ class ClinicalNoteController extends Controller
                 ->header('Cache-Control', 'no-cache, no-store, must-revalidate');
         } catch (\Throwable $e) {
             Log::channel('patient_form')->error('Attachment preview API error', [
-                'case_id' => $caseId,
-                'folder' => $folder,
-                'sub_folder' => $subFolder,
-                'filename' => $filename,
-                'raw_url' => $rawUrl,
+                'case_id'        => $caseId,
+                'folder'         => $folder,
+                'sub_folder'     => $subFolder,
+                'filename'       => $filename,
+                'raw_url'        => $rawUrl,
                 'normalized_url' => $normalizedUrl,
-                'error' => $e->getMessage(),
-                'line' => $e->getLine(),
-                'file' => $e->getFile(),
+                'local_path'     => $localPath,
+                'error'          => $e->getMessage(),
+                'line'           => $e->getLine(),
+                'file'           => $e->getFile(),
             ]);
 
             return response()->json([
@@ -666,6 +682,36 @@ class ClinicalNoteController extends Controller
         $path .= '/' . $filename;
 
         return is_file($path);
+    }
+
+    /**
+     * Map a normalized storage/webdav URL back to an absolute filesystem path.
+     *
+     * Returns null when the URL does not map to a known local base.
+     *
+     * URL pattern  : http://10.0.0.23/storage/files/mh/{...path}
+     *              : http://10.0.0.23/webdav/mh/{...path}
+     * FS equivalent: /files/mh/{...path}
+     *              : /webdav/mh/{...path}
+     */
+    private function resolveLocalFilesystemPath(string $url): ?string
+    {
+        $urlBases = [
+            self::STORAGE_BASE      => self::STORAGE_FS_BASE,
+            self::LOCAL_WEBDAV_BASE => self::LOCAL_WEBDAV_FS_BASE,
+        ];
+
+        foreach ($urlBases as $urlBase => $fsBase) {
+            $urlBase = rtrim($urlBase, '/');
+            if (str_starts_with($url, $urlBase . '/')) {
+                $relativePath = substr($url, strlen($urlBase));
+                // URL-decode each segment so encoded chars resolve correctly.
+                $decoded = implode('/', array_map('rawurldecode', explode('/', ltrim($relativePath, '/'))));
+                return rtrim($fsBase, '/') . '/' . $decoded;
+            }
+        }
+
+        return null;
     }
 
     private function enrichClinicalPayload(mixed $payload, string $caseId, string $attendId): mixed
