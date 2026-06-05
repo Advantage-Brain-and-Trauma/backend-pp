@@ -236,35 +236,29 @@ class PatientController extends Controller
 
             $email = $authUser->email;
 
-            Log::channel('patient')->info('Get case IDs by email API hit', [
+            Log::channel('patient')->info('Get case IDs API hit', [
                 'user_id' => $authUser->id,
                 'email'   => $email,
             ]);
 
-            // Source 1: patient IDs already linked to this user account (JSON array).
-            $userPatientIds = array_map('intval', $authUser->getActivePatientIds());
-
-            // Source 2: patient IDs from AhcsPatient matched by email.
-            $emailPatientIds = AhcsPatient::where('email', $email)
+            $patientIds = AhcsPatient::where('email', $email)
                 ->whereNull('deleted_at')
                 ->pluck('id')
-                ->map(fn ($id) => (int) $id)
+                ->unique()
+                ->values()
                 ->toArray();
-
-            // Merge and deduplicate both sources.
-            $patientIds = array_values(array_unique(array_merge($userPatientIds, $emailPatientIds)));
 
             if (empty($patientIds)) {
                 return response()->json([
-                    'success'     => false,
-                    'message'     => 'No patients found for this email',
-                    'case_ids'    => [],
+                    'success' => false,
+                    'message' => 'No patients found for this email',
+                    'case_ids' => [],
                 ], 404);
             }
 
             $caseIds = AhcsCase::whereIn('patient_id', $patientIds)
                 ->whereNull('deleted_at')
-                ->pluck('id')
+                ->pluck('id') // change to 'case_id' if you want actual case_id
                 ->unique()
                 ->values()
                 ->toArray();
