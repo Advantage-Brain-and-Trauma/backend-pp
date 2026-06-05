@@ -1032,6 +1032,37 @@ class FunnelApiController extends Controller
                 ->first();
 
             if ($existingActiveAssignment) {
+                $assignedFunnel = Funnel::find($existingActiveAssignment->funnel_id);
+                $funnelFormIds  = $assignedFunnel
+                    ? (is_array($assignedFunnel->form_ids)
+                        ? $assignedFunnel->form_ids
+                        : json_decode($assignedFunnel->form_ids ?? '[]', true))
+                    : [];
+                $funnelFormIds = is_array($funnelFormIds) ? $funnelFormIds : [];
+
+                $completedCount = count($funnelFormIds) > 0
+                    ? FormSubmission::where('user_funnel_id', $existingActiveAssignment->id)
+                        ->whereIn('form_id', $funnelFormIds)
+                        ->where('status', 'completed')
+                        ->distinct('form_id')
+                        ->count('form_id')
+                    : 0;
+
+                if (count($funnelFormIds) > 0 && $completedCount >= count($funnelFormIds)) {
+                    DB::rollBack();
+                    Log::channel('patient_funnel')->info('Funnel already completed for this patient case.', [
+                        'patient_id' => $request->patient_id,
+                        'case_id'    => $request->case_id,
+                        'funnel_id'  => $existingActiveAssignment->funnel_id,
+                        'user_id'    => $existingActiveAssignment->user_id,
+                    ]);
+                    return response()->json([
+                        'status'  => true,
+                        'message' => 'Funnel is already completed for this patient case.',
+                        'funnel_completed' => true,
+                    ], 200);
+                }
+
                 Log::channel('patient_funnel')->warning('Active funnel assignment already exists for this patient case. Sending reminder.', [
                     'patient_id' => $request->patient_id,
                     'case_id'    => $request->case_id,
@@ -1271,7 +1302,38 @@ class FunnelApiController extends Controller
                 ->first();
 
             if ($existingActiveAssignment) {
-               Log::channel('patient_funnel')->warning('Active funnel assignment already exists for this patient case. Sending reminder.', [
+                $assignedFunnel = Funnel::find($existingActiveAssignment->funnel_id);
+                $funnelFormIds  = $assignedFunnel
+                    ? (is_array($assignedFunnel->form_ids)
+                        ? $assignedFunnel->form_ids
+                        : json_decode($assignedFunnel->form_ids ?? '[]', true))
+                    : [];
+                $funnelFormIds = is_array($funnelFormIds) ? $funnelFormIds : [];
+
+                $completedCount = count($funnelFormIds) > 0
+                    ? FormSubmission::where('user_funnel_id', $existingActiveAssignment->id)
+                        ->whereIn('form_id', $funnelFormIds)
+                        ->where('status', 'completed')
+                        ->distinct('form_id')
+                        ->count('form_id')
+                    : 0;
+
+                if (count($funnelFormIds) > 0 && $completedCount >= count($funnelFormIds)) {
+                    DB::rollBack();
+                    Log::channel('patient_funnel')->info('Funnel already completed for this patient case.', [
+                        'patient_id' => $request->patient_id,
+                        'case_id'    => $request->case_id,
+                        'funnel_id'  => $existingActiveAssignment->funnel_id,
+                        'user_id'    => $existingActiveAssignment->user_id,
+                    ]);
+                    return response()->json([
+                        'status'  => true,
+                        'message' => 'Funnel is already completed for this patient case.',
+                        'funnel_completed' => true,
+                    ], 200);
+                }
+
+                Log::channel('patient_funnel')->warning('Active funnel assignment already exists for this patient case. Sending reminder.', [
                     'patient_id' => $request->patient_id,
                     'case_id'    => $request->case_id,
                     'funnel_id'  => $existingActiveAssignment->funnel_id,
