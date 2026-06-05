@@ -80,31 +80,34 @@ class AuthApiController extends Controller
             }
 
             // ── Invalidate any existing active sessions ───────────────────────
-            $activeSessions = UserSession::where('user_id', $user->id)
-                ->where('is_active', 1)
-                ->get();
+            // $activeSessions = UserSession::where('user_id', $user->id)
+            //     ->where('is_active', 1)
+            //     ->get();
 
-            foreach ($activeSessions as $session) {
-                try {
-                    JWTAuth::setToken($session->token)->invalidate();
-                } catch (\Throwable) {
-                    // Token may already be expired — safe to ignore.
-                }
-            }
+            // foreach ($activeSessions as $session) {
+            //     try {
+            //         JWTAuth::setToken($session->token)->invalidate();
+            //     } catch (\Throwable) {
+            //         // Token may already be expired — safe to ignore.
+            //     }
+            // }
 
-            UserSession::where('user_id', $user->id)
-                ->where('is_active', 1)
-                ->update([
-                    'is_active'     => 0,
-                    'updated_at'    => now(),
-                ]);
+            // UserSession::where('user_id', $user->id)
+            //     ->where('is_active', 1)
+            //     ->update([
+            //         'is_active'     => 0,
+            //         'updated_at'    => now(),
+            //     ]);
 
-            Log::channel('auth')->info('Previous active sessions invalidated', [
-                'user_id'       => $user->id,
-                'session_count' => $activeSessions->count(),
-            ]);
+            // Log::channel('auth')->info('Previous active sessions invalidated', [
+            //     'user_id'       => $user->id,
+            //     'session_count' => $activeSessions->count(),
+            // ]);
 
             // ── Create new session ────────────────────────────────────────────
+            // Each device gets its own independent session. Existing sessions on
+            // other devices are intentionally preserved so logging in on one
+            // platform does NOT log out another.
             $user->forceFill(['last_login_at' => now()])->save();
 
             $payload = JWTAuth::setToken($token)->getPayload();
