@@ -336,15 +336,18 @@ class ProxyAccessController extends Controller
                 return response()->json(['success' => false, 'message' => 'Patient account not found.'], 404);
             }
 
-            // Fetch the patient's IDs and case IDs to embed in the token
-            $patientIds = $patientUser->getActivePatientIds();
+            // Fetch the patient's IDs directly from the users table (getAllPatientIds)
+            // instead of getActivePatientIds() which cross-checks the AHCS DB and
+            // would return [] if the patient record is missing or soft-deleted there.
+            $patientIds = $patientUser->getAllPatientIds();
 
-            $caseIds = AhcsCase::whereIn('patient_id', $patientIds)
-                ->whereNull('deleted_at')
-                ->pluck('id')
-                ->map(fn ($id) => (int) $id)
-                ->values()
-                ->toArray();
+            $caseIds = !empty($patientIds)
+                ? AhcsCase::whereIn('patient_id', $patientIds)
+                    ->pluck('id')
+                    ->map(fn ($id) => (int) $id)
+                    ->values()
+                    ->toArray()
+                : [];
 
             // ── Issue a new JWT with proxy context embedded in claims ─────
             $oldToken   = JWTAuth::parseToken()->getToken();
