@@ -11,6 +11,7 @@ use App\Http\Controllers\Api\Auth\PasswordResetApiController;
 use App\Http\Controllers\Api\FunnelApiController;
 use App\Http\Controllers\Api\FormSubmissionNoteController;
 use App\Http\Controllers\Api\RecentActivityController;
+use App\Http\Controllers\Api\ProxyAccessController;
 
 /*
 |--------------------------------------------------------------------------
@@ -32,6 +33,9 @@ Route::middleware('throttle:10,1')->group(function () {
     Route::post('password/reset',           [PasswordResetApiController::class, 'resetPassword']);
     Route::get('password/validate-token',   [PasswordResetApiController::class, 'validateToken']);
 });
+
+// Public: proxy accepts invitation via emailed token
+Route::post('proxy/accept/{token}', [ProxyAccessController::class, 'accept']);
 
 Route::middleware('auth:api')->group(function () {
     Route::post('logout',[AuthApiController::class, 'logout']);
@@ -70,6 +74,17 @@ Route::middleware(['auth:api', 'role.api:User', 'patient.active'])->group(functi
     
     // Recent Activity
     Route::get('recent-activity', [RecentActivityController::class, 'index']);
+
+    // ── Proxy Access ──────────────────────────────────────────────────────────
+    // Patient-facing: manage who can view their records
+    Route::post('proxy/invite',           [ProxyAccessController::class, 'invite']);
+    Route::get('proxy/list',              [ProxyAccessController::class, 'list']);
+    Route::delete('proxy/{id}/revoke',    [ProxyAccessController::class, 'revoke']);
+    Route::get('proxy/{id}/history',      [ProxyAccessController::class, 'history']);
+
+    // Proxy-facing: see and switch into granted patient accounts
+    Route::get('proxy/my-access',         [ProxyAccessController::class, 'myAccess']);
+    Route::post('proxy/switch-patient',   [ProxyAccessController::class, 'switchPatient']);
 
     // Form Submission Notes API
     Route::get('form-submissions/{submissionId}/notes',             [FormSubmissionNoteController::class, 'index']);
