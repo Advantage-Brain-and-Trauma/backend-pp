@@ -152,6 +152,49 @@ class ProxyAccessController extends Controller
                 'revoked_at' => now(),
             ]);
 
+            // ── Remove the patient's IDs from the proxy user account ──────
+            // Only remove IDs that no longer have any OTHER active proxy access
+            // (in case the proxy has access to multiple patients).
+            if ($proxy->proxy_user_id) {
+                $proxyUser   = User::find($proxy->proxy_user_id);
+                $patientOwner = User::find($proxy->patient_user_id);
+
+                if ($proxyUser && $patientOwner) {
+                    $idsToRemove = $patientOwner->getAllPatientIds();
+
+                    // Keep any IDs still covered by another active proxy_access record
+                    $stillActivePatientUserIds = ProxyAccess::where('proxy_user_id', $proxyUser->id)
+                        ->where('status', 'active')
+                        ->where('id', '!=', $proxy->id)
+                        ->pluck('patient_user_id')
+                        ->toArray();
+
+                    $protectedIds = [];
+                    foreach ($stillActivePatientUserIds as $uid) {
+                        $u = User::find($uid);
+                        if ($u) {
+                            $protectedIds = array_merge($protectedIds, $u->getAllPatientIds());
+                        }
+                    }
+
+                    $finalIds = array_values(array_unique(
+                        array_filter(
+                            $proxyUser->getAllPatientIds(),
+                            fn($id) => !in_array($id, $idsToRemove) || in_array($id, $protectedIds)
+                        )
+                    ));
+
+                    $proxyUser->patient_id = empty($finalIds) ? null : $finalIds;
+                    $proxyUser->save();
+
+                    Log::channel('auth')->info('Patient IDs removed from proxy account on revoke', [
+                        'proxy_user_id'  => $proxyUser->id,
+                        'removed_ids'    => $idsToRemove,
+                        'remaining_ids'  => $finalIds,
+                    ]);
+                }
+            }
+
             Log::channel('auth')->info('Proxy access revoked', [
                 'patient_user_id' => $patient->id,
                 'proxy_access_id' => $proxy->id,
@@ -235,14 +278,25 @@ class ProxyAccessController extends Controller
             $proxyUser = User::where('email', $proxy->proxy_email)->first();
 
             if (!$proxyUser) {
-                // Create a new user account for the proxy
                 $proxyUser = User::create([
                     'name'      => explode('@', $proxy->proxy_email)[0],
                     'email'     => $proxy->proxy_email,
-                    'password'  => Hash::make(Str::random(16)), // random; they should use magic link / password reset
+                    'password'  => Hash::make(Str::random(16)),
                     'role'      => 'User',
                     'is_active' => true,
                 ]);
+            }
+
+            // ── Copy patient IDs from the patient's account into the proxy user ──
+            // This lets the proxy use all existing APIs (get-case-ids-by-email,
+            // get-patient-details, etc.) without any extra logic — they work
+            // exactly like a regular patient login.
+            $patientUser = User::find($proxy->patient_user_id);
+            if ($patientUser) {
+                $patientIdsToMerge = $patientUser->getAllPatientIds();
+                if (!empty($patientIdsToMerge)) {
+                    $proxyUser->mergePatientIds($patientIdsToMerge);
+                }
             }
 
             $proxy->update([
@@ -253,15 +307,16 @@ class ProxyAccessController extends Controller
                 'token_expires_at' => null,
             ]);
 
-            Log::channel('auth')->info('Proxy invitation accepted', [
-                'proxy_access_id' => $proxy->id,
-                'proxy_user_id'   => $proxyUser->id,
-                'patient_user_id' => $proxy->patient_user_id,
+            Log::channel('auth')->info('Proxy invitation accepted — patient IDs merged into proxy account', [
+                'proxy_access_id'  => $proxy->id,
+                'proxy_user_id'    => $proxyUser->id,
+                'patient_user_id'  => $proxy->patient_user_id,
+                'merged_patient_ids' => $patientUser?->getAllPatientIds() ?? [],
             ]);
 
             return response()->json([
-                'success'  => true,
-                'message'  => 'Proxy access accepted successfully. You can now log in to view the patient\'s health records.',
+                'success'     => true,
+                'message'     => 'Proxy access accepted successfully. You can now log in to view the patient\'s health records.',
                 'is_new_user' => $proxyUser->wasRecentlyCreated,
             ]);
         } catch (\Throwable $e) {
@@ -302,7 +357,8 @@ class ProxyAccessController extends Controller
     // -------------------------------------------------------------------------
     // Proxy: Switch context to a patient's data
     // POST /api/proxy/switch-patient
-    // Issues a new JWT token with the patient's context embedded in the claims.
+    // Patient IDs are already stored on the proxy user at accept time,
+    // so this just verifies access and returns the current patient info.
     // -------------------------------------------------------------------------
     public function switchPatient(Request $request): JsonResponse
     {
@@ -336,65 +392,31 @@ class ProxyAccessController extends Controller
                 return response()->json(['success' => false, 'message' => 'Patient account not found.'], 404);
             }
 
-            // Fetch the patient's IDs and case IDs to embed in the token
-            $patientIds = $patientUser->getActivePatientIds();
+            // Patient IDs are already stored on the proxy user's account (merged at accept time).
+            // Re-read fresh from DB to get the latest state.
+            $patientIds = $proxyUser->fresh()->getAllPatientIds();
 
-            $caseIds = AhcsCase::whereIn('patient_id', $patientIds)
-                ->whereNull('deleted_at')
-                ->pluck('id')
-                ->map(fn ($id) => (int) $id)
-                ->values()
-                ->toArray();
+            $caseIds = !empty($patientIds)
+                ? AhcsCase::whereIn('patient_id', $patientIds)
+                    ->pluck('id')
+                    ->map(fn ($id) => (int) $id)
+                    ->values()
+                    ->toArray()
+                : [];
 
-            // ── Issue a new JWT with proxy context embedded in claims ─────
-            $oldToken   = JWTAuth::parseToken()->getToken();
-            $oldPayload = JWTAuth::parseToken()->getPayload();
-            $oldJwtId   = $oldPayload->get('jti');
-
-            // Inject proxy context into the proxy user model so getJWTCustomClaims picks it up
-            $freshProxy = User::find($proxyUser->id);
-            $freshProxy->jwtProxyContext = [
-                'proxy_access_id' => $proxyAccess->id,
-                'patient_user_id' => $patientUserId,
-                'patient_ids'     => $patientIds,
-                'case_ids'        => $caseIds,
-                'access_level'    => $proxyAccess->access_level,
-            ];
-
-            $newToken   = JWTAuth::fromUser($freshProxy);
-            $newPayload = JWTAuth::manager()->decode(new Token($newToken));
-            $newJwtId   = $newPayload->get('jti');
-
-            // Invalidate old token and update the session record
-            JWTAuth::setToken($oldToken)->invalidate();
-
-            UserSession::where('user_id', $proxyUser->id)
-                ->where('jwt_id', $oldJwtId)
-                ->where('is_active', 1)
-                ->update([
-                    'jwt_id'        => $newJwtId,
-                    'token'         => $newToken,
-                    'ip_address'    => $request->ip(),
-                    'user_agent'    => $request->userAgent(),
-                    'last_activity' => now(),
-                    'updated_at'    => now(),
-                ]);
-
-            Log::channel('auth')->info('Proxy switched patient context — new token issued', [
+            Log::channel('auth')->info('Proxy switched patient context', [
                 'proxy_user_id'   => $proxyUser->id,
                 'patient_user_id' => $patientUserId,
                 'patient_ids'     => $patientIds,
-                'case_count'      => count($caseIds),
             ]);
 
             return response()->json([
-                'success'        => true,
-                'message'        => 'Switched to patient context successfully.',
-                'token'          => $newToken,
-                'patient_name'   => $patientUser->name ?? $patientUser->email,
-                'access_level'   => $proxyAccess->access_level,
-                'patient_ids'    => $patientIds,
-                'case_ids'       => $caseIds,
+                'success'      => true,
+                'message'      => 'Switched to patient context successfully.',
+                'patient_name' => $patientUser->name ?? $patientUser->email,
+                'access_level' => $proxyAccess->access_level,
+                'patient_ids'  => $patientIds,
+                'case_ids'     => $caseIds,
             ]);
         } catch (\Throwable $e) {
             Log::error('ProxyAccessController@switchPatient failed', ['error' => $e->getMessage()]);
