@@ -220,6 +220,18 @@ class User extends Authenticatable implements JWTSubject
     /** Injected at token-issue time to embed a specific case_id into the JWT. */
     public ?int $jwtCaseId = null;
 
+    /**
+     * Injected at token-issue time when a proxy switches into a patient context.
+     * Shape: [
+     *   'proxy_access_id'    => int,
+     *   'patient_user_id'    => int,
+     *   'patient_ids'        => int[],
+     *   'case_ids'           => int[],
+     *   'access_level'       => string,
+     * ]
+     */
+    public ?array $jwtProxyContext = null;
+
     public function getJWTCustomClaims()
     {
         $primaryPatientId = $this->getPrimaryPatientId();
@@ -251,7 +263,7 @@ class User extends Authenticatable implements JWTSubject
             }
         }
 
-        return [
+        $claims = [
             'id'          => $this->id,
             'name'        => $patientDetails['full_name'] ?? $this->name,
             'email'       => $this->email,
@@ -261,5 +273,12 @@ class User extends Authenticatable implements JWTSubject
             'patient_ids' => $this->patient_id ?? [],
             'case_id'     => $caseId,
         ];
+
+        // Embed proxy context when a proxy switches into a patient's account.
+        if ($this->jwtProxyContext !== null) {
+            $claims['proxy_context'] = $this->jwtProxyContext;
+        }
+
+        return $claims;
     }
 }

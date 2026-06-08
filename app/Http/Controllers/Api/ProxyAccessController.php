@@ -7,6 +7,8 @@ use App\Mail\ProxyInvitationMail;
 use App\Models\ProxyAccess;
 use App\Models\ProxyAccessHistory;
 use App\Models\User;
+use App\Models\AhcsCase;
+use App\Models\UserSession;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -14,6 +16,8 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
+use Tymon\JWTAuth\Facades\JWTAuth;
+use Tymon\JWTAuth\Token;
 
 class ProxyAccessController extends Controller
 {
@@ -298,6 +302,7 @@ class ProxyAccessController extends Controller
     // -------------------------------------------------------------------------
     // Proxy: Switch context to a patient's data
     // POST /api/proxy/switch-patient
+    // Issues a new JWT token with the patient's context embedded in the claims.
     // -------------------------------------------------------------------------
     public function switchPatient(Request $request): JsonResponse
     {
@@ -313,6 +318,7 @@ class ProxyAccessController extends Controller
             $proxyUser     = auth()->user();
             $patientUserId = (int) $request->patient_user_id;
 
+            // Verify active proxy access exists
             $proxyAccess = ProxyAccess::where('proxy_user_id', $proxyUser->id)
                 ->where('patient_user_id', $patientUserId)
                 ->where('status', 'active')
@@ -330,20 +336,65 @@ class ProxyAccessController extends Controller
                 return response()->json(['success' => false, 'message' => 'Patient account not found.'], 404);
             }
 
-            // Store the proxy context in session so LogProxyAccessMiddleware can pick it up
-            session(['proxy_patient_user_id' => $patientUserId]);
+            // Fetch the patient's IDs and case IDs to embed in the token
+            $patientIds = $patientUser->getActivePatientIds();
 
-            Log::channel('auth')->info('Proxy switched patient context', [
+            $caseIds = AhcsCase::whereIn('patient_id', $patientIds)
+                ->whereNull('deleted_at')
+                ->pluck('id')
+                ->map(fn ($id) => (int) $id)
+                ->values()
+                ->toArray();
+
+            // ── Issue a new JWT with proxy context embedded in claims ─────
+            $oldToken   = JWTAuth::parseToken()->getToken();
+            $oldPayload = JWTAuth::parseToken()->getPayload();
+            $oldJwtId   = $oldPayload->get('jti');
+
+            // Inject proxy context into the proxy user model so getJWTCustomClaims picks it up
+            $freshProxy = User::find($proxyUser->id);
+            $freshProxy->jwtProxyContext = [
+                'proxy_access_id' => $proxyAccess->id,
+                'patient_user_id' => $patientUserId,
+                'patient_ids'     => $patientIds,
+                'case_ids'        => $caseIds,
+                'access_level'    => $proxyAccess->access_level,
+            ];
+
+            $newToken   = JWTAuth::fromUser($freshProxy);
+            $newPayload = JWTAuth::manager()->decode(new Token($newToken));
+            $newJwtId   = $newPayload->get('jti');
+
+            // Invalidate old token and update the session record
+            JWTAuth::setToken($oldToken)->invalidate();
+
+            UserSession::where('user_id', $proxyUser->id)
+                ->where('jwt_id', $oldJwtId)
+                ->where('is_active', 1)
+                ->update([
+                    'jwt_id'        => $newJwtId,
+                    'token'         => $newToken,
+                    'ip_address'    => $request->ip(),
+                    'user_agent'    => $request->userAgent(),
+                    'last_activity' => now(),
+                    'updated_at'    => now(),
+                ]);
+
+            Log::channel('auth')->info('Proxy switched patient context — new token issued', [
                 'proxy_user_id'   => $proxyUser->id,
                 'patient_user_id' => $patientUserId,
+                'patient_ids'     => $patientIds,
+                'case_count'      => count($caseIds),
             ]);
 
             return response()->json([
                 'success'        => true,
                 'message'        => 'Switched to patient context successfully.',
+                'token'          => $newToken,
                 'patient_name'   => $patientUser->name ?? $patientUser->email,
                 'access_level'   => $proxyAccess->access_level,
-                'patient_ids'    => $patientUser->getAllPatientIds(),
+                'patient_ids'    => $patientIds,
+                'case_ids'       => $caseIds,
             ]);
         } catch (\Throwable $e) {
             Log::error('ProxyAccessController@switchPatient failed', ['error' => $e->getMessage()]);

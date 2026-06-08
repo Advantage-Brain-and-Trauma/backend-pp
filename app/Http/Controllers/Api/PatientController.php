@@ -17,9 +17,9 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Facades\Validator;
 use Tymon\JWTAuth\Facades\JWTAuth;
+use Tymon\JWTAuth\Token;
 use Illuminate\Support\Facades\Auth;
 use App\Models\UserSession;
-use Tymon\JWTAuth\Token;
 
 class PatientController extends Controller
 {
@@ -234,17 +234,42 @@ class PatientController extends Controller
                 ], 401);
             }
 
-            $email = $authUser->email;
-
             Log::channel('patient')->info('Get case IDs by email API hit', [
                 'user_id' => $authUser->id,
-                'email'   => $email,
+                'email'   => $authUser->email,
             ]);
 
-            // Patient IDs stored on the users table (JSON array column).
+            // ── Proxy context: read from JWT claims ───────────────────────
+            // When a proxy calls POST /api/proxy/switch-patient, a new JWT is
+            // issued with proxy_context embedded (patient_ids + case_ids).
+            // Read directly from the token — no session required.
+            $payload      = JWTAuth::parseToken()->getPayload();
+            $proxyContext = $payload->get('proxy_context');
+
+            if (!empty($proxyContext)) {
+                $patientIds = array_values(array_map('intval', $proxyContext['patient_ids'] ?? []));
+                $caseIds    = array_values(array_map('intval', $proxyContext['case_ids']    ?? []));
+
+                Log::channel('patient')->info('Proxy JWT context — returning patient data', [
+                    'proxy_user_id'   => $authUser->id,
+                    'patient_user_id' => $proxyContext['patient_user_id'] ?? null,
+                    'patient_ids'     => $patientIds,
+                    'case_count'      => count($caseIds),
+                ]);
+
+                return response()->json([
+                    'success'     => true,
+                    'email'       => $authUser->email,
+                    'patient_ids' => $patientIds,
+                    'case_ids'    => $caseIds,
+                ], 200);
+            }
+
+            // ── Regular patient (no proxy context in token) ───────────────
+            $email          = $authUser->email;
             $userPatientIds = array_values(array_map('intval', $authUser->getActivePatientIds()));
 
-            // Only keep patient IDs from the user table that also match by email in AhcsPatient.
+            // Only keep IDs that also match by email in AhcsPatient.
             $patientIds = AhcsPatient::whereIn('id', $userPatientIds)
                 ->where('email', $email)
                 ->whereNull('deleted_at')
