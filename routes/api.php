@@ -74,7 +74,7 @@ Route::middleware(['auth:api', 'role.api:User', 'patient.active'])->group(functi
     Route::get('recent-activity', [RecentActivityController::class, 'index']);
 
     // Administrator
-    Route::get('get-administrator-notes', [ClinicalController::class, 'getAdministratorNotes']);
+    Route::get('get-administrator-notes', [ClinicalNoteController::class, 'getAdministratorNotes']);
 
     // Form Submission Notes API
     Route::get('form-submissions/{submissionId}/notes',             [FormSubmissionNoteController::class, 'index']);
