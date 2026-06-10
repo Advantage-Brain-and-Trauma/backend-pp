@@ -485,7 +485,7 @@ class PatientAppointmentController extends Controller
 
         $monthlyAvailabilities = PhysicianProvierMonthlyAvailability::whereIn('provider_id', $physicianIds)
                                 ->where('provider_city', $department)
-                                ->select('provider_id', 'available_date as date', 'open_time', 'close_time')
+                                ->select('provider_id', 'available_date as date', 'open_time', 'close_time', 'is_telemed')
                                 ->orderBy('available_date')
                                 ->get()
                                 ->groupBy('provider_id');
@@ -544,20 +544,26 @@ class PatientAppointmentController extends Controller
 
                     'is_telemed' => (bool) $loc->is_telemed,
 
-                    'telemed_sun' => (int) ($loc->telemed_sun ?? 1),
-                    'telemed_mon' => (int) ($loc->telemed_mon ?? 1),
-                    'telemed_tue' => (int) ($loc->telemed_tue ?? 1),
-                    'telemed_wed' => (int) ($loc->telemed_wed ?? 1),
-                    'telemed_thu' => (int) ($loc->telemed_thu ?? 1),
-                    'telemed_fri' => (int) ($loc->telemed_fri ?? 1),
-                    'telemed_sat' => (int) ($loc->telemed_sat ?? 1),
+                    'telemed_sun' => (int) ($loc->telemed_sun ?? 0),
+                    'telemed_mon' => (int) ($loc->telemed_mon ?? 0),
+                    'telemed_tue' => (int) ($loc->telemed_tue ?? 0),
+                    'telemed_wed' => (int) ($loc->telemed_wed ?? 0),
+                    'telemed_thu' => (int) ($loc->telemed_thu ?? 0),
+                    'telemed_fri' => (int) ($loc->telemed_fri ?? 0),
+                    'telemed_sat' => (int) ($loc->telemed_sat ?? 0),
+                    'monthly_availability' => [],
                 ];
             })->values()->toArray();
 
             // ✅ Monthly availability (NO QUERY HERE)
             $physician->monthly_availability =
                 ($physician->schedule_type === 'monthly')
-                    ? ($monthlyAvailabilities[$physician->physician_id] ?? collect())->values()->toArray()
+                    ? ($monthlyAvailabilities[$physician->physician_id] ?? collect())->map(fn($a) => [
+                        'date' => $a->date,
+                        'open_time' => $a->open_time,
+                        'close_time' => $a->close_time,
+                        'is_telemed' => $a->is_telemed,
+                    ])->values()->toArray()
                     : [];
 
             // ✅ Custom lunch times (NO QUERY HERE)
@@ -633,7 +639,28 @@ class PatientAppointmentController extends Controller
         /* ------------------------------------
          | 7. Merge specialities with physicians and visit types
          |-------------------------------------*/
-        $finalData = $specialities->map(function ($spec) use ($physiciansBySpecShort, $visitTypesBySpeciality) {
+        $departmentColors = [
+            'PT'         => ['primaryColor' => '#18696D', 'secondaryColor' => '#2A9D8F', 'lightBg' => '#E0F4F3'],
+            'PTA'        => ['primaryColor' => '#7A6B17', 'secondaryColor' => '#9A8A2D', 'lightBg' => '#F7F4E0'],
+            'OT'         => ['primaryColor' => '#8B1874', 'secondaryColor' => '#B5258E', 'lightBg' => '#FCE4F4'],
+            'OTA'        => ['primaryColor' => '#8B1848', 'secondaryColor' => '#B32D66', 'lightBg' => '#FCE4ED'],
+            'SLP'        => ['primaryColor' => '#1565A8', 'secondaryColor' => '#2185D0', 'lightBg' => '#E3F2FD'],
+            'Psych'      => ['primaryColor' => '#5B2C8C', 'secondaryColor' => '#7B4BAB', 'lightBg' => '#F0E6F6'],
+            'LPC'        => ['primaryColor' => '#1D7A4E', 'secondaryColor' => '#2E9B66', 'lightBg' => '#E2F5EC'],
+            'LMSW'       => ['primaryColor' => '#8B4513', 'secondaryColor' => '#A0522D', 'lightBg' => '#F5EBE0'],
+            'NPE'        => ['primaryColor' => '#2E3A8C', 'secondaryColor' => '#4355B9', 'lightBg' => '#E6E9F7'],
+            'DC'         => ['primaryColor' => '#8B2318', 'secondaryColor' => '#B33A2D', 'lightBg' => '#FDECEA'],
+            'PM&R'       => ['primaryColor' => '#5A7A17', 'secondaryColor' => '#7A9A2D', 'lightBg' => '#F0F5E2'],
+            'Chiro Tech' => ['primaryColor' => '#6B2D8C', 'secondaryColor' => '#8B4DAB', 'lightBg' => '#F3E6F8'],
+            'Neuro'      => ['primaryColor' => '#4A7A17', 'secondaryColor' => '#5E9A2D', 'lightBg' => '#EEF6E2'],
+            'Nurse Prac' => ['primaryColor' => '#177A5C', 'secondaryColor' => '#2D9A76', 'lightBg' => '#E2F5EE'],
+            'PA'         => ['primaryColor' => '#7A5A17', 'secondaryColor' => '#9A7A2D', 'lightBg' => '#F7F0E0'],
+            'MA'         => ['primaryColor' => '#1E4A8C', 'secondaryColor' => '#3366B3', 'lightBg' => '#E4ECF8'],
+            'EEGTech'    => ['primaryColor' => '#3E2E8C', 'secondaryColor' => '#5A4AB3', 'lightBg' => '#EAE6F8'],
+            'PCP'        => ['primaryColor' => '#2D7A2D', 'secondaryColor' => '#4A9A4A', 'lightBg' => '#E6F5E6'],
+        ];
+
+        $finalData = $specialities->map(function ($spec) use ($physiciansBySpecShort, $visitTypesBySpeciality, $departmentColors) {
             $physicianList = $physiciansBySpecShort[$spec->short_name] ?? collect();
 
             $specVisitTypes = ($visitTypesBySpeciality[$spec->id] ?? collect())
@@ -667,6 +694,11 @@ class PatientAppointmentController extends Controller
                 'allow_multiple' => $spec->allow_multiple ?? 0,
                 'multiple_allowed_slots' => $spec->multiple_allowed_slots ?? 0,
                 'multiple_slot_duration' => $spec->multiple_slot_duration ?? 0,
+                'colors' => $departmentColors[$spec->short_name] ?? [
+                    'primaryColor' => '#6B7280',
+                    'secondaryColor' => '#9CA3AF',
+                    'lightBg' => '#F3F4F6'
+                ],
                 'physician_count' => $physicianList->count(),
                 'physicians' => $physicianList->values(),
                 'visit_types' => $specVisitTypes
