@@ -92,6 +92,94 @@ class ClinicalNoteController extends Controller
     }
 
     /**
+     * GET /api/get-clinical/{caseId}
+     *
+     * Fetch clinical documents from the external API for a given case.
+     * Patient ID is resolved from the authenticated user's active patient IDs.
+     */
+    public function getClinicalDocuments(Request $request): JsonResponse
+    {
+        $patientIds = auth()->user()->getActivePatientIds();
+        $caseId = $request->input('case_id');
+
+        $caseRecord = AhcsCase::where('id', $caseId)
+            ->whereIn('patient_id', $patientIds)
+            ->first(['patient_id']);
+
+        if (!$caseRecord) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Invalid Case Id for this patient.',
+            ], 422);
+        }
+
+        $patientId = $caseRecord->patient_id;
+
+        try {
+            $baseUrl = rtrim((string) config('services.clinical_documents.base_url', 'http://10.0.0.122/api'), '/');
+            $url = $baseUrl . '/clinical-notes-documents/by-case/' . $patientId . '/' . $caseId . '?only_visible=1';
+
+            $ch = curl_init();
+            curl_setopt_array($ch, [
+                CURLOPT_URL            => $url,
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_TIMEOUT        => 30,
+                CURLOPT_CONNECTTIMEOUT => 10,
+                CURLOPT_HTTPGET        => true,
+                CURLOPT_HTTPHEADER     => ['Accept: application/json'],
+            ]);
+
+            $body      = curl_exec($ch);
+            $httpCode  = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $curlError = curl_error($ch);
+            curl_close($ch);
+
+            if ($curlError !== '') {
+                Log::channel('patient_form')->error('Get clinical documents cURL error', [
+                    'case_id'    => $caseId,
+                    'patient_id' => $patientId,
+                    'url'        => $url,
+                    'curl_error' => $curlError,
+                ]);
+
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Unable to connect to clinical documents service.',
+                    'error'   => $curlError,
+                ], 502);
+            }
+
+            if ($httpCode < 200 || $httpCode >= 300) {
+                return response()->json([
+                    'success'     => false,
+                    'message'     => 'Clinical documents service returned an error.',
+                    'status_code' => $httpCode,
+                ], 502);
+            }
+
+            $data = json_decode($body, true);
+
+            return response()->json([
+                'success' => true,
+                'data'    => $data,
+            ], 200, [], JSON_UNESCAPED_SLASHES);
+        } catch (\Throwable $e) {
+            Log::channel('patient_form')->error('Get clinical documents API error', [
+                'case_id'    => $caseId,
+                'patient_id' => $patientId ?? null,
+                'error'      => $e->getMessage(),
+                'line'       => $e->getLine(),
+                'file'       => $e->getFile(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Error fetching clinical documents.',
+            ], 500);
+        }
+    }
+
+    /**
      * GET /api/clinical-note/view/{noteId}?case_id={caseId}
      *
      * Stream note PDF inline from Medhiwa project API.

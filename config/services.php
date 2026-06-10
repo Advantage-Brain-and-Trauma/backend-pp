@@ -57,4 +57,8 @@ return [
         'base_url' => env('CLINICAL_NOTES_API_BASE_URL', 'http://10.0.0.23/api'),
     ],
 
+    'clinical_documents' => [
+        'base_url' => env('CLINICAL_DOCUMENTS_API_BASE_URL', 'http://10.0.0.23/api'),
+    ],
+
 ];
