@@ -424,4 +424,58 @@ class PatientController extends Controller
             ], 401);
         }
     }
+
+    public function getAdministratorNotes(Request $request): JsonResponse
+    {
+        $caseId = $request->query('case_id');
+
+        if (empty($caseId)) {
+            return response()->json([
+                'status'  => false,
+                'message' => 'case_id is required.',
+            ], 422);
+        }
+
+        $patientIds = auth()->user()->getActivePatientIds();
+
+        $caseRecord = AhcsCase::where('id', $caseId)
+            ->whereIn('patient_id', $patientIds)
+            ->first(['patient_id']);
+
+        if (!$caseRecord) {
+            return response()->json([
+                'status'  => false,
+                'message' => 'Invalid case_id for this patient.',
+            ], 422);
+        }
+
+        $patientId = $caseRecord->patient_id;
+
+        $url = "http://10.0.0.122/api/clinical-notes-documents/by-case/{$patientId}/{$caseId}?only_visible=1";
+
+        $ch = curl_init($url);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 30);
+
+        $response  = curl_exec($ch);
+        $httpCode  = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $curlError = curl_error($ch);
+        curl_close($ch);
+
+        if ($curlError) {
+            Log::error('getClinicalNotesByCase curl error: ' . $curlError, [
+                'patient_id' => $patientId,
+                'case_id'    => $caseId,
+            ]);
+            return response()->json([
+                'status'  => false,
+                'message' => 'Failed to fetch clinical notes.',
+                'error'   => $curlError,
+            ], 500);
+        }
+
+        $data = json_decode($response, true);
+
+        return response()->json($data ?? $response, $httpCode);
+    }
 }
