@@ -1213,7 +1213,7 @@ class ClinicalNoteController extends Controller
 
         $patientId = $caseRecord->patient_id;
 
-        $url = "http://10.0.0.122/api/clinical-notes-documents/by-case/{$patientId}/{$caseId}?only_visible=1";
+        $url = "http://10.0.0.23/api/clinical-notes-documents/by-case/{$patientId}/{$caseId}?only_visible=1";
 
         $ch = curl_init($url);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
