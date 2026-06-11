@@ -944,6 +944,19 @@ class PatientAppointmentController extends Controller
      */
     public function getAvailableTimeSlots(Request $request)
     {
+        $caseId = $request->query('case_id');
+
+        if (empty($caseId)) {
+            return response()->json(['status' => false, 'message' => 'Case ID is required.'], 422);
+        }
+
+        $patientIds = auth()->user()->getActivePatientIds();
+        $caseRecord = AhcsCase::where('id', $caseId)->whereIn('patient_id', $patientIds)->first(['patient_id']);
+
+        if (!$caseRecord) {
+            return response()->json(['status' => false, 'message' => 'Invalid Case ID for this patient.'], 422);
+        }
+
         $providerId = $request->query('provider_id');
         $date       = $request->query('date');
         $location   = $request->query('location');
@@ -987,7 +1000,19 @@ class PatientAppointmentController extends Controller
     public function checkSessionsCompleted(Request $request)
     {
         $caseId = $request->query('case_id');
-        $maId   = $request->query('ma_id');
+
+        if (empty($caseId)) {
+            return response()->json(['status' => false, 'message' => 'Case ID is required.'], 422);
+        }
+
+        $patientIds = auth()->user()->getActivePatientIds();
+        $caseRecord = AhcsCase::where('id', $caseId)->whereIn('patient_id', $patientIds)->first(['patient_id']);
+
+        if (!$caseRecord) {
+            return response()->json(['status' => false, 'message' => 'Invalid Case ID for this patient.'], 422);
+        }
+
+        $maId = $request->query('ma_id');
 
         $params = array_filter([
             'case_id' => $caseId,
@@ -1026,6 +1051,17 @@ class PatientAppointmentController extends Controller
     {
         $caseId = $request->query('case_id');
 
+        if (empty($caseId)) {
+            return response()->json(['status' => false, 'message' => 'Case ID is required.'], 422);
+        }
+
+        $patientIds = auth()->user()->getActivePatientIds();
+        $caseRecord = AhcsCase::where('id', $caseId)->whereIn('patient_id', $patientIds)->first(['patient_id']);
+
+        if (!$caseRecord) {
+            return response()->json(['status' => false, 'message' => 'Invalid Case ID for this patient.'], 422);
+        }
+
         $url = config('services.app_server.api_url') . '/preauth/get-approved-preauth'
             . ($caseId ? '?' . http_build_query(['case_id' => $caseId]) : '');
 
@@ -1057,6 +1093,19 @@ class PatientAppointmentController extends Controller
 
     public function getTimeSlotDateRange(Request $request)
     {
+        $caseId = $request->query('case_id');
+
+        if (empty($caseId)) {
+            return response()->json(['status' => false, 'message' => 'Case ID is required.'], 422);
+        }
+
+        $patientIds = auth()->user()->getActivePatientIds();
+        $caseRecord = AhcsCase::where('id', $caseId)->whereIn('patient_id', $patientIds)->first(['patient_id']);
+
+        if (!$caseRecord) {
+            return response()->json(['status' => false, 'message' => 'Invalid Case ID for this patient.'], 422);
+        }
+
         $params = array_filter([
             'provider_id' => $request->query('provider_id'),
             'svc_date_start'  => $request->query('svc_date_start'),
