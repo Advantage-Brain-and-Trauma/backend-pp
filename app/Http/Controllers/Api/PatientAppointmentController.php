@@ -941,366 +941,40 @@ class PatientAppointmentController extends Controller
         $providerId = $request->query('provider_id');
         $date       = $request->query('date');
         $location   = $request->query('location');
-        $startTime  = $request->query('start_time'); // optional, H:i
+        $startTime  = $request->query('start_time');
 
-        if (!$providerId || !$date || !$location) {
+        $params = array_filter([
+            'provider_id' => $providerId,
+            'date'        => $date,
+            'location'    => $location,
+            'start_time'  => $startTime,
+        ], fn($v) => $v !== null);
+
+        $url = 'http://10.0.0.23/api/available-time-slots?' . http_build_query($params);
+
+        $ch = curl_init($url);
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT        => 30,
+            CURLOPT_HTTPHEADER     => ['Accept: application/json'],
+        ]);
+
+        $body     = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $curlErr  = curl_error($ch);
+        curl_close($ch);
+
+        if ($curlErr) {
+            Log::error('getAvailableTimeSlots curl error: ' . $curlErr);
             return response()->json([
                 'status'  => false,
-                'message' => 'provider_id, date, and location are required.',
-            ], 422);
+                'message' => 'Failed to reach availability service.',
+                'error'   => $curlErr,
+            ], 502);
         }
 
-        // Validate date format
-        $parsedDate = \DateTime::createFromFormat('Y-m-d', $date);
-        if (!$parsedDate || $parsedDate->format('Y-m-d') !== $date) {
-            return response()->json([
-                'status'  => false,
-                'message' => 'date must be in YYYY-MM-DD format.',
-            ], 422);
-        }
+        $data = json_decode($body, true);
 
-        try {
-            // ── 1. Fetch provider address record ──────────────────────────────────
-            $address = PhysicianAddress::whereRaw('LOWER(physician_city) LIKE ?', ['%' . strtolower($location) . '%'])
-                ->where('physician_id', $providerId)
-                ->whereNull('deleted_at')
-                ->first();
-
-            if (!$address) {
-                return response()->json([
-                    'status'  => false,
-                    'message' => 'Provider not found at location.',
-                ], 404);
-            }
-
-            // ── 2. Resolve open/close times ───────────────────────────────────────
-            // Check monthly availability override first
-            $physician = Physician::find($providerId);
-
-            $scheduleType = $physician->schedule_type ?? 'weekly';
-            $physicianPk  = $physician->id ?? $providerId;
-
-            $openTime  = null;
-            $closeTime = null;
-            $isTelemed = (bool) $address->is_telemed;
-
-            if ($scheduleType === 'monthly') {
-                
-                $monthly = PhysicianProvierMonthlyAvailability::where('provider_id', $physicianPk)
-                    ->where('available_date', $date)
-                    ->whereRaw('LOWER(provider_city) LIKE ?', ['%' . strtolower($location) . '%'])
-                    ->first();
-
-                if ($monthly) {
-                    $openTime  = $monthly->open_time;
-                    $closeTime = $monthly->close_time;
-                    $isTelemed = (bool) ($monthly->is_telemed ?? $isTelemed);
-                }
-                // Monthly provider with no entry for this date → not available
-                if (!$openTime || !$closeTime) {
-                    return response()->json([
-                        'status'  => false,
-                        'message' => 'Provider not available on ' . $date . '.',
-                    ]);
-                }
-            } else {
-                // Weekly schedule
-                $dayAbbr  = strtolower(date('D', strtotime($date))); // mon, tue, …
-                $dayField = 'physician_' . $dayAbbr;
-
-                
-
-                if (!isset($address->$dayField)) {
-                    return response()->json([
-                        'status'  => false,
-                        'message' => 'Provider not available on ' . date('l', strtotime($date)) . '.',
-                    ]);
-                }
-                
-
-                if ($isTelemed) {
-                    $openTime  = '07:00:00';
-                    $closeTime = '19:00:00';
-                } else {
-                    $openField  = 'physician_' . $dayAbbr . '_open';
-                    $closeField = 'physician_' . $dayAbbr . '_close';
-                    $openTime   = $address->$openField  ?? null;
-                    $closeTime  = $address->$closeField ?? null;
-                }
-
-                if (!$openTime || !$closeTime) {
-                    return response()->json([
-                        'status'  => false,
-                        'message' => 'Provider schedule times not configured for this day.',
-                    ]);
-                }
-            }
-
-            // ── 3. Resolve lunch times ────────────────────────────────────────────
-            $lunchEnabled = (bool) ($address->lunch_time_enabled ?? false);
-            $lunchStart   = null;
-            $lunchEnd     = null;
-
-            if ($lunchEnabled) {
-                $lunchStart = $address->lunch_time_start ?? null;
-                $lunchEnd   = $address->lunch_time_end   ?? null;
-
-                // Custom lunch override for this specific date
-                $customLunch = PhysicianCustomLunchTime::where('physician_id', $providerId)
-                    ->where('custom_date', $date)
-                    ->first();
-
-                if ($customLunch) {
-                    if ((bool) $customLunch->lunch_enabled === false) {
-                        $lunchStart = null;
-                        $lunchEnd   = null;
-                    } else {
-                        $lunchStart = $customLunch->lunch_start;
-                        $lunchEnd   = $customLunch->lunch_end;
-                    }
-                }
-            }
-
-            // Convert to minutes-since-midnight helpers
-            $toMin = function ($t) {
-                if (!$t) return null;
-                $parts = explode(':', $t);
-                return (int) $parts[0] * 60 + (int) $parts[1];
-            };
-            $toLabel = function ($min) {
-                $h   = intdiv($min, 60);
-                $m   = $min % 60;
-                $ampm = $h < 12 ? 'am' : 'pm';
-                $h12  = $h % 12 ?: 12;
-                return sprintf('%02d:%02d %s', $h12, $m, $ampm);
-            };
-            $toHHMM = function ($min) {
-                return sprintf('%02d:%02d', intdiv($min, 60), $min % 60);
-            };
-
-            $openMin       = $toMin($openTime);
-            $closeMin      = $toMin($closeTime);
-            $lunchStartMin = $toMin($lunchStart);
-            $lunchEndMin   = $toMin($lunchEnd);
-
-            // ── 4. Fetch booked appointments ──────────────────────────────────────
-            $excludedStatuses = ['dl', 'cancelled', 'cancel', 'c', 'ns', 'no show', 'noshow', 'rescheduled', 'rs'];
-
-            $bookedAppts = AhcsAttendance::where('provider_id', $providerId)
-                ->where('attend_date', $date)
-                ->get(['time', 'end_time', 'department', 'attend_status', 'attend_type']);
-
-            // Filter excluded statuses and build booked slot list
-            $bookedSlots = [];
-            foreach ($bookedAppts as $appt) {
-                $statusNorm = strtolower(trim($appt->attend_status ?? ''));
-                if (in_array($statusNorm, $excludedStatuses)) continue;
-
-                $slotStartMin = $toMin($appt->time);
-                $slotEndMin   = $toMin($appt->end_time);
-                if ($slotStartMin === null || $slotEndMin === null) continue;
-
-                // Determine if this is the same location or cross-location
-                $apptDept    = $appt->department ?? '';
-                $isSameLoc   = (stripos($apptDept, $location) !== false || stripos($location, $apptDept) !== false);
-
-                // Detect cross-location telemed: check physician_addresses for the appointment's location
-                $isCrossLocTelemed = false;
-                if (!$isSameLoc && $apptDept) {
-                    $crossAddr = PhysicianAddress::where('physician_id', $providerId)
-                        ->whereRaw('LOWER(physician_city) LIKE ?', ['%' . strtolower($apptDept) . '%'])
-                        ->whereNull('deleted_at')
-                        ->first(['is_telemed']);
-                    $isCrossLocTelemed = $crossAddr ? (bool) $crossAddr->is_telemed : false;
-                }
-
-                // Types that allow multiple simultaneous bookings (e.g. group appointments)
-                $allowMultipleTypes = ['group', 'telehealth-group'];
-                $attendType = strtolower(trim($appt->attend_type ?? ''));
-                $allowMultiple = in_array($attendType, $allowMultipleTypes);
-
-                $bookedSlots[] = [
-                    'start'            => $slotStartMin,
-                    'end'              => $slotEndMin,
-                    'department'       => $apptDept,
-                    'is_same_location' => $isSameLoc,
-                    'is_telemed'       => $isCrossLocTelemed,
-                    'allow_multiple'   => $allowMultiple,
-                ];
-            }
-
-            // Helper: check if a minute slot is booked; returns [booked, crossLocation, isTelemed]
-            $isSlotBooked = function ($min) use ($bookedSlots) {
-                foreach ($bookedSlots as $slot) {
-                    if ($slot['allow_multiple']) continue;
-                    if ($min >= $slot['start'] && $min < $slot['end']) {
-                        return [
-                            'booked'        => true,
-                            'crossLocation' => $slot['is_same_location'] ? null : $slot['department'],
-                            'isTelemed'     => $slot['is_telemed'],
-                        ];
-                    }
-                }
-                return ['booked' => false, 'crossLocation' => null, 'isTelemed' => false];
-            };
-
-            // ── 5. Build start_times ──────────────────────────────────────────────
-            $startTimes = [];
-            for ($min = $openMin; $min <= $closeMin - 15; $min += 15) {
-                $val   = $toHHMM($min);
-                $label = $toLabel($min);
-
-                // Lunch slot
-                if ($lunchStartMin !== null && $lunchEndMin !== null && $min >= $lunchStartMin && $min < $lunchEndMin) {
-                    $startTimes[] = [
-                        'value'    => $val,
-                        'label'    => $label . ' (Lunch)',
-                        'disabled' => true,
-                        'type'     => 'lunch',
-                    ];
-                    continue;
-                }
-
-                // Booked slot
-                $bookedResult = $isSlotBooked($min);
-                if ($bookedResult['booked']) {
-                    if ($bookedResult['crossLocation']) {
-                        $crossLabel = $bookedResult['isTelemed']
-                            ? ' (Booked for ' . $bookedResult['crossLocation'] . ' – Telemed)'
-                            : ' (Booked for ' . $bookedResult['crossLocation'] . ')';
-                        $startTimes[] = [
-                            'value'    => $val,
-                            'label'    => $label . $crossLabel,
-                            'disabled' => true,
-                            'type'     => 'cross_location_booked',
-                        ];
-                    } else {
-                        $startTimes[] = [
-                            'value'    => $val,
-                            'label'    => $label . ' (Booked)',
-                            'disabled' => true,
-                            'type'     => 'booked',
-                        ];
-                    }
-                    continue;
-                }
-
-                $startTimes[] = [
-                    'value'    => $val,
-                    'label'    => $label,
-                    'disabled' => false,
-                    'type'     => 'available',
-                ];
-            }
-
-            // ── 6. Build end_times (only when start_time is provided) ─────────────
-            $endTimes = null;
-            if ($startTime !== null) {
-                $startMin = $toMin($startTime);
-
-                if ($startMin === null || $startMin < $openMin || $startMin >= $closeMin) {
-                    return response()->json([
-                        'status'  => false,
-                        'message' => 'start_time is outside provider schedule.',
-                    ], 422);
-                }
-
-                // Earliest blocking time: first booked slot start after startMin, or lunch start, or closeMin
-                $earliest = $closeMin;
-                if ($lunchStartMin !== null && $lunchStartMin > $startMin && $lunchStartMin < $earliest) {
-                    $earliest = $lunchStartMin;
-                }
-                foreach ($bookedSlots as $slot) {
-                    if ($slot['allow_multiple']) continue;
-                    if ($slot['start'] > $startMin && $slot['start'] < $earliest) {
-                        $earliest = $slot['start'];
-                    }
-                    // If start_time overlaps an existing booking, cap at that booking's start
-                    if ($slot['start'] <= $startMin && $slot['end'] > $startMin) {
-                        if ($slot['start'] < $earliest) $earliest = $slot['start'];
-                    }
-                }
-
-                $endTimes = [];
-                for ($min = $startMin + 15; $min <= $earliest; $min += 15) {
-                    // Skip mid-lunch (not the boundary)
-                    if ($lunchStartMin !== null && $lunchEndMin !== null && $min > $lunchStartMin && $min < $lunchEndMin) {
-                        $val   = $toHHMM($min);
-                        $label = $toLabel($min);
-                        $endTimes[] = [
-                            'value'    => $val,
-                            'label'    => $label . ' (Lunch)',
-                            'disabled' => true,
-                            'type'     => 'lunch',
-                        ];
-                        continue;
-                    }
-
-                    // Check if the range startMin→min overlaps any booked slot
-                    $rangeBooked = false;
-                    $rangeCrossLoc = null;
-                    $rangeTelemed  = false;
-                    foreach ($bookedSlots as $slot) {
-                        if ($slot['allow_multiple']) continue;
-                        // Overlap: slot starts before min AND ends after startMin
-                        if ($slot['start'] < $min && $slot['end'] > $startMin) {
-                            $rangeBooked  = true;
-                            $rangeCrossLoc = $slot['is_same_location'] ? null : $slot['department'];
-                            $rangeTelemed  = $slot['is_telemed'];
-                            break;
-                        }
-                    }
-
-                    $val   = $toHHMM($min);
-                    $label = $toLabel($min);
-
-                    if ($rangeBooked) {
-                        if ($rangeCrossLoc) {
-                            $crossLabel = $rangeTelemed
-                                ? ' (Booked for ' . $rangeCrossLoc . ' – Telemed)'
-                                : ' (Booked for ' . $rangeCrossLoc . ')';
-                            $endTimes[] = [
-                                'value'    => $val,
-                                'label'    => $label . $crossLabel,
-                                'disabled' => true,
-                                'type'     => 'cross_location_booked',
-                            ];
-                        } else {
-                            $endTimes[] = [
-                                'value'    => $val,
-                                'label'    => $label . ' (Booked)',
-                                'disabled' => true,
-                                'type'     => 'booked',
-                            ];
-                        }
-                    } else {
-                        $endTimes[] = [
-                            'value'    => $val,
-                            'label'    => $label,
-                            'disabled' => false,
-                            'type'     => 'available',
-                        ];
-                    }
-                }
-            }
-
-            $response = [
-                'status'      => true,
-                'start_times' => $startTimes,
-            ];
-            if ($endTimes !== null) {
-                $response['end_times'] = $endTimes;
-            }
-
-            return response()->json($response);
-
-        } catch (\Exception $e) {
-            Log::error('getAvailableTimeSlots error: ' . $e->getMessage());
-            return response()->json([
-                'status'  => false,
-                'message' => 'Something went wrong.',
-                'error'   => $e->getMessage(),
-            ], 500);
-        }
+        return response()->json($data ?? [], $httpCode ?: 500);
     }
 }
