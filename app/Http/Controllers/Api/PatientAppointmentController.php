@@ -1059,8 +1059,8 @@ class PatientAppointmentController extends Controller
     {
         $params = array_filter([
             'provider_id' => $request->query('provider_id'),
-            'start_date'  => $request->query('start_date'),
-            'end_date'    => $request->query('end_date'),
+            'svc_date_start'  => $request->query('start_date'),
+            'svc_date_end'    => $request->query('end_date'),
             'location'    => $request->query('location'),
         ], fn($v) => $v !== null);
 
