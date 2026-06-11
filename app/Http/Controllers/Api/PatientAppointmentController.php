@@ -1021,4 +1021,37 @@ class PatientAppointmentController extends Controller
 
         return response()->json($data ?? [], $httpCode ?: 500);
     }
+
+    public function getApprovedPreauth(Request $request)
+    {
+        $caseId = $request->query('case_id');
+
+        $url = config('services.app_server.api_url') . '/preauth/get-approved-preauth'
+            . ($caseId ? '?' . http_build_query(['case_id' => $caseId]) : '');
+
+        $ch = curl_init($url);
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT        => 30,
+            CURLOPT_HTTPHEADER     => ['Accept: application/json'],
+        ]);
+
+        $body     = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $curlErr  = curl_error($ch);
+        curl_close($ch);
+
+        if ($curlErr) {
+            Log::error('getApprovedPreauth curl error: ' . $curlErr);
+            return response()->json([
+                'status'  => false,
+                'message' => 'Failed to reach preauth service.',
+                'error'   => $curlErr,
+            ], 502);
+        }
+
+        $data = json_decode($body, true);
+
+        return response()->json($data ?? [], $httpCode ?: 500);
+    }
 }
