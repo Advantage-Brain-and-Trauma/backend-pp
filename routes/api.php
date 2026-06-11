@@ -44,6 +44,7 @@ Route::middleware(['auth:api', 'role.api:User', 'patient.active'])->group(functi
     Route::get('get-department-speciality-with-physician',[PatientAppointmentController::class, 'getDepartmentSpecialityWithPhysician']);
     Route::get('get-company-by-department-and-provider',[PatientAppointmentController::class, 'getCompanyByDepartmentAndProvider']);
     Route::get('available-time-slots',[PatientAppointmentController::class, 'getAvailableTimeSlots']);
+    Route::get('check-sessions-completed',[PatientAppointmentController::class, 'checkSessionsCompleted']);
     Route::post('schedule-patient-appointment/{userName}/{caseId}',[PatientAppointmentController::class, 'schedulePatientAppointment']);
 
     Route::get('get-patient-submited-form-data',[ClinicalController::class, 'getPatientSubmitedFormData'])->middleware('cors'); // old platform form data
