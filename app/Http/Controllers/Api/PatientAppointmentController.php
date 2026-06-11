@@ -1054,4 +1054,41 @@ class PatientAppointmentController extends Controller
 
         return response()->json($data ?? [], $httpCode ?: 500);
     }
+
+    public function getTimeSlotDateRange(Request $request)
+    {
+        $params = array_filter([
+            'provider_id' => $request->query('provider_id'),
+            'start_date'  => $request->query('start_date'),
+            'end_date'    => $request->query('end_date'),
+            'location'    => $request->query('location'),
+        ], fn($v) => $v !== null);
+
+        $url = config('services.app_server.api_url') . '/get-time-slots-date-range?' . http_build_query($params);
+
+        $ch = curl_init($url);
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT        => 30,
+            CURLOPT_HTTPHEADER     => ['Accept: application/json'],
+        ]);
+
+        $body     = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $curlErr  = curl_error($ch);
+        curl_close($ch);
+
+        if ($curlErr) {
+            Log::error('getTimeSlotDateRange curl error: ' . $curlErr);
+            return response()->json([
+                'status'  => false,
+                'message' => 'Failed to reach time slots service.',
+                'error'   => $curlErr,
+            ], 502);
+        }
+
+        $data = json_decode($body, true);
+
+        return response()->json($data ?? [], $httpCode ?: 500);
+    }
 }
