@@ -28,9 +28,15 @@ use Illuminate\Database\Eloquent\ModelNotFoundException;
 
 class PatientAppointmentController extends Controller
 {
-    private const STORAGE_BASE = 'http://10.0.0.23/storage/files/mh';
-    private const LOCAL_WEBDAV_BASE = 'http://10.0.0.23/webdav/mh';
+    private string $STORAGE_BASE;
+    private string $LOCAL_WEBDAV_BASE;
     private const WEBDAV_BASE = 'http://10.0.0.24/webdav/mh';
+
+    public function __construct()
+    {
+        $this->STORAGE_BASE     = config('services.app_server.storage_url');
+        $this->LOCAL_WEBDAV_BASE = config('services.app_server.webdav_url');
+    }
 
     /**
      * GET /api/get-patient-appointments
@@ -229,13 +235,13 @@ class PatientAppointmentController extends Controller
         $split = implode('/', str_split($caseId));
 
         if ($serverType === '1') {
-            $bases = [self::WEBDAV_BASE, self::LOCAL_WEBDAV_BASE, self::STORAGE_BASE];
+            $bases = [self::WEBDAV_BASE, $this->LOCAL_WEBDAV_BASE, $this->STORAGE_BASE];
         } elseif ($serverType === '2') {
-            $bases = [self::STORAGE_BASE, self::LOCAL_WEBDAV_BASE, self::WEBDAV_BASE];
+            $bases = [$this->STORAGE_BASE, $this->LOCAL_WEBDAV_BASE, self::WEBDAV_BASE];
         } elseif ($attendId === '' || $attendId === '0') {
-            $bases = [self::STORAGE_BASE, self::LOCAL_WEBDAV_BASE, self::WEBDAV_BASE];
+            $bases = [$this->STORAGE_BASE, $this->LOCAL_WEBDAV_BASE, self::WEBDAV_BASE];
         } else {
-            $bases = [self::STORAGE_BASE, self::LOCAL_WEBDAV_BASE, self::WEBDAV_BASE];
+            $bases = [$this->STORAGE_BASE, $this->LOCAL_WEBDAV_BASE, self::WEBDAV_BASE];
         }
 
         $folderVariants = array_values(array_unique([$folder, strtolower($folder), strtoupper($folder)]));
@@ -950,7 +956,7 @@ class PatientAppointmentController extends Controller
             'start_time'  => $startTime,
         ], fn($v) => $v !== null);
 
-        $url = 'http://10.0.0.23/api/available-time-slots?' . http_build_query($params);
+        $url = config('services.app_server.api_url') . '/available-time-slots?' . http_build_query($params);
 
         $ch = curl_init($url);
         curl_setopt_array($ch, [

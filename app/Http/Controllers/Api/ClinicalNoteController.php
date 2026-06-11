@@ -16,13 +16,17 @@ use Illuminate\Http\Request;
 
 class ClinicalNoteController extends Controller
 {
+    private array $PREVIEW_ALLOWED_HOSTS;
+    private string $STORAGE_BASE;
+    private string $LOCAL_WEBDAV_BASE;
+
     public function __construct(private readonly AmdClinicalNoteService $amdClinicalNoteService)
     {
+        $appServerHost              = parse_url(config('services.app_server.base_url'), PHP_URL_HOST);
+        $this->PREVIEW_ALLOWED_HOSTS = array_unique([$appServerHost, '10.0.0.24']);
+        $this->STORAGE_BASE          = config('services.app_server.storage_url');
+        $this->LOCAL_WEBDAV_BASE     = config('services.app_server.webdav_url');
     }
-
-    private const PREVIEW_ALLOWED_HOSTS = ['10.0.0.23', '10.0.0.24'];
-    private const STORAGE_BASE = 'http://10.0.0.23/storage/files/mh';
-    private const LOCAL_WEBDAV_BASE = 'http://10.0.0.23/webdav/mh';
     private const WEBDAV_BASE = 'http://10.0.0.24/webdav/mh';
     private const STORAGE_FS_BASE = '/files/mh';
     private const LOCAL_WEBDAV_FS_BASE = '/webdav/mh';
@@ -448,11 +452,11 @@ class ClinicalNoteController extends Controller
                 // Primary resolved URL (split path, storage base)
                 $normalizedUrl,
                 // Flat caseId, storage base
-                rtrim(self::STORAGE_BASE, '/') . '/' . $flatCaseId . '/' . $filePath,
+                rtrim($this->STORAGE_BASE, '/') . '/' . $flatCaseId . '/' . $filePath,
                 // Split caseId, local WebDAV
-                rtrim(self::LOCAL_WEBDAV_BASE, '/') . '/' . $splitCaseId . '/' . $filePath,
+                rtrim($this->LOCAL_WEBDAV_BASE, '/') . '/' . $splitCaseId . '/' . $filePath,
                 // Flat caseId, local WebDAV
-                rtrim(self::LOCAL_WEBDAV_BASE, '/') . '/' . $flatCaseId . '/' . $filePath,
+                rtrim($this->LOCAL_WEBDAV_BASE, '/') . '/' . $flatCaseId . '/' . $filePath,
                 // Split caseId, remote WebDAV
                 rtrim(self::WEBDAV_BASE, '/') . '/' . $splitCaseId . '/' . $filePath,
                 // Flat caseId, remote WebDAV
@@ -532,7 +536,7 @@ class ClinicalNoteController extends Controller
         $path = $parts['path'];
         $allowedPath = str_starts_with($path, '/storage/files/mh/') || str_starts_with($path, '/webdav/mh/');
 
-        if (!in_array($host, self::PREVIEW_ALLOWED_HOSTS, true) || !$allowedPath) {
+        if (!in_array($host, $this->PREVIEW_ALLOWED_HOSTS, true) || !$allowedPath) {
             return null;
         }
 
@@ -697,15 +701,15 @@ class ClinicalNoteController extends Controller
         // Those rows are commonly serverType=2 and often not tied to attend_id.
         // Prefer WebDAV first for that shape so clinical-note preview URLs resolve correctly.
         if ($serverType === '1') {
-            $bases = [self::WEBDAV_BASE, self::LOCAL_WEBDAV_BASE, self::STORAGE_BASE];
+            $bases = [self::WEBDAV_BASE, $this->LOCAL_WEBDAV_BASE, $this->STORAGE_BASE];
         } elseif ($serverType === '2') {
             // Add/Edit Patient uploads in Medhiwa are saved under /files/mh first,
             // and only then copied to WebDAV as a secondary location.
-            $bases = [self::STORAGE_BASE, self::LOCAL_WEBDAV_BASE, self::WEBDAV_BASE];
+            $bases = [$this->STORAGE_BASE, $this->LOCAL_WEBDAV_BASE, self::WEBDAV_BASE];
         } elseif ($attendId === '' || $attendId === '0') {
-            $bases = [self::STORAGE_BASE, self::LOCAL_WEBDAV_BASE, self::WEBDAV_BASE];
+            $bases = [$this->STORAGE_BASE, $this->LOCAL_WEBDAV_BASE, self::WEBDAV_BASE];
         } else {
-            $bases = [self::STORAGE_BASE, self::LOCAL_WEBDAV_BASE, self::WEBDAV_BASE];
+            $bases = [$this->STORAGE_BASE, $this->LOCAL_WEBDAV_BASE, self::WEBDAV_BASE];
         }
 
         $folderVariants = array_values(array_unique([$folder, strtolower($folder), strtoupper($folder)]));
@@ -759,7 +763,7 @@ class ClinicalNoteController extends Controller
             return '';
         }
 
-        $baseUrl = rtrim((string) parse_url(self::STORAGE_BASE, PHP_URL_SCHEME) . '://' . (string) parse_url(self::STORAGE_BASE, PHP_URL_HOST), '/');
+        $baseUrl = rtrim((string) parse_url($this->STORAGE_BASE, PHP_URL_SCHEME) . '://' . (string) parse_url($this->STORAGE_BASE, PHP_URL_HOST), '/');
         $segments = [
             $baseUrl,
             'api',
@@ -790,7 +794,7 @@ class ClinicalNoteController extends Controller
         }
 
         $split = implode('/', str_split($caseId));
-        $url = rtrim(self::STORAGE_BASE, '/')
+        $url = rtrim($this->STORAGE_BASE, '/')
             . '/' . $split
             . '/' . rawurlencode($folder);
 
@@ -804,8 +808,8 @@ class ClinicalNoteController extends Controller
     private function localAttachmentExists(string $baseUrl, string $splitCaseId, string $folder, string $subFolder, string $filename): bool
     {
         $fsBase = match (rtrim($baseUrl, '/')) {
-            self::STORAGE_BASE => self::STORAGE_FS_BASE,
-            self::LOCAL_WEBDAV_BASE => self::LOCAL_WEBDAV_FS_BASE,
+            $this->STORAGE_BASE => self::STORAGE_FS_BASE,
+            $this->LOCAL_WEBDAV_BASE => self::LOCAL_WEBDAV_FS_BASE,
             default => null,
         };
 
@@ -839,8 +843,8 @@ class ClinicalNoteController extends Controller
     private function resolveLocalFilesystemPath(string $url): ?string
     {
         $urlBases = [
-            self::STORAGE_BASE      => self::STORAGE_FS_BASE,
-            self::LOCAL_WEBDAV_BASE => self::LOCAL_WEBDAV_FS_BASE,
+            $this->STORAGE_BASE      => self::STORAGE_FS_BASE,
+            $this->LOCAL_WEBDAV_BASE => self::LOCAL_WEBDAV_FS_BASE,
         ];
 
         foreach ($urlBases as $urlBase => $fsBase) {
@@ -1213,7 +1217,7 @@ class ClinicalNoteController extends Controller
 
         $patientId = $caseRecord->patient_id;
 
-        $url = "http://10.0.0.23/api/file-attachments/administrator/{$patientId}/{$caseId}/1";
+        $url = config('services.app_server.api_url') . "/file-attachments/administrator/{$patientId}/{$caseId}/1";
 
         $ch = curl_init($url);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
