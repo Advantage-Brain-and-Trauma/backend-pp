@@ -30,8 +30,8 @@ class ProxyAccessController extends Controller
         try {
             $validator = Validator::make($request->all(), [
                 'email'        => 'required|email',
-                'relationship' => 'required|string|max:100',
-                'access_level' => 'required|in:full,limited,read_only',
+                'relationship' => 'nullable|string|max:100',
+                'access_level' => 'nullable|in:full,limited,read_only',
             ]);
 
             if ($validator->fails()) {
@@ -64,8 +64,8 @@ class ProxyAccessController extends Controller
                 'patient_user_id'  => $patient->id,
                 'proxy_user_id'    => null,
                 'proxy_email'      => strtolower($request->email),
-                'relationship'     => $request->relationship,
-                'access_level'     => $request->access_level,
+                'relationship'     => $request->relationship ?? 'unknown',
+                'access_level'     => $request->access_level ?? 'full',
                 'status'           => 'pending',
                 'invitation_token' => $token,
                 'token_expires_at' => now()->addHours(48),
