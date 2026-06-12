@@ -66,9 +66,6 @@ class PasswordResetApiController extends Controller
             ]);
 
             $email = strtolower(trim($request->input('email')));
-            return response()->json([
-                'email' => $email,
-            ]);
 
             // ── Rate-limit per email address ──────────────────────────────────
             $rateLimitKey = 'password.forgot.' . sha1($email);
@@ -97,6 +94,9 @@ class PasswordResetApiController extends Controller
 
             // ── Look up user (no early return to avoid enumeration) ───────────
             $user = User::where('email', $email)->first();
+            return response()->json([
+                'user' => $user
+            ]);
 
             if ($user) {
                 // Delete any stale token for this email so the table stays tidy
