@@ -19,6 +19,7 @@ use Illuminate\Support\Facades\Validator;
 use Tymon\JWTAuth\Facades\JWTAuth;
 use Tymon\JWTAuth\Token;
 use Illuminate\Support\Facades\Auth;
+use App\Models\ProxyAccess;
 use App\Models\UserSession;
 
 class PatientController extends Controller
@@ -269,11 +270,11 @@ class PatientController extends Controller
             // For proxy accounts, use the patient's email (from the main account)
             // instead of the proxy user's own email to match AhcsPatient records.
             if ($authUser->is_proxy_account) {
-                $proxyAccess = \App\Models\ProxyAccess::where('proxy_user_id', $authUser->id)
+                $proxyAccess = ProxyAccess::where('proxy_user_id', $authUser->id)
                     ->where('status', 'active')
                     ->first();
 
-                $patientOwner = $proxyAccess ? \App\Models\User::find($proxyAccess->patient_user_id) : null;
+                $patientOwner = $proxyAccess ? User::find($proxyAccess->patient_user_id) : null;
                 $email        = $patientOwner?->email ?? $authUser->email;
             } else {
                 $email = $authUser->email;

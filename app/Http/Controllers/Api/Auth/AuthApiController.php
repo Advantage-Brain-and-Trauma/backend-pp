@@ -7,6 +7,7 @@ use App\Models\User;
 use App\Models\AhcsPatient;
 use App\Models\AhcsCase;
 use Illuminate\Http\Request;
+use App\Models\ProxyAccess;
 use App\Models\UserSession;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
@@ -53,6 +54,28 @@ class AuthApiController extends Controller
 
             // ✅ Get logged-in user
             $user = Auth::guard('api')->user();
+
+            // ── Proxy account revoked check ───────────────────────────────────
+            // Block login if the user is a proxy account with no active proxy access.
+            if ($user->is_proxy_account) {
+                $hasActiveProxy = ProxyAccess::where('proxy_user_id', $user->id)
+                    ->where('status', 'active')
+                    ->exists();
+
+                if (!$hasActiveProxy) {
+                    Auth::guard('api')->logout();
+
+                    Log::channel('auth')->warning('Login blocked: proxy access has been revoked', [
+                        'user_id' => $user->id,
+                        'email'   => $user->email,
+                    ]);
+
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Your proxy access has been revoked. Please contact the patient.',
+                    ], 403);
+                }
+            }
 
             // ── Patient active check ──────────────────────────────────────────
             // Reject login if ALL linked patients are soft-deleted in AhcsPatient.
