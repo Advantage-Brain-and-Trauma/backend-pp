@@ -128,7 +128,7 @@ class PasswordResetApiController extends Controller
                     )
                 );
                     
-echo 'hello'; print_r($expiresInMinutes);exit;
+
                 Log::channel('password_reset')->info('Password-reset email dispatched', [
                     'user_id' => $user->id,
                     'email'   => $email,
