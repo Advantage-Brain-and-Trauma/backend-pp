@@ -95,7 +95,6 @@ class PasswordResetApiController extends Controller
 
             // ── Look up user (no early return to avoid enumeration) ───────────
             $user = User::where('email', $email)->first();
-                    echo 'hello'; print_r($user);exit;
 
         
             if ($user) {
@@ -120,7 +119,7 @@ class PasswordResetApiController extends Controller
                     . '&email=' . urlencode($email);
 
                 $expiresInMinutes = (int) config('auth.passwords.users.expire', 60);
-
+echo 'hello'; print_r($expiresInMinutes);exit;
                 Mail::to($email)->send(
                     new PasswordResetMail(
                         $user->name ?? 'Patient',
@@ -128,6 +127,7 @@ class PasswordResetApiController extends Controller
                         $expiresInMinutes,
                     )
                 );
+                    
 
                 Log::channel('password_reset')->info('Password-reset email dispatched', [
                     'user_id' => $user->id,
