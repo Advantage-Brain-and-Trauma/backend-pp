@@ -66,7 +66,6 @@ class PasswordResetApiController extends Controller
             ]);
 
             $email = $request->input('email');
-                    echo 'hello'; print_r($email);exit;
 
 
             // ── Rate-limit per email address ──────────────────────────────────
@@ -96,6 +95,7 @@ class PasswordResetApiController extends Controller
 
             // ── Look up user (no early return to avoid enumeration) ───────────
             $user = User::where('email', $email)->first();
+                    echo 'hello'; print_r($user);exit;
 
         
             if ($user) {
