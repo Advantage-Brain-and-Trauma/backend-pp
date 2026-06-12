@@ -16,13 +16,17 @@ use Illuminate\Http\Request;
 
 class ClinicalNoteController extends Controller
 {
+    private array $PREVIEW_ALLOWED_HOSTS;
+    private string $STORAGE_BASE;
+    private string $LOCAL_WEBDAV_BASE;
+
     public function __construct(private readonly AmdClinicalNoteService $amdClinicalNoteService)
     {
+        $appServerHost              = parse_url(config('services.app_server.base_url'), PHP_URL_HOST);
+        $this->PREVIEW_ALLOWED_HOSTS = array_unique([$appServerHost, '10.0.0.24']);
+        $this->STORAGE_BASE          = config('services.app_server.storage_url');
+        $this->LOCAL_WEBDAV_BASE     = config('services.app_server.webdav_url');
     }
-
-    private const PREVIEW_ALLOWED_HOSTS = ['10.0.0.23', '10.0.0.24'];
-    private const STORAGE_BASE = 'http://10.0.0.23/storage/files/mh';
-    private const LOCAL_WEBDAV_BASE = 'http://10.0.0.23/webdav/mh';
     private const WEBDAV_BASE = 'http://10.0.0.24/webdav/mh';
     private const STORAGE_FS_BASE = '/files/mh';
     private const LOCAL_WEBDAV_FS_BASE = '/webdav/mh';
@@ -87,6 +91,94 @@ class ClinicalNoteController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Error fetching clinical note.',
+            ], 500);
+        }
+    }
+
+    /**
+     * GET /api/get-clinical/{caseId}
+     *
+     * Fetch clinical documents from the external API for a given case.
+     * Patient ID is resolved from the authenticated user's active patient IDs.
+     */
+    public function getClinicalDocuments(Request $request): JsonResponse
+    {
+        $patientIds = auth()->user()->getActivePatientIds();
+        $caseId = $request->input('case_id');
+
+        $caseRecord = AhcsCase::where('id', $caseId)
+            ->whereIn('patient_id', $patientIds)
+            ->first(['patient_id']);
+
+        if (!$caseRecord) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Invalid Case Id for this patient.',
+            ], 422);
+        }
+
+        $patientId = $caseRecord->patient_id;
+
+        try {
+            $baseUrl = rtrim((string) config('services.clinical_documents.base_url', 'http://10.0.0.122/api'), '/');
+            $url = $baseUrl . '/clinical-notes-documents/by-case/' . $patientId . '/' . $caseId . '?only_visible=1';
+
+            $ch = curl_init();
+            curl_setopt_array($ch, [
+                CURLOPT_URL            => $url,
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_TIMEOUT        => 30,
+                CURLOPT_CONNECTTIMEOUT => 10,
+                CURLOPT_HTTPGET        => true,
+                CURLOPT_HTTPHEADER     => ['Accept: application/json'],
+            ]);
+
+            $body      = curl_exec($ch);
+            $httpCode  = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $curlError = curl_error($ch);
+            curl_close($ch);
+
+            if ($curlError !== '') {
+                Log::channel('patient_form')->error('Get clinical documents cURL error', [
+                    'case_id'    => $caseId,
+                    'patient_id' => $patientId,
+                    'url'        => $url,
+                    'curl_error' => $curlError,
+                ]);
+
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Unable to connect to clinical documents service.',
+                    'error'   => $curlError,
+                ], 502);
+            }
+
+            if ($httpCode < 200 || $httpCode >= 300) {
+                return response()->json([
+                    'success'     => false,
+                    'message'     => 'Clinical documents service returned an error.',
+                    'status_code' => $httpCode,
+                ], 502);
+            }
+
+            $data = json_decode($body, true);
+
+            return response()->json([
+                'success' => true,
+                'data'    => $data,
+            ], 200, [], JSON_UNESCAPED_SLASHES);
+        } catch (\Throwable $e) {
+            Log::channel('patient_form')->error('Get clinical documents API error', [
+                'case_id'    => $caseId,
+                'patient_id' => $patientId ?? null,
+                'error'      => $e->getMessage(),
+                'line'       => $e->getLine(),
+                'file'       => $e->getFile(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Error fetching clinical documents.',
             ], 500);
         }
     }
@@ -360,11 +452,11 @@ class ClinicalNoteController extends Controller
                 // Primary resolved URL (split path, storage base)
                 $normalizedUrl,
                 // Flat caseId, storage base
-                rtrim(self::STORAGE_BASE, '/') . '/' . $flatCaseId . '/' . $filePath,
+                rtrim($this->STORAGE_BASE, '/') . '/' . $flatCaseId . '/' . $filePath,
                 // Split caseId, local WebDAV
-                rtrim(self::LOCAL_WEBDAV_BASE, '/') . '/' . $splitCaseId . '/' . $filePath,
+                rtrim($this->LOCAL_WEBDAV_BASE, '/') . '/' . $splitCaseId . '/' . $filePath,
                 // Flat caseId, local WebDAV
-                rtrim(self::LOCAL_WEBDAV_BASE, '/') . '/' . $flatCaseId . '/' . $filePath,
+                rtrim($this->LOCAL_WEBDAV_BASE, '/') . '/' . $flatCaseId . '/' . $filePath,
                 // Split caseId, remote WebDAV
                 rtrim(self::WEBDAV_BASE, '/') . '/' . $splitCaseId . '/' . $filePath,
                 // Flat caseId, remote WebDAV
@@ -444,7 +536,7 @@ class ClinicalNoteController extends Controller
         $path = $parts['path'];
         $allowedPath = str_starts_with($path, '/storage/files/mh/') || str_starts_with($path, '/webdav/mh/');
 
-        if (!in_array($host, self::PREVIEW_ALLOWED_HOSTS, true) || !$allowedPath) {
+        if (!in_array($host, $this->PREVIEW_ALLOWED_HOSTS, true) || !$allowedPath) {
             return null;
         }
 
@@ -609,15 +701,15 @@ class ClinicalNoteController extends Controller
         // Those rows are commonly serverType=2 and often not tied to attend_id.
         // Prefer WebDAV first for that shape so clinical-note preview URLs resolve correctly.
         if ($serverType === '1') {
-            $bases = [self::WEBDAV_BASE, self::LOCAL_WEBDAV_BASE, self::STORAGE_BASE];
+            $bases = [self::WEBDAV_BASE, $this->LOCAL_WEBDAV_BASE, $this->STORAGE_BASE];
         } elseif ($serverType === '2') {
             // Add/Edit Patient uploads in Medhiwa are saved under /files/mh first,
             // and only then copied to WebDAV as a secondary location.
-            $bases = [self::STORAGE_BASE, self::LOCAL_WEBDAV_BASE, self::WEBDAV_BASE];
+            $bases = [$this->STORAGE_BASE, $this->LOCAL_WEBDAV_BASE, self::WEBDAV_BASE];
         } elseif ($attendId === '' || $attendId === '0') {
-            $bases = [self::STORAGE_BASE, self::LOCAL_WEBDAV_BASE, self::WEBDAV_BASE];
+            $bases = [$this->STORAGE_BASE, $this->LOCAL_WEBDAV_BASE, self::WEBDAV_BASE];
         } else {
-            $bases = [self::STORAGE_BASE, self::LOCAL_WEBDAV_BASE, self::WEBDAV_BASE];
+            $bases = [$this->STORAGE_BASE, $this->LOCAL_WEBDAV_BASE, self::WEBDAV_BASE];
         }
 
         $folderVariants = array_values(array_unique([$folder, strtolower($folder), strtoupper($folder)]));
@@ -671,7 +763,7 @@ class ClinicalNoteController extends Controller
             return '';
         }
 
-        $baseUrl = rtrim((string) parse_url(self::STORAGE_BASE, PHP_URL_SCHEME) . '://' . (string) parse_url(self::STORAGE_BASE, PHP_URL_HOST), '/');
+        $baseUrl = rtrim((string) parse_url($this->STORAGE_BASE, PHP_URL_SCHEME) . '://' . (string) parse_url($this->STORAGE_BASE, PHP_URL_HOST), '/');
         $segments = [
             $baseUrl,
             'api',
@@ -702,7 +794,7 @@ class ClinicalNoteController extends Controller
         }
 
         $split = implode('/', str_split($caseId));
-        $url = rtrim(self::STORAGE_BASE, '/')
+        $url = rtrim($this->STORAGE_BASE, '/')
             . '/' . $split
             . '/' . rawurlencode($folder);
 
@@ -716,8 +808,8 @@ class ClinicalNoteController extends Controller
     private function localAttachmentExists(string $baseUrl, string $splitCaseId, string $folder, string $subFolder, string $filename): bool
     {
         $fsBase = match (rtrim($baseUrl, '/')) {
-            self::STORAGE_BASE => self::STORAGE_FS_BASE,
-            self::LOCAL_WEBDAV_BASE => self::LOCAL_WEBDAV_FS_BASE,
+            $this->STORAGE_BASE => self::STORAGE_FS_BASE,
+            $this->LOCAL_WEBDAV_BASE => self::LOCAL_WEBDAV_FS_BASE,
             default => null,
         };
 
@@ -751,8 +843,8 @@ class ClinicalNoteController extends Controller
     private function resolveLocalFilesystemPath(string $url): ?string
     {
         $urlBases = [
-            self::STORAGE_BASE      => self::STORAGE_FS_BASE,
-            self::LOCAL_WEBDAV_BASE => self::LOCAL_WEBDAV_FS_BASE,
+            $this->STORAGE_BASE      => self::STORAGE_FS_BASE,
+            $this->LOCAL_WEBDAV_BASE => self::LOCAL_WEBDAV_FS_BASE,
         ];
 
         foreach ($urlBases as $urlBase => $fsBase) {
@@ -1097,5 +1189,59 @@ class ClinicalNoteController extends Controller
         $dompdf->render();
 
         return $dompdf->output();
+    }
+
+    public function getAdministratorNotes(Request $request)
+    {
+        $caseId = $request->query('case_id');
+
+        if (empty($caseId)) {
+            return response()->json([
+                'status'  => false,
+                'message' => 'case_id is required.',
+            ], 422);
+        }
+
+        $patientIds = auth()->user()->getActivePatientIds();
+
+        $caseRecord = AhcsCase::where('id', $caseId)
+            ->whereIn('patient_id', $patientIds)
+            ->first(['patient_id']);
+
+        if (!$caseRecord) {
+            return response()->json([
+                'status'  => false,
+                'message' => 'Invalid case_id for this patient.',
+            ], 422);
+        }
+
+        $patientId = $caseRecord->patient_id;
+
+        $url = config('services.app_server.api_url') . "/file-attachments/administrator/{$patientId}/{$caseId}/1";
+
+        $ch = curl_init($url);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 30);
+
+        $response  = curl_exec($ch);
+        $httpCode  = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $curlError = curl_error($ch);
+        curl_close($ch);
+
+        if ($curlError) {
+            Log::error('getAdministratorNotes curl error: ' . $curlError, [
+                'patient_id' => $patientId,
+                'case_id'    => $caseId,
+            ]);
+            return response()->json([
+                'status'  => false,
+                'message' => 'Failed to fetch clinical notes.',
+                'error'   => $curlError,
+            ], 500);
+        }
+
+        $data = json_decode($response, true);
+
+        return response()->json($data ?? $response, $httpCode);
     }
 }

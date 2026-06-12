@@ -53,8 +53,19 @@ return [
         'from' => env('TWILIO_PHONE'),
     ],
 
+    'app_server' => [
+        'base_url'    => env('APP_SERVER_BASE_URL', 'http://10.0.0.23'),
+        'api_url'     => env('APP_SERVER_BASE_URL', 'http://10.0.0.23') . '/api',
+        'storage_url' => env('APP_SERVER_BASE_URL', 'http://10.0.0.23') . '/storage/files/mh',
+        'webdav_url'  => env('APP_SERVER_BASE_URL', 'http://10.0.0.23') . '/webdav/mh',
+    ],
+
     'clinical_notes' => [
-        'base_url' => env('CLINICAL_NOTES_API_BASE_URL', 'http://10.0.0.23/api'),
+        'base_url' => env('CLINICAL_NOTES_API_BASE_URL', env('APP_SERVER_BASE_URL', 'http://10.0.0.23') . '/api'),
+    ],
+
+    'clinical_documents' => [
+        'base_url' => env('CLINICAL_DOCUMENTS_API_BASE_URL', env('APP_SERVER_BASE_URL', 'http://10.0.0.23') . '/api'),
     ],
 
 ];

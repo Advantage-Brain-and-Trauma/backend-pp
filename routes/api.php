@@ -47,6 +47,10 @@ Route::middleware(['auth:api', 'role.api:User', 'patient.active'])->group(functi
     Route::get('get-appointment-departments',[PatientAppointmentController::class, 'getAppointmentDepartments']);
     Route::get('get-department-speciality-with-physician',[PatientAppointmentController::class, 'getDepartmentSpecialityWithPhysician']);
     Route::get('get-company-by-department-and-provider',[PatientAppointmentController::class, 'getCompanyByDepartmentAndProvider']);
+    Route::get('available-time-slots',[PatientAppointmentController::class, 'getAvailableTimeSlots']);
+    Route::get('check-sessions-completed',[PatientAppointmentController::class, 'checkSessionsCompleted']);
+    Route::get('get-approved-preauth',[PatientAppointmentController::class, 'getApprovedPreauth']);
+    Route::get('get-time-slots-date-range',[PatientAppointmentController::class, 'getTimeSlotDateRange']);
     Route::post('schedule-patient-appointment/{userName}/{caseId}',[PatientAppointmentController::class, 'schedulePatientAppointment']);
 
     Route::get('get-patient-submited-form-data',[ClinicalController::class, 'getPatientSubmitedFormData'])->middleware('cors'); // old platform form data
@@ -54,6 +58,7 @@ Route::middleware(['auth:api', 'role.api:User', 'patient.active'])->group(functi
     Route::get('get-patient-form-data',[ClinicalController::class, 'getPatientFormData'])->middleware('proxy.log'); // new platform form data
     Route::post('download-patient-form-pdf',[ClinicalController::class, 'downloadPatientFormPdf']); // new platform form pdf download
     Route::get('clinical-note', [ClinicalNoteController::class, 'show'])->middleware('proxy.log');
+    Route::get('get-clinical', [ClinicalNoteController::class, 'getClinicalDocuments']);
     Route::get('clinical-note/view/{noteId}', [ClinicalNoteController::class, 'viewNote']);
     Route::get('clinical-note/download/{noteId}', [ClinicalNoteController::class, 'downloadNote']);
     Route::get('clinical-note-preview', [ClinicalNoteController::class, 'preview']);
@@ -85,6 +90,9 @@ Route::middleware(['auth:api', 'role.api:User', 'patient.active'])->group(functi
     // Proxy-facing: see and switch into granted patient accounts
     Route::get('proxy/my-access',         [ProxyAccessController::class, 'myAccess']);
     Route::post('proxy/switch-patient',   [ProxyAccessController::class, 'switchPatient']);
+
+    // Administrator
+    Route::get('get-administrator-notes', [ClinicalNoteController::class, 'getAdministratorNotes']);
 
     // Form Submission Notes API
     Route::get('form-submissions/{submissionId}/notes',             [FormSubmissionNoteController::class, 'index']);

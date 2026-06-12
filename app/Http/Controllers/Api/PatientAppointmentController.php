@@ -28,9 +28,15 @@ use Illuminate\Database\Eloquent\ModelNotFoundException;
 
 class PatientAppointmentController extends Controller
 {
-    private const STORAGE_BASE = 'http://10.0.0.23/storage/files/mh';
-    private const LOCAL_WEBDAV_BASE = 'http://10.0.0.23/webdav/mh';
+    private string $STORAGE_BASE;
+    private string $LOCAL_WEBDAV_BASE;
     private const WEBDAV_BASE = 'http://10.0.0.24/webdav/mh';
+
+    public function __construct()
+    {
+        $this->STORAGE_BASE     = config('services.app_server.storage_url');
+        $this->LOCAL_WEBDAV_BASE = config('services.app_server.webdav_url');
+    }
 
     /**
      * GET /api/get-patient-appointments
@@ -229,13 +235,13 @@ class PatientAppointmentController extends Controller
         $split = implode('/', str_split($caseId));
 
         if ($serverType === '1') {
-            $bases = [self::WEBDAV_BASE, self::LOCAL_WEBDAV_BASE, self::STORAGE_BASE];
+            $bases = [self::WEBDAV_BASE, $this->LOCAL_WEBDAV_BASE, $this->STORAGE_BASE];
         } elseif ($serverType === '2') {
-            $bases = [self::STORAGE_BASE, self::LOCAL_WEBDAV_BASE, self::WEBDAV_BASE];
+            $bases = [$this->STORAGE_BASE, $this->LOCAL_WEBDAV_BASE, self::WEBDAV_BASE];
         } elseif ($attendId === '' || $attendId === '0') {
-            $bases = [self::STORAGE_BASE, self::LOCAL_WEBDAV_BASE, self::WEBDAV_BASE];
+            $bases = [$this->STORAGE_BASE, $this->LOCAL_WEBDAV_BASE, self::WEBDAV_BASE];
         } else {
-            $bases = [self::STORAGE_BASE, self::LOCAL_WEBDAV_BASE, self::WEBDAV_BASE];
+            $bases = [$this->STORAGE_BASE, $this->LOCAL_WEBDAV_BASE, self::WEBDAV_BASE];
         }
 
         $folderVariants = array_values(array_unique([$folder, strtolower($folder), strtoupper($folder)]));
@@ -485,7 +491,7 @@ class PatientAppointmentController extends Controller
 
         $monthlyAvailabilities = PhysicianProvierMonthlyAvailability::whereIn('provider_id', $physicianIds)
                                 ->where('provider_city', $department)
-                                ->select('provider_id', 'available_date as date', 'open_time', 'close_time')
+                                ->select('provider_id', 'available_date as date', 'open_time', 'close_time', 'is_telemed')
                                 ->orderBy('available_date')
                                 ->get()
                                 ->groupBy('provider_id');
@@ -544,20 +550,26 @@ class PatientAppointmentController extends Controller
 
                     'is_telemed' => (bool) $loc->is_telemed,
 
-                    'telemed_sun' => (int) ($loc->telemed_sun ?? 1),
-                    'telemed_mon' => (int) ($loc->telemed_mon ?? 1),
-                    'telemed_tue' => (int) ($loc->telemed_tue ?? 1),
-                    'telemed_wed' => (int) ($loc->telemed_wed ?? 1),
-                    'telemed_thu' => (int) ($loc->telemed_thu ?? 1),
-                    'telemed_fri' => (int) ($loc->telemed_fri ?? 1),
-                    'telemed_sat' => (int) ($loc->telemed_sat ?? 1),
+                    'telemed_sun' => (int) ($loc->telemed_sun ?? 0),
+                    'telemed_mon' => (int) ($loc->telemed_mon ?? 0),
+                    'telemed_tue' => (int) ($loc->telemed_tue ?? 0),
+                    'telemed_wed' => (int) ($loc->telemed_wed ?? 0),
+                    'telemed_thu' => (int) ($loc->telemed_thu ?? 0),
+                    'telemed_fri' => (int) ($loc->telemed_fri ?? 0),
+                    'telemed_sat' => (int) ($loc->telemed_sat ?? 0),
+                    'monthly_availability' => [],
                 ];
             })->values()->toArray();
 
             // ✅ Monthly availability (NO QUERY HERE)
             $physician->monthly_availability =
                 ($physician->schedule_type === 'monthly')
-                    ? ($monthlyAvailabilities[$physician->physician_id] ?? collect())->values()->toArray()
+                    ? ($monthlyAvailabilities[$physician->physician_id] ?? collect())->map(fn($a) => [
+                        'date' => $a->date,
+                        'open_time' => $a->open_time,
+                        'close_time' => $a->close_time,
+                        'is_telemed' => $a->is_telemed,
+                    ])->values()->toArray()
                     : [];
 
             // ✅ Custom lunch times (NO QUERY HERE)
@@ -633,7 +645,28 @@ class PatientAppointmentController extends Controller
         /* ------------------------------------
          | 7. Merge specialities with physicians and visit types
          |-------------------------------------*/
-        $finalData = $specialities->map(function ($spec) use ($physiciansBySpecShort, $visitTypesBySpeciality) {
+        $departmentColors = [
+            'PT'         => ['primaryColor' => '#18696D', 'secondaryColor' => '#2A9D8F', 'lightBg' => '#E0F4F3'],
+            'PTA'        => ['primaryColor' => '#7A6B17', 'secondaryColor' => '#9A8A2D', 'lightBg' => '#F7F4E0'],
+            'OT'         => ['primaryColor' => '#8B1874', 'secondaryColor' => '#B5258E', 'lightBg' => '#FCE4F4'],
+            'OTA'        => ['primaryColor' => '#8B1848', 'secondaryColor' => '#B32D66', 'lightBg' => '#FCE4ED'],
+            'SLP'        => ['primaryColor' => '#1565A8', 'secondaryColor' => '#2185D0', 'lightBg' => '#E3F2FD'],
+            'Psych'      => ['primaryColor' => '#5B2C8C', 'secondaryColor' => '#7B4BAB', 'lightBg' => '#F0E6F6'],
+            'LPC'        => ['primaryColor' => '#1D7A4E', 'secondaryColor' => '#2E9B66', 'lightBg' => '#E2F5EC'],
+            'LMSW'       => ['primaryColor' => '#8B4513', 'secondaryColor' => '#A0522D', 'lightBg' => '#F5EBE0'],
+            'NPE'        => ['primaryColor' => '#2E3A8C', 'secondaryColor' => '#4355B9', 'lightBg' => '#E6E9F7'],
+            'DC'         => ['primaryColor' => '#8B2318', 'secondaryColor' => '#B33A2D', 'lightBg' => '#FDECEA'],
+            'PM&R'       => ['primaryColor' => '#5A7A17', 'secondaryColor' => '#7A9A2D', 'lightBg' => '#F0F5E2'],
+            'Chiro Tech' => ['primaryColor' => '#6B2D8C', 'secondaryColor' => '#8B4DAB', 'lightBg' => '#F3E6F8'],
+            'Neuro'      => ['primaryColor' => '#4A7A17', 'secondaryColor' => '#5E9A2D', 'lightBg' => '#EEF6E2'],
+            'Nurse Prac' => ['primaryColor' => '#177A5C', 'secondaryColor' => '#2D9A76', 'lightBg' => '#E2F5EE'],
+            'PA'         => ['primaryColor' => '#7A5A17', 'secondaryColor' => '#9A7A2D', 'lightBg' => '#F7F0E0'],
+            'MA'         => ['primaryColor' => '#1E4A8C', 'secondaryColor' => '#3366B3', 'lightBg' => '#E4ECF8'],
+            'EEGTech'    => ['primaryColor' => '#3E2E8C', 'secondaryColor' => '#5A4AB3', 'lightBg' => '#EAE6F8'],
+            'PCP'        => ['primaryColor' => '#2D7A2D', 'secondaryColor' => '#4A9A4A', 'lightBg' => '#E6F5E6'],
+        ];
+
+        $finalData = $specialities->map(function ($spec) use ($physiciansBySpecShort, $visitTypesBySpeciality, $departmentColors) {
             $physicianList = $physiciansBySpecShort[$spec->short_name] ?? collect();
 
             $specVisitTypes = ($visitTypesBySpeciality[$spec->id] ?? collect())
@@ -667,6 +700,11 @@ class PatientAppointmentController extends Controller
                 'allow_multiple' => $spec->allow_multiple ?? 0,
                 'multiple_allowed_slots' => $spec->multiple_allowed_slots ?? 0,
                 'multiple_slot_duration' => $spec->multiple_slot_duration ?? 0,
+                'colors' => $departmentColors[$spec->short_name] ?? [
+                    'primaryColor' => '#6B7280',
+                    'secondaryColor' => '#9CA3AF',
+                    'lightBg' => '#F3F4F6'
+                ],
                 'physician_count' => $physicianList->count(),
                 'physicians' => $physicianList->values(),
                 'visit_types' => $specVisitTypes
@@ -885,5 +923,221 @@ class PatientAppointmentController extends Controller
                 'message' => 'Something went wrong',
             ], 500);
         }
+    }
+
+
+    /**
+     * Return start-time and (optionally) end-time options that match the scheduling popup dropdowns.
+     *
+     * GET /api/available-time-slots
+     *   ?provider_id=  (required)
+     *   &date=         (required, YYYY-MM-DD)
+     *   &location=     (required)
+     *   &start_time=   (optional, H:i – when supplied, end_times array is also returned)
+     *
+     * Slot labels mirror the reschedule/schedule modal JS:
+     *   available           → "08:00 am"
+     *   lunch               → "11:00 am (Lunch)"           disabled
+     *   booked same loc     → "08:00 am (Booked)"          disabled
+     *   booked cross-loc    → "08:00 am (Booked for X)"    disabled
+     *   booked cross telemed→ "08:00 am (Booked for X – Telemed)" disabled
+     */
+    public function getAvailableTimeSlots(Request $request)
+    {
+        $caseId = $request->query('case_id');
+
+        if (empty($caseId)) {
+            return response()->json(['status' => false, 'message' => 'Case ID is required.'], 422);
+        }
+
+        $patientIds = auth()->user()->getActivePatientIds();
+        $caseRecord = AhcsCase::where('id', $caseId)->whereIn('patient_id', $patientIds)->first(['patient_id']);
+
+        if (!$caseRecord) {
+            return response()->json(['status' => false, 'message' => 'Invalid Case ID for this patient.'], 422);
+        }
+
+        $providerId = $request->query('provider_id');
+        $date       = $request->query('date');
+        $location   = $request->query('location');
+        $startTime  = $request->query('start_time');
+
+        $params = array_filter([
+            'provider_id' => $providerId,
+            'date'        => $date,
+            'location'    => $location,
+            'start_time'  => $startTime,
+        ], fn($v) => $v !== null);
+
+        $url = config('services.app_server.api_url') . '/available-time-slots?' . http_build_query($params);
+
+        $ch = curl_init($url);
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT        => 30,
+            CURLOPT_HTTPHEADER     => ['Accept: application/json'],
+        ]);
+
+        $body     = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $curlErr  = curl_error($ch);
+        curl_close($ch);
+
+        if ($curlErr) {
+            Log::error('getAvailableTimeSlots curl error: ' . $curlErr);
+            return response()->json([
+                'status'  => false,
+                'message' => 'Failed to reach availability service.',
+                'error'   => $curlErr,
+            ], 502);
+        }
+
+        $data = json_decode($body, true);
+
+        return response()->json($data ?? [], $httpCode ?: 500);
+    }
+
+    public function checkSessionsCompleted(Request $request)
+    {
+        $caseId = $request->query('case_id');
+
+        if (empty($caseId)) {
+            return response()->json(['status' => false, 'message' => 'Case ID is required.'], 422);
+        }
+
+        $patientIds = auth()->user()->getActivePatientIds();
+        $caseRecord = AhcsCase::where('id', $caseId)->whereIn('patient_id', $patientIds)->first(['patient_id']);
+
+        if (!$caseRecord) {
+            return response()->json(['status' => false, 'message' => 'Invalid Case ID for this patient.'], 422);
+        }
+
+        $maId = $request->query('ma_id');
+
+        $params = array_filter([
+            'case_id' => $caseId,
+            'ma_id'   => $maId,
+        ], fn($v) => $v !== null);
+
+        $url = config('services.app_server.api_url') . '/preauth/check-sessions-completed?' . http_build_query($params);
+
+        $ch = curl_init($url);
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT        => 30,
+            CURLOPT_HTTPHEADER     => ['Accept: application/json'],
+        ]);
+
+        $body     = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $curlErr  = curl_error($ch);
+        curl_close($ch);
+
+        if ($curlErr) {
+            Log::error('checkSessionsCompleted curl error: ' . $curlErr);
+            return response()->json([
+                'status'  => false,
+                'message' => 'Failed to reach sessions service.',
+                'error'   => $curlErr,
+            ], 502);
+        }
+
+        $data = json_decode($body, true);
+
+        return response()->json($data ?? [], $httpCode ?: 500);
+    }
+
+    public function getApprovedPreauth(Request $request)
+    {
+        $caseId = $request->query('case_id');
+
+        if (empty($caseId)) {
+            return response()->json(['status' => false, 'message' => 'Case ID is required.'], 422);
+        }
+
+        $patientIds = auth()->user()->getActivePatientIds();
+        $caseRecord = AhcsCase::where('id', $caseId)->whereIn('patient_id', $patientIds)->first(['patient_id']);
+
+        if (!$caseRecord) {
+            return response()->json(['status' => false, 'message' => 'Invalid Case ID for this patient.'], 422);
+        }
+
+        $url = config('services.app_server.api_url') . '/preauth/get-approved-preauth'
+            . ($caseId ? '?' . http_build_query(['case_id' => $caseId]) : '');
+
+        $ch = curl_init($url);
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT        => 30,
+            CURLOPT_HTTPHEADER     => ['Accept: application/json'],
+        ]);
+
+        $body     = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $curlErr  = curl_error($ch);
+        curl_close($ch);
+
+        if ($curlErr) {
+            Log::error('getApprovedPreauth curl error: ' . $curlErr);
+            return response()->json([
+                'status'  => false,
+                'message' => 'Failed to reach preauth service.',
+                'error'   => $curlErr,
+            ], 502);
+        }
+
+        $data = json_decode($body, true);
+
+        return response()->json($data ?? [], $httpCode ?: 500);
+    }
+
+    public function getTimeSlotDateRange(Request $request)
+    {
+        $caseId = $request->query('case_id');
+
+        if (empty($caseId)) {
+            return response()->json(['status' => false, 'message' => 'Case ID is required.'], 422);
+        }
+
+        $patientIds = auth()->user()->getActivePatientIds();
+        $caseRecord = AhcsCase::where('id', $caseId)->whereIn('patient_id', $patientIds)->first(['patient_id']);
+
+        if (!$caseRecord) {
+            return response()->json(['status' => false, 'message' => 'Invalid Case ID for this patient.'], 422);
+        }
+
+        $params = array_filter([
+            'provider_id' => $request->query('provider_id'),
+            'svc_date_start'  => $request->query('svc_date_start'),
+            'svc_date_end'    => $request->query('svc_date_end'),
+            'location'    => $request->query('location'),
+        ], fn($v) => $v !== null);
+
+        $url = config('services.app_server.api_url') . '/get-time-slots-date-range?' . http_build_query($params);
+
+        $ch = curl_init($url);
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT        => 30,
+            CURLOPT_HTTPHEADER     => ['Accept: application/json'],
+        ]);
+
+        $body     = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $curlErr  = curl_error($ch);
+        curl_close($ch);
+
+        if ($curlErr) {
+            Log::error('getTimeSlotDateRange curl error: ' . $curlErr);
+            return response()->json([
+                'status'  => false,
+                'message' => 'Failed to reach time slots service.',
+                'error'   => $curlErr,
+            ], 502);
+        }
+
+        $data = json_decode($body, true);
+
+        return response()->json($data ?? [], $httpCode ?: 500);
     }
 }
