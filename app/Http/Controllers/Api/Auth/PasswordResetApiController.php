@@ -119,7 +119,7 @@ class PasswordResetApiController extends Controller
                     . '&email=' . urlencode($email);
 
                 $expiresInMinutes = (int) config('auth.passwords.users.expire', 60);
-echo 'hello'; print_r($expiresInMinutes);exit;
+
                 Mail::to($email)->send(
                     new PasswordResetMail(
                         $user->name ?? 'Patient',
@@ -128,7 +128,7 @@ echo 'hello'; print_r($expiresInMinutes);exit;
                     )
                 );
                     
-
+echo 'hello'; print_r($expiresInMinutes);exit;
                 Log::channel('password_reset')->info('Password-reset email dispatched', [
                     'user_id' => $user->id,
                     'email'   => $email,
