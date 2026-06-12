@@ -66,7 +66,7 @@ class PasswordResetApiController extends Controller
                 'email' => ['required', 'email', 'max:255'],
             ]);
 
-            $email = strtolower(trim($request->input('email')));
+            $email = $request->input('email');
             print_r('hello' , $email);exit;
 
             // ── Rate-limit per email address ──────────────────────────────────
