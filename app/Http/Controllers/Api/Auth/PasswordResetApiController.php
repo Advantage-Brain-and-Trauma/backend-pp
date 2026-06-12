@@ -66,6 +66,9 @@ class PasswordResetApiController extends Controller
             ]);
 
             $email = strtolower(trim($request->input('email')));
+            return response()->json([
+                'email' => $email,
+            ]);
 
             // ── Rate-limit per email address ──────────────────────────────────
             $rateLimitKey = 'password.forgot.' . sha1($email);
