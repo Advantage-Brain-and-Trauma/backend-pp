@@ -58,33 +58,58 @@ class ProxyAccessController extends Controller
                 return response()->json(['success' => false, 'message' => $msg], 422);
             }
 
-            $token = Str::random(64);
+            // Find or create the proxy user account
+            $proxyUser = User::where('email', strtolower($request->email))->first();
+
+            if (!$proxyUser) {
+                $proxyUser = User::create([
+                    'name'             => explode('@', $request->email)[0],
+                    'email'            => strtolower($request->email),
+                    'password'         => \Illuminate\Support\Facades\Hash::make(Str::random(16)),
+                    'role'             => 'User',
+                    'is_active'        => true,
+                    'is_proxy_account' => 1,
+                ]);
+            } else {
+                $proxyUser->is_proxy_account = 1;
+                $proxyUser->save();
+            }
+
+            // Merge patient IDs from the patient's account into the proxy user
+            $patientIdsToMerge = $patient->getAllPatientIds();
+            if (!empty($patientIdsToMerge)) {
+                $proxyUser->mergePatientIds($patientIdsToMerge);
+            }
 
             $proxy = ProxyAccess::create([
                 'patient_user_id'  => $patient->id,
-                'proxy_user_id'    => null,
+                'proxy_user_id'    => $proxyUser->id,
                 'proxy_email'      => strtolower($request->email),
                 'relationship'     => $request->relationship ?? 'unknown',
                 'access_level'     => $request->access_level ?? 'full',
-                'status'           => 'pending',
-                'invitation_token' => $token,
-                'token_expires_at' => now()->addHours(48),
+                'status'           => 'active',
+                'invitation_token' => null,
+                'token_expires_at' => null,
                 'invited_at'       => now(),
+                'accepted_at'      => now(),
             ]);
 
-            $acceptUrl   = config('app.frontend_url') . '/proxy/accept/' . $token;
-            $patientName = $patient->name ?? ($patient->email);
+            // Mail sending commented out — proxy is directly assigned without email acceptance
+            // $token       = Str::random(64);
+            // $acceptUrl   = config('app.frontend_url') . '/proxy/accept/' . $token;
+            // $patientName = $patient->name ?? ($patient->email);
+            // Mail::to($request->email)->send(new ProxyInvitationMail($proxy, $patientName, $acceptUrl));
 
-            Mail::to($request->email)->send(new ProxyInvitationMail($proxy, $patientName, $acceptUrl));
-
-            Log::channel('auth')->info('Proxy invitation sent', [
+            Log::channel('auth')->info('Proxy access directly assigned', [
                 'patient_user_id' => $patient->id,
+                'proxy_user_id'   => $proxyUser->id,
                 'proxy_email'     => $request->email,
             ]);
 
             return response()->json([
-                'success' => true,
-                'message' => "Invitation sent to {$request->email}.",
+                'success'      => true,
+                'message'      => "Proxy access granted to {$request->email}.",
+                'is_new_user'  => $proxyUser->wasRecentlyCreated,
             ]);
         } catch (\Throwable $e) {
             Log::error('ProxyAccessController@invite failed', ['error' => $e->getMessage()]);

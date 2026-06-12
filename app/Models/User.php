@@ -33,6 +33,7 @@ class User extends Authenticatable implements JWTSubject
         'dark_mode',
         'lang',
         'social_type',
+        'is_proxy_account',
     ];
 
     protected $hidden = [
@@ -46,6 +47,7 @@ class User extends Authenticatable implements JWTSubject
         'phone_verified_at'  => 'datetime',
         'is_active'          => 'boolean',
         'dark_mode'          => 'boolean',
+        'is_proxy_account'   => 'boolean',
         'password'           => 'hashed',
         'patient_id'         => 'array',    // JSON array of patient IDs
     ];
@@ -264,14 +266,15 @@ class User extends Authenticatable implements JWTSubject
         }
 
         $claims = [
-            'id'          => $this->id,
-            'name'        => $patientDetails['full_name'] ?? $this->name,
-            'email'       => $this->email,
-            'phone'       => $this->phone,
-            'role'        => $this->role,
-            'patient_id'  => $primaryPatientId,
-            'patient_ids' => $this->patient_id ?? [],
-            'case_id'     => $caseId,
+            'id'               => $this->id,
+            'name'             => $patientDetails['full_name'] ?? $this->name,
+            'email'            => $this->email,
+            'phone'            => $this->phone,
+            'role'             => $this->role,
+            'patient_id'       => $primaryPatientId,
+            'patient_ids'      => $this->patient_id ?? [],
+            'case_id'          => $caseId,
+            'is_proxy_account' => (bool) $this->is_proxy_account,
         ];
 
         // Embed proxy context when a proxy switches into a patient's account.
