@@ -59,7 +59,7 @@ class PasswordResetApiController extends Controller
      */
     public function forgotPassword(Request $request): JsonResponse
     {
-          print_r('hello' , $request);exit;
+          echo 'hello'; print_r($request);exit;
         try {
             // ── Validate ──────────────────────────────────────────────────────
             $request->validate([
