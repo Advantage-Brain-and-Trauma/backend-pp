@@ -43,7 +43,7 @@ Route::middleware('auth:api')->group(function () {
 });
 
 Route::middleware(['auth:api', 'role.api:User', 'patient.active'])->group(function (){
-    Route::get('get-patient-appointments',[PatientAppointmentController::class,'getPatientAppointments']);
+    Route::get('get-patient-appointments',[PatientAppointmentController::class,'getPatientAppointments'])->middleware('proxy.log');
     Route::get('get-appointment-departments',[PatientAppointmentController::class, 'getAppointmentDepartments']);
     Route::get('get-department-speciality-with-physician',[PatientAppointmentController::class, 'getDepartmentSpecialityWithPhysician']);
     Route::get('get-company-by-department-and-provider',[PatientAppointmentController::class, 'getCompanyByDepartmentAndProvider']);
@@ -51,29 +51,29 @@ Route::middleware(['auth:api', 'role.api:User', 'patient.active'])->group(functi
 
     Route::get('get-patient-submited-form-data',[ClinicalController::class, 'getPatientSubmitedFormData'])->middleware('cors'); // old platform form data
     Route::post('download-patient-submited-form-pdf',[ClinicalController::class, 'downloadPatientSubmitedFormPdf']); // old platform form pdf download
-    Route::get('get-patient-form-data',[ClinicalController::class, 'getPatientFormData']); // new platform form data
+    Route::get('get-patient-form-data',[ClinicalController::class, 'getPatientFormData'])->middleware('proxy.log'); // new platform form data
     Route::post('download-patient-form-pdf',[ClinicalController::class, 'downloadPatientFormPdf']); // new platform form pdf download
-    Route::get('clinical-note', [ClinicalNoteController::class, 'show']);
+    Route::get('clinical-note', [ClinicalNoteController::class, 'show'])->middleware('proxy.log');
     Route::get('clinical-note/view/{noteId}', [ClinicalNoteController::class, 'viewNote']);
     Route::get('clinical-note/download/{noteId}', [ClinicalNoteController::class, 'downloadNote']);
     Route::get('clinical-note-preview', [ClinicalNoteController::class, 'preview']);
     Route::get('clinical-note-preview-url', [ClinicalNoteController::class, 'generatePreviewUrl']);
     Route::get('attach/preview/{caseId}/{folder}/{subFolder}/{filename}', [ClinicalNoteController::class, 'previewAttachmentPath']);
-    
-    Route::get('get-patient-details',[PatientController::class, 'getPatientDetails']);
+
+    Route::get('get-patient-details',[PatientController::class, 'getPatientDetails'])->middleware('proxy.log');
     Route::get('get-case-ids-by-patient-id', [PatientController::class, 'getCaseIdsByPatientId']);
     Route::get('get-case-ids-by-email', [PatientController::class, 'getCaseIdsByEmail']);
     Route::post('change-patient-case', [PatientController::class, 'changePatientCase']);
 
     // Funnels API
-    Route::get('get-patient-funnels', [FunnelApiController::class, 'getPatientFunnels']);
+    Route::get('get-patient-funnels', [FunnelApiController::class, 'getPatientFunnels'])->middleware('proxy.log');
     // Funnel submission details API
     Route::get('get-patient-funnel-submission-details/{funnelId}', [FunnelApiController::class, 'getPatientFunnelSubmissionDetails']);
     // Form Submissions API
     Route::post('patient-forms/{formId}/submit', [FunnelApiController::class, 'patientSubmitForm']);
-    
+
     // Recent Activity
-    Route::get('recent-activity', [RecentActivityController::class, 'index']);
+    Route::get('recent-activity', [RecentActivityController::class, 'index'])->middleware('proxy.log');
 
     // ── Proxy Access ──────────────────────────────────────────────────────────
     // Patient-facing: manage who can view their records

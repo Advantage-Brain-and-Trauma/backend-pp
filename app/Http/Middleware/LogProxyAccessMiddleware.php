@@ -8,6 +8,7 @@ use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Symfony\Component\HttpFoundation\Response;
+use Tymon\JWTAuth\Facades\JWTAuth;
 
 class LogProxyAccessMiddleware
 {
@@ -26,12 +27,19 @@ class LogProxyAccessMiddleware
         $response = $next($request);
 
         $user = Auth::guard('api')->user();
-        if (!$user) {
+        if (!$user || !$user->is_proxy_account) {
             return $response;
         }
 
-        // Only log when the user is acting as a proxy (session has proxy_patient_user_id set)
-        $patientUserId = session('proxy_patient_user_id');
+        // Read proxy context from JWT — stateless API, no session available
+        try {
+            $payload      = JWTAuth::parseToken()->getPayload();
+            $proxyContext = $payload->get('proxy_context');
+            $patientUserId = $proxyContext['patient_user_id'] ?? null;
+        } catch (\Throwable) {
+            return $response;
+        }
+
         if (!$patientUserId) {
             return $response;
         }
