@@ -59,7 +59,7 @@ class PasswordResetApiController extends Controller
      */
     public function forgotPassword(Request $request): JsonResponse
     {
-        print_r('hello');exit;
+        
         try {
             // ── Validate ──────────────────────────────────────────────────────
             $request->validate([
@@ -67,7 +67,7 @@ class PasswordResetApiController extends Controller
             ]);
 
             $email = strtolower(trim($request->input('email')));
-            
+            print_r('hello' , $email);exit;
 
             // ── Rate-limit per email address ──────────────────────────────────
             $rateLimitKey = 'password.forgot.' . sha1($email);
