@@ -252,14 +252,14 @@ class ProxyAccessController extends Controller
 
             $history = ProxyAccessHistory::where('proxy_access_id', $proxy->id)
                 ->orderByDesc('accessed_at')
-                ->paginate(20)
-                ->through(fn(ProxyAccessHistory $h) => [
-                    'action'        => $h->action,
-                    'resource_type' => $h->resource_type,
-                    'resource_id'   => $h->resource_id,
-                    'accessed_at'   => $h->accessed_at->toIso8601String(),
-                    'accessed_at_human' => $h->accessed_at->diffForHumans(),
-                ]);
+                ->get()
+                ->map(fn(ProxyAccessHistory $h) => [
+                'action'            => $h->action,
+                'resource_type'     => $h->resource_type,
+                'resource_id'       => $h->resource_id,
+                'accessed_at'       => $h->accessed_at->toIso8601String(),
+                'accessed_at_human' => $h->accessed_at->diffForHumans(),
+            ])->values();
 
             return response()->json([
                 'success' => true,
@@ -429,6 +429,18 @@ class ProxyAccessController extends Controller
                     ->toArray()
                 : [];
 
+            // Issue a new JWT with proxy_context embedded so downstream APIs
+            // and the history middleware can identify which patient is being accessed.
+            $proxyUser->jwtProxyContext = [
+                'proxy_access_id' => $proxyAccess->id,
+                'patient_user_id' => $patientUserId,
+                'patient_ids'     => $patientIds,
+                'case_ids'        => $caseIds,
+                'access_level'    => $proxyAccess->access_level,
+            ];
+
+            $newToken = JWTAuth::fromUser($proxyUser);
+
             Log::channel('auth')->info('Proxy switched patient context', [
                 'proxy_user_id'   => $proxyUser->id,
                 'patient_user_id' => $patientUserId,
@@ -438,6 +450,7 @@ class ProxyAccessController extends Controller
             return response()->json([
                 'success'      => true,
                 'message'      => 'Switched to patient context successfully.',
+                'token'        => $newToken,
                 'patient_name' => $patientUser->name ?? $patientUser->email,
                 'access_level' => $proxyAccess->access_level,
                 'patient_ids'  => $patientIds,

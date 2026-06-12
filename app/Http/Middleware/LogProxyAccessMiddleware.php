@@ -31,23 +31,28 @@ class LogProxyAccessMiddleware
             return $response;
         }
 
-        // Read proxy context from JWT — stateless API, no session available
+        // Read proxy context from JWT — stateless API, no session available.
+        // Falls back to DB lookup when switch-patient hasn't been called yet.
+        $patientUserId = null;
         try {
-            $payload      = JWTAuth::parseToken()->getPayload();
-            $proxyContext = $payload->get('proxy_context');
+            $payload       = JWTAuth::parseToken()->getPayload();
+            $proxyContext  = $payload->get('proxy_context');
             $patientUserId = $proxyContext['patient_user_id'] ?? null;
         } catch (\Throwable) {
-            return $response;
+            // token parse failure — fall through to DB lookup
         }
 
-        if (!$patientUserId) {
-            return $response;
+        if ($patientUserId) {
+            $proxyAccess = ProxyAccess::where('proxy_user_id', $user->id)
+                ->where('patient_user_id', $patientUserId)
+                ->where('status', 'active')
+                ->first();
+        } else {
+            // No proxy_context in token — pick the first active proxy access
+            $proxyAccess = ProxyAccess::where('proxy_user_id', $user->id)
+                ->where('status', 'active')
+                ->first();
         }
-
-        $proxyAccess = ProxyAccess::where('proxy_user_id', $user->id)
-            ->where('patient_user_id', $patientUserId)
-            ->where('status', 'active')
-            ->first();
 
         if (!$proxyAccess) {
             return $response;
