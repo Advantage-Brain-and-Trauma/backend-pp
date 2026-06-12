@@ -266,7 +266,19 @@ class PatientController extends Controller
             }
 
             // ── Regular patient (no proxy context in token) ───────────────
-            $email          = $authUser->email;
+            // For proxy accounts, use the patient's email (from the main account)
+            // instead of the proxy user's own email to match AhcsPatient records.
+            if ($authUser->is_proxy_account) {
+                $proxyAccess = \App\Models\ProxyAccess::where('proxy_user_id', $authUser->id)
+                    ->where('status', 'active')
+                    ->first();
+
+                $patientOwner = $proxyAccess ? \App\Models\User::find($proxyAccess->patient_user_id) : null;
+                $email        = $patientOwner?->email ?? $authUser->email;
+            } else {
+                $email = $authUser->email;
+            }
+
             $userPatientIds = array_values(array_map('intval', $authUser->getActivePatientIds()));
 
             // Only keep IDs that also match by email in AhcsPatient.
