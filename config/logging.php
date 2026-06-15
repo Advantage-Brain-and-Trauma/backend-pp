@@ -247,6 +247,14 @@ return [
             'replace_placeholders' => true,
         ],
 
+        'proxy' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/proxy/proxy_access.log'),
+            'level' => env('LOG_LEVEL', 'debug'),
+            'days' => 14,
+            'replace_placeholders' => true,
+        ],
+
     ],
 
 ];
