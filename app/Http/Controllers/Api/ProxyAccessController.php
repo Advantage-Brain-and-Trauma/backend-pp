@@ -256,7 +256,7 @@ class ProxyAccessController extends Controller
                 ->map(fn(ProxyAccessHistory $h) => [
                 'action'            => $h->action,
                 'resource_type'     => $h->resource_type,
-                'resource_id'       => $h->resource_id,
+                // 'resource_id'       => $h->resource_id,
                 'accessed_at'       => $h->accessed_at->toIso8601String(),
                 'accessed_at_human' => $h->accessed_at->diffForHumans(),
             ])->values();
@@ -266,7 +266,7 @@ class ProxyAccessController extends Controller
                 'proxy'   => [
                     'id'           => $proxy->id,
                     'proxy_email'  => $proxy->proxy_email,
-                    'relationship' => $proxy->relationship,
+                    // 'relationship' => $proxy->relationship,
                     'status'       => $proxy->status,
                 ],
                 'history' => $history,
@@ -367,8 +367,8 @@ class ProxyAccessController extends Controller
                     'proxy_access_id'  => $p->id,
                     'patient_user_id'  => $p->patient_user_id,
                     'patient_name'     => $p->patientUser?->name ?? $p->patientUser?->email,
-                    'relationship'     => $p->relationship,
-                    'access_level'     => $p->access_level,
+                    // 'relationship'     => $p->relationship,
+                    // 'access_level'     => $p->access_level,
                     'accepted_at'      => $p->accepted_at?->toIso8601String(),
                 ]);
 
@@ -436,7 +436,7 @@ class ProxyAccessController extends Controller
                 'patient_user_id' => $patientUserId,
                 'patient_ids'     => $patientIds,
                 'case_ids'        => $caseIds,
-                'access_level'    => $proxyAccess->access_level,
+                // 'access_level'    => $proxyAccess->access_level,
             ];
 
             $newToken = JWTAuth::fromUser($proxyUser);
@@ -452,7 +452,7 @@ class ProxyAccessController extends Controller
                 'message'      => 'Switched to patient context successfully.',
                 'token'        => $newToken,
                 'patient_name' => $patientUser->name ?? $patientUser->email,
-                'access_level' => $proxyAccess->access_level,
+                // 'access_level' => $proxyAccess->access_level,
                 'patient_ids'  => $patientIds,
                 'case_ids'     => $caseIds,
             ]);
