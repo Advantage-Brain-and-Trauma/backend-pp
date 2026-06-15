@@ -134,8 +134,8 @@ class ProxyAccessController extends Controller
                     return [
                         'id'            => $p->id,
                         'proxy_email'   => $p->proxy_email,
-                        'relationship'  => $p->relationship,
-                        'access_level'  => $p->access_level,
+                        // 'relationship'  => $p->relationship,
+                        // 'access_level'  => $p->access_level,
                         'status'        => $p->status,
                         'invited_at'    => $p->invited_at?->toIso8601String(),
                         'accepted_at'   => $p->accepted_at?->toIso8601String(),
