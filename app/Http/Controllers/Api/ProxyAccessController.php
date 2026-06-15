@@ -83,7 +83,7 @@ class ProxyAccessController extends Controller
                 $proxyUser = User::create([
                     'name'             => explode('@', $request->email)[0],
                     'email'            => strtolower($request->email),
-                    'password'         => \Illuminate\Support\Facades\Hash::make(Str::random(16)),
+                    'password'         => Hash::make(Str::random(16)),
                     'role'             => 'User',
                     'is_active'        => true,
                     'is_proxy_account' => 1,

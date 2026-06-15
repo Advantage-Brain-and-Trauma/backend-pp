@@ -6,6 +6,7 @@ use App\Models\Funnel;
 use App\Models\FormSubmission;
 use App\Models\UserFunnel;
 use Illuminate\Http\Request;
+use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -24,8 +25,8 @@ class AnalyticsController extends Controller
         Log::channel('admin_analytics')->info('Analytics funnels requested', $request->only(['from', 'to', 'search']));
         $from     = $request->input('from', now()->subDays(30)->format('Y-m-d'));
         $to       = $request->input('to',   now()->format('Y-m-d'));
-        $fromDate = \Carbon\Carbon::parse($from)->startOfDay();
-        $toDate   = \Carbon\Carbon::parse($to)->endOfDay();
+        $fromDate = Carbon::parse($from)->startOfDay();
+        $toDate   = Carbon::parse($to)->endOfDay();
 
         $search = $request->input('search', '');
         $funnels = Funnel::withCount('submissions')
@@ -102,8 +103,8 @@ class AnalyticsController extends Controller
         Log::channel('admin_analytics')->info('Analytics forms requested', $request->only(['from', 'to', 'search']));
         $from     = $request->input('from', now()->subDays(30)->format('Y-m-d'));
         $to       = $request->input('to',   now()->format('Y-m-d'));
-        $fromDate = \Carbon\Carbon::parse($from)->startOfDay();
-        $toDate   = \Carbon\Carbon::parse($to)->endOfDay();
+        $fromDate = Carbon::parse($from)->startOfDay();
+        $toDate   = Carbon::parse($to)->endOfDay();
 
         // Build a map: form_id => [funnel_ids that contain this form]
         $allFunnels = Funnel::all();
@@ -209,8 +210,8 @@ class AnalyticsController extends Controller
         // ── Date range ──────────────────────────────────────────────────────────
         $from = $request->input('from', now()->subDays(30)->format('Y-m-d'));
         $to   = $request->input('to',   now()->format('Y-m-d'));
-        $fromDate = \Carbon\Carbon::parse($from)->startOfDay();
-        $toDate   = \Carbon\Carbon::parse($to)->endOfDay();
+        $fromDate = Carbon::parse($from)->startOfDay();
+        $toDate   = Carbon::parse($to)->endOfDay();
 
         // ── Submission status breakdown — date-filtered ────────────────────────────
         // Total forms assigned to all users in selected period:

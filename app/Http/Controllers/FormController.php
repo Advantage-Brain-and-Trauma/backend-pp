@@ -241,7 +241,7 @@ class FormController extends Controller
 
     public function edit(Form $form)
     {
-        $users = \App\Models\User::orderBy('name')->get();
+        $users = User::orderBy('name')->get();
         return view('forms.edit', compact('form', 'users'));
     }
 
