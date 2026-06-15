@@ -24,6 +24,7 @@ use Illuminate\Support\Facades\Validator;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
+use Exception;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 
 class PatientAppointmentController extends Controller
@@ -60,7 +61,7 @@ class PatientAppointmentController extends Controller
             $caseId     = $request->input('case_id');
 
             if (empty($patientIds)) {
-                throw new \Exception("Patient ID is required", 400);
+                throw new Exception("Patient ID is required", 400);
             }
 
             if (empty($caseId)) {
@@ -100,7 +101,7 @@ class PatientAppointmentController extends Controller
             $caseIds = $caseQuery->pluck('id');
 
             if ($caseIds->isEmpty()) {
-                throw new \Exception("No cases found for this patient", 404);
+                throw new Exception("No cases found for this patient", 404);
             }
             Log::channel('appointment')->info('Case IDs fetched', ['patient_id' => $patientId, 'case_ids' => $caseIds->toArray()]);
 

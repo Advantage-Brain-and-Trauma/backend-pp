@@ -23,6 +23,7 @@ use App\Models\PatientCase;
 use App\Services\PatientFormAmdSyncService;
 use Illuminate\Validation\Rules\Password;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
+use RuntimeException;
 
 class FunnelApiController extends Controller
 {
@@ -1410,7 +1411,7 @@ class FunnelApiController extends Controller
             $twilioFrom = config('services.twilio.from');
 
             if (empty($twilioSid) || empty($twilioToken) || empty($twilioFrom)) {
-                throw new \RuntimeException('Twilio SMS configuration is missing.');
+                throw new RuntimeException('Twilio SMS configuration is missing.');
             }
 
             $smsBody = "Hello, {$patientName}.\n"
@@ -1429,7 +1430,7 @@ class FunnelApiController extends Controller
                 ]);
 
             if ($smsResponse->failed()) {
-                throw new \RuntimeException('Twilio API error: ' . $smsResponse->body());
+                throw new RuntimeException('Twilio API error: ' . $smsResponse->body());
             }
 
             DB::commit();

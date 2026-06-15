@@ -21,6 +21,7 @@ use Tymon\JWTAuth\Token;
 use Illuminate\Support\Facades\Auth;
 use App\Models\ProxyAccess;
 use App\Models\UserSession;
+use Exception;
 
 class PatientController extends Controller
 {
@@ -136,7 +137,7 @@ class PatientController extends Controller
             $patient_ids = $userDetails->getActivePatientIds();
 
             if (empty($patient_ids)) {
-                throw new \Exception("Patient ID is required", 400);
+                throw new Exception("Patient ID is required", 400);
             }
 
             $caseIds = AhcsCase::whereIn('patient_id', $patient_ids)
@@ -188,7 +189,7 @@ class PatientController extends Controller
     //         $user = User::where('email', $email)->first();
 
     //         if (!$user) {
-    //             throw new \Exception('User not found', 404);
+    //             throw new Exception('User not found', 404);
     //         }
 
     //         $patientIds = [];

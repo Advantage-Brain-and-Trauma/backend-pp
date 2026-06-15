@@ -16,6 +16,7 @@ use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rules\Password as PasswordRule;
+use Illuminate\Validation\ValidationException;
 
 class PasswordResetApiController extends Controller
 {
@@ -144,7 +145,7 @@ class PasswordResetApiController extends Controller
                 'message' => 'If that email is registered, a password reset link has been sent. Please check your inbox.',
             ], 200);
 
-        } catch (\Illuminate\Validation\ValidationException $e) {
+        } catch (ValidationException $e) {
             return response()->json([
                 'status'  => false,
                 'message' => $e->validator->errors()->first(),
@@ -363,7 +364,7 @@ class PasswordResetApiController extends Controller
                 'message' => 'Password has been reset successfully. Please log in with your new password.',
             ], 200);
 
-        } catch (\Illuminate\Validation\ValidationException $e) {
+        } catch (ValidationException $e) {
             return response()->json([
                 'status'  => false,
                 'message' => $e->validator->errors()->first(),
@@ -443,7 +444,7 @@ class PasswordResetApiController extends Controller
 
             return response()->json(['status' => true, 'message' => 'Token is valid.'], 200);
 
-        } catch (\Illuminate\Validation\ValidationException $e) {
+        } catch (ValidationException $e) {
             return response()->json(['status' => false, 'message' => $e->validator->errors()->first()], 422);
         } catch (\Throwable $e) {
             Log::channel('password_reset')->error('Validate-token error', [
