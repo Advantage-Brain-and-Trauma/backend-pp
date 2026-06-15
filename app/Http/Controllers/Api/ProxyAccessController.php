@@ -53,7 +53,7 @@ class ProxyAccessController extends Controller
                 return response()->json(['success' => false, 'message' => 'You cannot invite yourself as a proxy.'], 422);
             }
 
-            // Check for existing active or pending access
+            // Block if already active or pending
             $existing = ProxyAccess::where('patient_user_id', $patient->id)
                 ->where('proxy_email', strtolower($request->email))
                 ->whereIn('status', ['pending', 'active'])
@@ -104,30 +104,53 @@ class ProxyAccessController extends Controller
                 $proxyUser->mergePatientIds($patientIdsToMerge);
             }
 
-            $proxy = ProxyAccess::create([
-                'patient_user_id'  => $patient->id,
-                'proxy_user_id'    => $proxyUser->id,
-                'proxy_email'      => strtolower($request->email),
-                'relationship'     => $request->relationship ?? 'unknown',
-                'access_level'     => $request->access_level ?? 'full',
-                'status'           => 'active',
-                'invitation_token' => null,
-                'token_expires_at' => null,
-                'invited_at'       => now(),
-                'accepted_at'      => now(),
-            ]);
+            // Re-use an existing revoked/expired record instead of creating a new one
+            $previousRecord = ProxyAccess::where('patient_user_id', $patient->id)
+                ->where('proxy_email', strtolower($request->email))
+                ->whereIn('status', ['revoked', 'expired'])
+                ->latest('id')
+                ->first();
 
-            // Mail sending commented out — proxy is directly assigned without email acceptance
-            // $token       = Str::random(64);
-            // $acceptUrl   = config('app.frontend_url') . '/proxy/accept/' . $token;
-            // $patientName = $patient->name ?? ($patient->email);
-            // Mail::to($request->email)->send(new ProxyInvitationMail($proxy, $patientName, $acceptUrl));
+            if ($previousRecord) {
+                $previousRecord->update([
+                    'proxy_user_id'    => $proxyUser->id,
+                    'relationship'     => $request->relationship ?? $previousRecord->relationship,
+                    'access_level'     => $request->access_level ?? $previousRecord->access_level,
+                    'status'           => 'active',
+                    'invitation_token' => null,
+                    'token_expires_at' => null,
+                    'revoked_at'       => null,
+                    'invited_at'       => now(),
+                    'accepted_at'      => now(),
+                ]);
+                $proxy = $previousRecord;
 
-            Log::channel('proxy')->info('Proxy access directly assigned', [
-                'patient_user_id' => $patient->id,
-                'proxy_user_id'   => $proxyUser->id,
-                'proxy_email'     => $request->email,
-            ]);
+                Log::channel('proxy')->info('Proxy access re-activated on existing record', [
+                    'patient_user_id' => $patient->id,
+                    'proxy_user_id'   => $proxyUser->id,
+                    'proxy_access_id' => $proxy->id,
+                    'proxy_email'     => $request->email,
+                ]);
+            } else {
+                $proxy = ProxyAccess::create([
+                    'patient_user_id'  => $patient->id,
+                    'proxy_user_id'    => $proxyUser->id,
+                    'proxy_email'      => strtolower($request->email),
+                    'relationship'     => $request->relationship ?? 'unknown',
+                    'access_level'     => $request->access_level ?? 'full',
+                    'status'           => 'active',
+                    'invitation_token' => null,
+                    'token_expires_at' => null,
+                    'invited_at'       => now(),
+                    'accepted_at'      => now(),
+                ]);
+
+                Log::channel('proxy')->info('Proxy access directly assigned', [
+                    'patient_user_id' => $patient->id,
+                    'proxy_user_id'   => $proxyUser->id,
+                    'proxy_email'     => $request->email,
+                ]);
+            }
 
             return response()->json([
                 'success'      => true,
