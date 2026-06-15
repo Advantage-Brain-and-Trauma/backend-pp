@@ -295,9 +295,11 @@ class ProxyAccessController extends Controller
             ]);
 
             $history = ProxyAccessHistory::where('proxy_access_id', $proxy->id)
+                ->with('proxyUser')
                 ->orderByDesc('accessed_at')
                 ->get()
                 ->map(fn(ProxyAccessHistory $h) => [
+                'viewed_by'         => $h->proxyUser?->name ?? $h->proxyUser?->email,
                 'action'            => $h->action,
                 'resource_type'     => $h->resource_type,
                 // 'resource_id'       => $h->resource_id,

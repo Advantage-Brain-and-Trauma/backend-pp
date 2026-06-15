@@ -14,12 +14,12 @@ class LogProxyAccessMiddleware
 {
     // Map route names / URI prefixes to human-readable action labels
     private const ROUTE_LABELS = [
-        'clinical-note'              => ['action' => 'viewed "Lab Results"',    'resource_type' => 'clinical_note'],
-        'get-patient-appointments'   => ['action' => 'viewed "Appointments"',   'resource_type' => 'appointment'],
-        'get-patient-details'        => ['action' => 'viewed "Patient Details"','resource_type' => 'patient'],
-        'get-patient-form-data'      => ['action' => 'viewed "Forms"',          'resource_type' => 'form'],
-        'get-patient-funnels'        => ['action' => 'viewed "Funnels"',        'resource_type' => 'funnel'],
-        'recent-activity'            => ['action' => 'viewed "Recent Activity"','resource_type' => 'activity'],
+        'clinical-note'              => ['action' => 'Viewed Lab Results',    'resource_type' => 'clinical_note'],
+        'get-patient-appointments'   => ['action' => 'Viewed Appointments',   'resource_type' => 'appointment'],
+        'get-patient-details'        => ['action' => 'Viewed Patient Details','resource_type' => 'patient'],
+        'get-patient-form-data'      => ['action' => 'Viewed Forms',          'resource_type' => 'form'],
+        'get-patient-funnels'        => ['action' => 'Viewed Funnels',        'resource_type' => 'funnel'],
+        'recent-activity'            => ['action' => 'Viewed Recent Activity','resource_type' => 'activity'],
     ];
 
     public function handle(Request $request, Closure $next): Response
