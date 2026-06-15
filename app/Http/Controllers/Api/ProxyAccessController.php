@@ -255,6 +255,28 @@ class ProxyAccessController extends Controller
                 }
             }
 
+            // Invalidate all active JWT sessions for the proxy user so they are
+            // logged out immediately without waiting for token expiry.
+            if ($proxy->proxy_user_id) {
+                $activeSessions = UserSession::where('user_id', $proxy->proxy_user_id)
+                    ->where('is_active', 1)
+                    ->get();
+
+                foreach ($activeSessions as $session) {
+                    try {
+                        JWTAuth::setToken($session->token)->invalidate();
+                    } catch (\Throwable) {
+                        // Token may already be expired — still mark session inactive.
+                    }
+                    $session->update(['is_active' => 0]);
+                }
+
+                Log::channel('proxy')->info('Proxy user sessions invalidated on revoke', [
+                    'proxy_user_id'    => $proxy->proxy_user_id,
+                    'sessions_revoked' => $activeSessions->count(),
+                ]);
+            }
+
             Log::channel('proxy')->info('Proxy access revoked', [
                 'patient_user_id' => $patient->id,
                 'proxy_access_id' => $proxy->id,
