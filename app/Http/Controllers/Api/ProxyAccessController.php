@@ -152,12 +152,13 @@ class ProxyAccessController extends Controller
             Log::channel('proxy')->info('Proxy list fetched', ['patient_user_id' => $patient->id]);
 
             $proxies = ProxyAccess::where('patient_user_id', $patient->id)
-                ->with(['history' => fn($q) => $q->latest('accessed_at')->limit(1)])
+                ->with(['history' => fn($q) => $q->latest('accessed_at')->limit(1), 'proxyUser'])
                 ->orderByDesc('created_at')
                 ->get()
                 ->map(function (ProxyAccess $p) {
                     return [
                         'id'            => $p->id,
+                        'proxy_name'    => $p->proxyUser?->name ?? $p->proxyUser?->email,
                         'proxy_email'   => $p->proxy_email,
                         // 'relationship'  => $p->relationship,
                         // 'access_level'  => $p->access_level,
