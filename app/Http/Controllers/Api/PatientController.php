@@ -267,32 +267,47 @@ class PatientController extends Controller
             }
 
             // ── Regular patient (no proxy context in token) ───────────────
-            // For proxy accounts, use the patient's email (from the main account)
-            // instead of the proxy user's own email to match AhcsPatient records.
-            if ($authUser->is_proxy_account) {
-                $proxyAccess = ProxyAccess::where('proxy_user_id', $authUser->id)
-                    ->where('status', 'active')
-                    ->first();
-
-                $patientOwner = $proxyAccess ? User::find($proxyAccess->patient_user_id) : null;
-                $email        = $patientOwner?->email ?? $authUser->email;
-            } else {
-                $email = $authUser->email;
-            }
-
             $userPatientIds = array_values(array_map('intval', $authUser->getActivePatientIds()));
 
-            // Only keep IDs that also match by email in AhcsPatient.
-            $patientIds = AhcsPatient::whereIn('id', $userPatientIds)
-                ->where('email', $email)
-                ->whereNull('deleted_at')
-                ->pluck('id')
-                ->map(fn ($id) => (int) $id)
-                ->unique()
-                ->values()
-                ->toArray();
+            if ($authUser->is_proxy_account) {
+                // Proxy account: fetch patients by patient_id only — no email filter,
+                // because the proxy user's email differs from the patient's email.
+                Log::channel('patient')->info('Proxy account — fetching patients by patient_id only', [
+                    'proxy_user_id'   => $authUser->id,
+                    'user_patient_ids' => $userPatientIds,
+                ]);
+
+                $patientIds = AhcsPatient::whereIn('id', $userPatientIds)
+                    ->whereNull('deleted_at')
+                    ->pluck('id')
+                    ->map(fn ($id) => (int) $id)
+                    ->unique()
+                    ->values()
+                    ->toArray();
+            } else {
+                // Regular patient: fetch patients by patient_id AND email.
+                Log::channel('patient')->info('Regular patient — fetching patients by patient_id and email', [
+                    'user_id'          => $authUser->id,
+                    'email'            => $authUser->email,
+                    'user_patient_ids' => $userPatientIds,
+                ]);
+
+                $patientIds = AhcsPatient::whereIn('id', $userPatientIds)
+                    ->where('email', $authUser->email)
+                    ->whereNull('deleted_at')
+                    ->pluck('id')
+                    ->map(fn ($id) => (int) $id)
+                    ->unique()
+                    ->values()
+                    ->toArray();
+            }
 
             if (empty($patientIds)) {
+                Log::channel('patient')->warning('No patients found', [
+                    'user_id'          => $authUser->id,
+                    'is_proxy_account' => (bool) $authUser->is_proxy_account,
+                    'user_patient_ids' => $userPatientIds,
+                ]);
                 return response()->json([
                     'success'  => false,
                     'message'  => 'No patients found for this email',
@@ -308,14 +323,15 @@ class PatientController extends Controller
                 ->toArray();
 
             Log::channel('patient')->info('Case IDs fetched successfully', [
-                'email'       => $email,
-                'patient_ids' => $patientIds,
-                'case_count'  => count($caseIds),
+                'user_id'          => $authUser->id,
+                'is_proxy_account' => (bool) $authUser->is_proxy_account,
+                'patient_ids'      => $patientIds,
+                'case_count'       => count($caseIds),
             ]);
 
             return response()->json([
                 'success'     => true,
-                'email'       => $email,
+                'email'       => $authUser->email,
                 'patient_ids' => $patientIds,
                 'case_ids'    => $caseIds,
             ], 200);
