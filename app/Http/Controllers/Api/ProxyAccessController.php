@@ -35,6 +35,10 @@ class ProxyAccessController extends Controller
             ]);
 
             if ($validator->fails()) {
+                Log::channel('proxy')->warning('Proxy invite validation failed', [
+                    'errors'     => $validator->errors()->toArray(),
+                    'input_email' => $request->email,
+                ]);
                 return response()->json(['success' => false, 'message' => $validator->errors()], 422);
             }
 
@@ -42,6 +46,10 @@ class ProxyAccessController extends Controller
 
             // Block inviting yourself
             if (strtolower($patient->email) === strtolower($request->email)) {
+                Log::channel('proxy')->warning('Proxy invite blocked — patient tried to invite themselves', [
+                    'patient_user_id' => $patient->id,
+                    'email'           => $request->email,
+                ]);
                 return response()->json(['success' => false, 'message' => 'You cannot invite yourself as a proxy.'], 422);
             }
 
@@ -55,6 +63,12 @@ class ProxyAccessController extends Controller
                 $msg = $existing->status === 'active'
                     ? 'This person already has active proxy access.'
                     : 'An invitation is already pending for this email.';
+                Log::channel('proxy')->warning('Proxy invite blocked — duplicate access', [
+                    'patient_user_id'  => $patient->id,
+                    'proxy_email'      => $request->email,
+                    'existing_status'  => $existing->status,
+                    'proxy_access_id'  => $existing->id,
+                ]);
                 return response()->json(['success' => false, 'message' => $msg], 422);
             }
 
@@ -62,6 +76,10 @@ class ProxyAccessController extends Controller
             $proxyUser = User::where('email', strtolower($request->email))->first();
 
             if (!$proxyUser) {
+                Log::channel('proxy')->info('New proxy user account created', [
+                    'proxy_email'     => $request->email,
+                    'patient_user_id' => $patient->id,
+                ]);
                 $proxyUser = User::create([
                     'name'             => explode('@', $request->email)[0],
                     'email'            => strtolower($request->email),
@@ -71,6 +89,11 @@ class ProxyAccessController extends Controller
                     'is_proxy_account' => 1,
                 ]);
             } else {
+                Log::channel('proxy')->info('Existing user flagged as proxy account', [
+                    'proxy_user_id'   => $proxyUser->id,
+                    'proxy_email'     => $request->email,
+                    'patient_user_id' => $patient->id,
+                ]);
                 $proxyUser->is_proxy_account = 1;
                 $proxyUser->save();
             }
@@ -100,7 +123,7 @@ class ProxyAccessController extends Controller
             // $patientName = $patient->name ?? ($patient->email);
             // Mail::to($request->email)->send(new ProxyInvitationMail($proxy, $patientName, $acceptUrl));
 
-            Log::channel('auth')->info('Proxy access directly assigned', [
+            Log::channel('proxy')->info('Proxy access directly assigned', [
                 'patient_user_id' => $patient->id,
                 'proxy_user_id'   => $proxyUser->id,
                 'proxy_email'     => $request->email,
@@ -112,7 +135,7 @@ class ProxyAccessController extends Controller
                 'is_new_user'  => $proxyUser->wasRecentlyCreated,
             ]);
         } catch (\Throwable $e) {
-            Log::error('ProxyAccessController@invite failed', ['error' => $e->getMessage()]);
+            Log::channel('proxy')->error('ProxyAccessController@invite failed', ['error' => $e->getMessage()]);
             return response()->json(['success' => false, 'message' => 'Something went wrong.'], 500);
         }
     }
@@ -125,6 +148,8 @@ class ProxyAccessController extends Controller
     {
         try {
             $patient = auth()->user();
+
+            Log::channel('proxy')->info('Proxy list fetched', ['patient_user_id' => $patient->id]);
 
             $proxies = ProxyAccess::where('patient_user_id', $patient->id)
                 ->with(['history' => fn($q) => $q->latest('accessed_at')->limit(1)])
@@ -146,7 +171,7 @@ class ProxyAccessController extends Controller
 
             return response()->json(['success' => true, 'proxies' => $proxies]);
         } catch (\Throwable $e) {
-            Log::error('ProxyAccessController@list failed', ['error' => $e->getMessage()]);
+            Log::channel('proxy')->error('ProxyAccessController@list failed', ['error' => $e->getMessage()]);
             return response()->json(['success' => false, 'message' => 'Something went wrong.'], 500);
         }
     }
@@ -165,10 +190,19 @@ class ProxyAccessController extends Controller
                 ->first();
 
             if (!$proxy) {
+                Log::channel('proxy')->warning('Proxy revoke failed — record not found', [
+                    'patient_user_id' => $patient->id,
+                    'proxy_access_id' => $id,
+                ]);
                 return response()->json(['success' => false, 'message' => 'Proxy access record not found.'], 404);
             }
 
             if ($proxy->status === 'revoked') {
+                Log::channel('proxy')->warning('Proxy revoke skipped — already revoked', [
+                    'patient_user_id' => $patient->id,
+                    'proxy_access_id' => $proxy->id,
+                    'proxy_email'     => $proxy->proxy_email,
+                ]);
                 return response()->json(['success' => false, 'message' => 'Access is already revoked.'], 422);
             }
 
@@ -212,7 +246,7 @@ class ProxyAccessController extends Controller
                     $proxyUser->patient_id = empty($finalIds) ? null : $finalIds;
                     $proxyUser->save();
 
-                    Log::channel('auth')->info('Patient IDs removed from proxy account on revoke', [
+                    Log::channel('proxy')->info('Patient IDs removed from proxy account on revoke', [
                         'proxy_user_id'  => $proxyUser->id,
                         'removed_ids'    => $idsToRemove,
                         'remaining_ids'  => $finalIds,
@@ -220,7 +254,7 @@ class ProxyAccessController extends Controller
                 }
             }
 
-            Log::channel('auth')->info('Proxy access revoked', [
+            Log::channel('proxy')->info('Proxy access revoked', [
                 'patient_user_id' => $patient->id,
                 'proxy_access_id' => $proxy->id,
                 'proxy_email'     => $proxy->proxy_email,
@@ -228,7 +262,7 @@ class ProxyAccessController extends Controller
 
             return response()->json(['success' => true, 'message' => 'Proxy access has been revoked.']);
         } catch (\Throwable $e) {
-            Log::error('ProxyAccessController@revoke failed', ['error' => $e->getMessage()]);
+            Log::channel('proxy')->error('ProxyAccessController@revoke failed', ['error' => $e->getMessage()]);
             return response()->json(['success' => false, 'message' => 'Something went wrong.'], 500);
         }
     }
@@ -247,8 +281,18 @@ class ProxyAccessController extends Controller
                 ->first();
 
             if (!$proxy) {
+                Log::channel('proxy')->warning('Proxy history fetch failed — record not found', [
+                    'patient_user_id' => $patient->id,
+                    'proxy_access_id' => $id,
+                ]);
                 return response()->json(['success' => false, 'message' => 'Proxy access record not found.'], 404);
             }
+
+            Log::channel('proxy')->info('Proxy access history fetched', [
+                'patient_user_id' => $patient->id,
+                'proxy_access_id' => $proxy->id,
+                'proxy_email'     => $proxy->proxy_email,
+            ]);
 
             $history = ProxyAccessHistory::where('proxy_access_id', $proxy->id)
                 ->orderByDesc('accessed_at')
@@ -272,7 +316,7 @@ class ProxyAccessController extends Controller
                 'history' => $history,
             ]);
         } catch (\Throwable $e) {
-            Log::error('ProxyAccessController@history failed', ['error' => $e->getMessage()]);
+            Log::channel('proxy')->error('ProxyAccessController@history failed', ['error' => $e->getMessage()]);
             return response()->json(['success' => false, 'message' => 'Something went wrong.'], 500);
         }
     }
@@ -287,15 +331,26 @@ class ProxyAccessController extends Controller
             $proxy = ProxyAccess::where('invitation_token', $token)->first();
 
             if (!$proxy) {
+                Log::channel('proxy')->warning('Proxy accept failed — invalid token', ['token' => $token]);
                 return response()->json(['success' => false, 'message' => 'Invalid invitation link.'], 404);
             }
 
             if (!$proxy->isPending()) {
+                Log::channel('proxy')->warning('Proxy accept failed — invitation not pending', [
+                    'proxy_access_id' => $proxy->id,
+                    'proxy_email'     => $proxy->proxy_email,
+                    'status'          => $proxy->status,
+                ]);
                 return response()->json(['success' => false, 'message' => 'This invitation has already been accepted or is no longer valid.'], 422);
             }
 
             if ($proxy->isTokenExpired()) {
                 $proxy->update(['status' => 'expired']);
+                Log::channel('proxy')->warning('Proxy accept failed — invitation token expired', [
+                    'proxy_access_id' => $proxy->id,
+                    'proxy_email'     => $proxy->proxy_email,
+                    'token_expires_at' => $proxy->token_expires_at,
+                ]);
                 return response()->json(['success' => false, 'message' => 'This invitation link has expired. Please ask the patient to send a new invitation.'], 422);
             }
 
@@ -332,7 +387,7 @@ class ProxyAccessController extends Controller
                 'token_expires_at' => null,
             ]);
 
-            Log::channel('auth')->info('Proxy invitation accepted — patient IDs merged into proxy account', [
+            Log::channel('proxy')->info('Proxy invitation accepted — patient IDs merged into proxy account', [
                 'proxy_access_id'  => $proxy->id,
                 'proxy_user_id'    => $proxyUser->id,
                 'patient_user_id'  => $proxy->patient_user_id,
@@ -345,7 +400,7 @@ class ProxyAccessController extends Controller
                 'is_new_user' => $proxyUser->wasRecentlyCreated,
             ]);
         } catch (\Throwable $e) {
-            Log::error('ProxyAccessController@accept failed', ['error' => $e->getMessage()]);
+            Log::channel('proxy')->error('ProxyAccessController@accept failed', ['error' => $e->getMessage()]);
             return response()->json(['success' => false, 'message' => 'Something went wrong.'], 500);
         }
     }
@@ -372,9 +427,14 @@ class ProxyAccessController extends Controller
                     'accepted_at'      => $p->accepted_at?->toIso8601String(),
                 ]);
 
+            Log::channel('proxy')->info('Proxy my-access list fetched', [
+                'proxy_user_id' => $proxyUser->id,
+                'access_count'  => $accesses->count(),
+            ]);
+
             return response()->json(['success' => true, 'accesses' => $accesses]);
         } catch (\Throwable $e) {
-            Log::error('ProxyAccessController@myAccess failed', ['error' => $e->getMessage()]);
+            Log::channel('proxy')->error('ProxyAccessController@myAccess failed', ['error' => $e->getMessage()]);
             return response()->json(['success' => false, 'message' => 'Something went wrong.'], 500);
         }
     }
@@ -393,6 +453,9 @@ class ProxyAccessController extends Controller
             ]);
 
             if ($validator->fails()) {
+                Log::channel('proxy')->warning('Proxy switch-patient validation failed', [
+                    'errors' => $validator->errors()->toArray(),
+                ]);
                 return response()->json(['success' => false, 'message' => $validator->errors()], 422);
             }
 
@@ -406,6 +469,10 @@ class ProxyAccessController extends Controller
                 ->first();
 
             if (!$proxyAccess) {
+                Log::channel('proxy')->warning('Proxy switch-patient denied — no active access', [
+                    'proxy_user_id'   => $proxyUser->id,
+                    'patient_user_id' => $patientUserId,
+                ]);
                 return response()->json([
                     'success' => false,
                     'message' => 'You do not have active proxy access to this patient.',
@@ -414,6 +481,10 @@ class ProxyAccessController extends Controller
 
             $patientUser = User::find($patientUserId);
             if (!$patientUser) {
+                Log::channel('proxy')->warning('Proxy switch-patient failed — patient account not found', [
+                    'proxy_user_id'   => $proxyUser->id,
+                    'patient_user_id' => $patientUserId,
+                ]);
                 return response()->json(['success' => false, 'message' => 'Patient account not found.'], 404);
             }
 
@@ -441,7 +512,7 @@ class ProxyAccessController extends Controller
 
             $newToken = JWTAuth::fromUser($proxyUser);
 
-            Log::channel('auth')->info('Proxy switched patient context', [
+            Log::channel('proxy')->info('Proxy switched patient context', [
                 'proxy_user_id'   => $proxyUser->id,
                 'patient_user_id' => $patientUserId,
                 'patient_ids'     => $patientIds,
@@ -457,7 +528,7 @@ class ProxyAccessController extends Controller
                 'case_ids'     => $caseIds,
             ]);
         } catch (\Throwable $e) {
-            Log::error('ProxyAccessController@switchPatient failed', ['error' => $e->getMessage()]);
+            Log::channel('proxy')->error('ProxyAccessController@switchPatient failed', ['error' => $e->getMessage()]);
             return response()->json(['success' => false, 'message' => 'Something went wrong.'], 500);
         }
     }
