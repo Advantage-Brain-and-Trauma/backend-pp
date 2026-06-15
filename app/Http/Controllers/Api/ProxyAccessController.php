@@ -163,6 +163,7 @@ class ProxyAccessController extends Controller
                         // 'relationship'  => $p->relationship,
                         // 'access_level'  => $p->access_level,
                         'status'        => $p->status,
+                        'is_active'     => $p->status === 'active' ? 1 : 0,
                         'invited_at'    => $p->invited_at?->toIso8601String(),
                         'accepted_at'   => $p->accepted_at?->toIso8601String(),
                         'revoked_at'    => $p->revoked_at?->toIso8601String(),
@@ -337,6 +338,7 @@ class ProxyAccessController extends Controller
                     'proxy_email'  => $proxy->proxy_email,
                     // 'relationship' => $proxy->relationship,
                     'status'       => $proxy->status,
+                    'is_active'    => $proxy->status === 'active' ? 1 : 0,
                 ],
                 'history' => $history,
             ]);
