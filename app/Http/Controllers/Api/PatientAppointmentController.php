@@ -1332,6 +1332,15 @@ class PatientAppointmentController extends Controller
                 ], 422);
             }
 
+            $maId = $request->query('ma_id');
+
+            if (empty($maId)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Med Auth ID is required.',
+                ], 422);
+            }
+
             $patientIds = auth()->user()->getActivePatientIds();
 
             $caseRecord = AhcsCase::where('id', $caseId)
@@ -1352,6 +1361,52 @@ class PatientAppointmentController extends Controller
             Log::channel('appointment')->info('Case validated', [
                 'case_id'    => $caseId,
                 'patient_id' => $caseRecord->patient_id,
+            ]);
+
+            $medAuth = AhcsMedAuth::where('id', $maId)
+                ->where('case_id', $caseId)
+                ->first(['id', 'status', 'no_sessions']);
+
+            if (!$medAuth) {
+                Log::channel('appointment')->warning('Med auth not found for case', [
+                    'ma_id'   => $maId,
+                    'case_id' => $caseId,
+                ]);
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No med auth found for the given case.',
+                ], 404);
+            }
+
+            if ($medAuth->status !== 'Approved') {
+                Log::channel('appointment')->warning('Med auth status not approved', [
+                    'ma_id'   => $maId,
+                    'case_id' => $caseId,
+                    'status'  => $medAuth->status,
+                ]);
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Med auth is not approved.',
+                ], 422);
+            }
+
+            if ($medAuth->no_sessions <= 0) {
+                Log::channel('appointment')->warning('Med auth has no remaining sessions', [
+                    'ma_id'       => $maId,
+                    'case_id'     => $caseId,
+                    'no_sessions' => $medAuth->no_sessions,
+                ]);
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Med auth has no remaining sessions.',
+                ], 422);
+            }
+
+            Log::channel('appointment')->info('Med auth validated', [
+                'ma_id'       => $maId,
+                'case_id'     => $caseId,
+                'status'      => $medAuth->status,
+                'no_sessions' => $medAuth->no_sessions,
             ]);
 
             $userName = auth()->user()->name;
