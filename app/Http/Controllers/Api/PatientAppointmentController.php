@@ -1229,7 +1229,7 @@ class PatientAppointmentController extends Controller
                 'user_id' => auth()->id()
             ]);
 
-            $appId  = $request->query('app_id');
+            $appId  = $request->query('appt_id');
             $caseId = $request->query('case_id');
 
             if(empty($appId)){
@@ -1277,7 +1277,7 @@ class PatientAppointmentController extends Controller
 
             if($apptDetails->isEmpty()){
                 Log::channel('appointment')->warning('No appointment found', [
-                    'app_id' => $appId,
+                    'appt_id' => $appId,
                 ]);
                 return response()->json([
                     'success' => false,
@@ -1286,7 +1286,7 @@ class PatientAppointmentController extends Controller
             }
 
             Log::channel('appointment')->info('Appointment fetched successfully', [
-                'app_id'  => $appId,
+                'appt_id'  => $appId,
                 'case_id' => $caseId,
             ]);
 
@@ -1316,7 +1316,7 @@ class PatientAppointmentController extends Controller
             ]);
 
             $caseId = $request->query('case_id');
-            $appId  = $request->query('app_id');
+            $appId  = $request->query('appt_id');
 
             if (empty($caseId)) {
                 return response()->json([
@@ -1415,7 +1415,7 @@ class PatientAppointmentController extends Controller
             Log::channel('appointment')->info('Sending reschedule request', [
                 'user_name' => $userName,
                 'case_id'   => $caseId,
-                'app_id'    => $appId,
+                'appt_id'    => $appId,
                 'payload'   => $payload,
             ]);
 
@@ -1443,7 +1443,7 @@ class PatientAppointmentController extends Controller
                 Log::channel('appointment')->error('appointmentReschedule curl error: ' . $curlErr, [
                     'user_name' => $userName,
                     'case_id'   => $caseId,
-                    'app_id'    => $appId,
+                    'appt_id'    => $appId,
                 ]);
                 return response()->json([
                     'status'  => false,
@@ -1457,7 +1457,7 @@ class PatientAppointmentController extends Controller
             Log::channel('appointment')->info('Appointment rescheduled successfully', [
                 'user_name'  => $userName,
                 'case_id'    => $caseId,
-                'app_id'     => $appId,
+                'appt_id'     => $appId,
                 'http_code'  => $httpCode,
             ]);
 
