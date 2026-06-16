@@ -45,6 +45,7 @@ Route::middleware('auth:api')->group(function () {
 Route::middleware(['auth:api', 'role.api:User', 'patient.active'])->group(function (){
     Route::get('get-patient-appointments',[PatientAppointmentController::class,'getPatientAppointments'])->middleware('proxy.log');
     Route::get('get-appointment',[PatientAppointmentController::class, 'getAppointment']);
+    Route::get('get-appointment-reasons',[PatientAppointmentController::class, 'getAppointmentReasons']);
     Route::get('get-appointment-departments',[PatientAppointmentController::class, 'getAppointmentDepartments']);
     Route::get('get-department-speciality-with-physician',[PatientAppointmentController::class, 'getDepartmentSpecialityWithPhysician']);
     Route::get('get-company-by-department-and-provider',[PatientAppointmentController::class, 'getCompanyByDepartmentAndProvider']);

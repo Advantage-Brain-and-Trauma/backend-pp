@@ -1142,6 +1142,87 @@ class PatientAppointmentController extends Controller
         return response()->json($data ?? [], $httpCode ?: 500);
     }
 
+    public function getAppointmentReasons(Request $request)
+    {
+        try {
+            Log::channel('appointment')->info('Get Appointment Reasons API hit', [
+                'user_id' => auth()->id()
+            ]);
+
+            $caseId = $request->query('case_id');
+
+            if (empty($caseId)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Case ID is required.',
+                ], 422);
+            }
+
+            $patientIds = auth()->user()->getActivePatientIds();
+
+            $caseRecord = AhcsCase::where('id', $caseId)
+                ->whereIn('patient_id', $patientIds)
+                ->first(['patient_id']);
+
+            if (!$caseRecord) {
+                Log::channel('appointment')->warning('Invalid case ID for user', [
+                    'user_id' => auth()->id(),
+                    'case_id' => $caseId,
+                ]);
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Invalid Case ID for this patient.',
+                ], 422);
+            }
+
+            Log::channel('appointment')->info('Case validated', [
+                'case_id'    => $caseId,
+                'patient_id' => $caseRecord->patient_id,
+            ]);
+
+            $url = config('services.app_server.api_url') . '/get-appointment-reasons';
+
+            $ch = curl_init($url);
+            curl_setopt_array($ch, [
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_TIMEOUT        => 30,
+                CURLOPT_HTTPHEADER     => ['Accept: application/json'],
+            ]);
+
+            $body     = curl_exec($ch);
+            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $curlErr  = curl_error($ch);
+            curl_close($ch);
+
+            if ($curlErr) {
+                Log::channel('appointment')->error('getAppointmentReasons curl error: ' . $curlErr);
+                return response()->json([
+                    'status'  => false,
+                    'message' => 'Failed to reach appointment reasons service.',
+                    'error'   => $curlErr,
+                ], 502);
+            }
+
+            $data = json_decode($body, true);
+
+            Log::channel('appointment')->info('Appointment reasons fetched successfully', [
+                'http_code' => $httpCode,
+            ]);
+
+            return response()->json($data ?? [], $httpCode ?: 500);
+
+        } catch (\Throwable $e) {
+            Log::channel('appointment')->error('Error fetching appointment reasons: ' . $e->getMessage(), [
+                'user_id' => auth()->id(),
+            ]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Something went wrong',
+                'error'   => $e->getMessage(),
+            ], 500);
+        }
+    }
+
     public function getAppointment(Request $request){
         try{
             Log::channel('appointment')->info('Get Appointment API hit', [
