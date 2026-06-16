@@ -920,7 +920,7 @@ class PatientAppointmentController extends Controller
             Log::channel('appointment')->error("Error scheduling patient appointment: " . $e->getMessage());
             return response()->json([
                 'success' => false,
-                'error' => $e->getMessage(),
+                // 'error' => $e->getMessage(),
                 'message' => 'Something went wrong',
             ], 500);
         }
@@ -1218,7 +1218,7 @@ class PatientAppointmentController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Something went wrong',
-                'error'   => $e->getMessage(),
+                // 'error'   => $e->getMessage(),
             ], 500);
         }
     }
@@ -1302,7 +1302,7 @@ class PatientAppointmentController extends Controller
             ]);
             return response()->json([
                 'success' => false,
-                'error' => $e->getMessage(),
+                // 'error' => $e->getMessage(),
                 'message' => 'Something went wrong',
             ], 500);
         }
@@ -1484,7 +1484,7 @@ class PatientAppointmentController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Something went wrong',
-                'error'   => $e->getMessage(),
+                // 'error'   => $e->getMessage(),
             ], 500);
         }
     }
