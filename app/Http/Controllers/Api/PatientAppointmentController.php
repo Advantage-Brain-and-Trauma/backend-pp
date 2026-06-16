@@ -1144,14 +1144,49 @@ class PatientAppointmentController extends Controller
 
     public function getAppointment(Request $request){
         try{
+            Log::channel('appointment')->info('Get Appointment API hit', [
+                'user_id' => auth()->id()
+            ]);
 
-            $appId = $request->query('app_id');
+            $appId  = $request->query('app_id');
+            $caseId = $request->query('case_id');
+
             if(empty($appId)){
                 return response()->json([
                     'success' => false,
                     'message' => 'Appointment ID is required',
                 ], 422);
             }
+
+            if(empty($caseId)){
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Case ID is required.',
+                ], 422);
+            }
+
+            $userDetails = auth()->user();
+            $patientIds  = $userDetails->getActivePatientIds();
+
+            $caseRecord = AhcsCase::where('id', $caseId)
+                ->whereIn('patient_id', $patientIds)
+                ->first(['patient_id']);
+
+            if(!$caseRecord){
+                Log::channel('appointment')->warning('Invalid case ID for user', [
+                    'user_id' => auth()->id(),
+                    'case_id' => $caseId,
+                ]);
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Invalid Case ID for this patient.',
+                ], 422);
+            }
+
+            Log::channel('appointment')->info('Case validated', [
+                'case_id'    => $caseId,
+                'patient_id' => $caseRecord->patient_id,
+            ]);
 
             $apptDetails = AhcsAttendance::where('id', $appId)->get([
                     'id','ma_id','department','service','attend_type',
@@ -1160,11 +1195,19 @@ class PatientAppointmentController extends Controller
                 ]);
 
             if($apptDetails->isEmpty()){
+                Log::channel('appointment')->warning('No appointment found', [
+                    'app_id' => $appId,
+                ]);
                 return response()->json([
                     'success' => false,
                     'message' => 'No appointment found for the given ID',
                 ], 404);
             }
+
+            Log::channel('appointment')->info('Appointment fetched successfully', [
+                'app_id'  => $appId,
+                'case_id' => $caseId,
+            ]);
 
             return response()->json([
                 'success' => true,
@@ -1173,6 +1216,9 @@ class PatientAppointmentController extends Controller
 
 
         }catch(\Throwable $e){
+            Log::channel('appointment')->error('Error fetching appointment: ' . $e->getMessage(), [
+                'user_id' => auth()->id(),
+            ]);
             return response()->json([
                 'success' => false,
                 'error' => $e->getMessage(),
