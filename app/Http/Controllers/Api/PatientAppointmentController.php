@@ -1307,4 +1307,116 @@ class PatientAppointmentController extends Controller
             ], 500);
         }
     }
+
+    public function appointmentReschedule(Request $request)
+    {
+        try {
+            Log::channel('appointment')->info('Appointment Reschedule API hit', [
+                'user_id' => auth()->id()
+            ]);
+
+            $caseId = $request->query('case_id');
+            $appId  = $request->query('app_id');
+
+            if (empty($caseId)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Case ID is required.',
+                ], 422);
+            }
+
+            if (empty($appId)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Appointment ID is required.',
+                ], 422);
+            }
+
+            $patientIds = auth()->user()->getActivePatientIds();
+
+            $caseRecord = AhcsCase::where('id', $caseId)
+                ->whereIn('patient_id', $patientIds)
+                ->first(['patient_id']);
+
+            if (!$caseRecord) {
+                Log::channel('appointment')->warning('Invalid case ID for user', [
+                    'user_id' => auth()->id(),
+                    'case_id' => $caseId,
+                ]);
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Invalid Case ID for this patient.',
+                ], 422);
+            }
+
+            Log::channel('appointment')->info('Case validated', [
+                'case_id'    => $caseId,
+                'patient_id' => $caseRecord->patient_id,
+            ]);
+
+            $userName = auth()->user()->name;
+            $payload  = $request->all();
+
+            Log::channel('appointment')->info('Sending reschedule request', [
+                'user_name' => $userName,
+                'case_id'   => $caseId,
+                'app_id'    => $appId,
+                'payload'   => $payload,
+            ]);
+
+            $url = config('services.app_server.api_url')
+                . '/physician-update-appt-schedule/' . $userName . '/' . $caseId . '/' . $appId;
+
+            $ch = curl_init($url);
+            curl_setopt_array($ch, [
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_TIMEOUT        => 30,
+                CURLOPT_CUSTOMREQUEST  => 'POST',
+                CURLOPT_POSTFIELDS     => json_encode($payload),
+                CURLOPT_HTTPHEADER     => [
+                    'Accept: application/json',
+                    'Content-Type: application/json',
+                ],
+            ]);
+
+            $body     = curl_exec($ch);
+            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $curlErr  = curl_error($ch);
+            curl_close($ch);
+
+            if ($curlErr) {
+                Log::channel('appointment')->error('appointmentReschedule curl error: ' . $curlErr, [
+                    'user_name' => $userName,
+                    'case_id'   => $caseId,
+                    'app_id'    => $appId,
+                ]);
+                return response()->json([
+                    'status'  => false,
+                    'message' => 'Failed to reach reschedule service.',
+                    'error'   => $curlErr,
+                ], 502);
+            }
+
+            $data = json_decode($body, true);
+
+            Log::channel('appointment')->info('Appointment rescheduled successfully', [
+                'user_name'  => $userName,
+                'case_id'    => $caseId,
+                'app_id'     => $appId,
+                'http_code'  => $httpCode,
+            ]);
+
+            return response()->json($data ?? [], $httpCode ?: 500);
+
+        } catch (\Throwable $e) {
+            Log::channel('appointment')->error('Error rescheduling appointment: ' . $e->getMessage(), [
+                'user_id' => auth()->id(),
+            ]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Something went wrong',
+                'error'   => $e->getMessage(),
+            ], 500);
+        }
+    }
 }
