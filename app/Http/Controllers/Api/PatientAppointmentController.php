@@ -1365,7 +1365,7 @@ class PatientAppointmentController extends Controller
 
             $medAuth = AhcsMedAuth::where('id', $maId)
                 ->where('case_id', $caseId)
-                ->first(['id', 'status', 'no_sessions']);
+                ->first(['id', 'status', 'no_sessions', 'sessions_completed']);
 
             if (!$medAuth) {
                 Log::channel('appointment')->warning('Med auth not found for case', [
@@ -1402,11 +1402,25 @@ class PatientAppointmentController extends Controller
                 ], 422);
             }
 
+            if ($medAuth->sessions_completed >= $medAuth->no_sessions) {
+                Log::channel('appointment')->warning('Med auth sessions already completed', [
+                    'ma_id'              => $maId,
+                    'case_id'            => $caseId,
+                    'no_sessions'        => $medAuth->no_sessions,
+                    'sessions_completed' => $medAuth->sessions_completed,
+                ]);
+                return response()->json([
+                    'success' => false,
+                    'message' => 'All authorized sessions have already been completed.',
+                ], 422);
+            }
+
             Log::channel('appointment')->info('Med auth validated', [
-                'ma_id'       => $maId,
-                'case_id'     => $caseId,
-                'status'      => $medAuth->status,
-                'no_sessions' => $medAuth->no_sessions,
+                'ma_id'              => $maId,
+                'case_id'            => $caseId,
+                'status'             => $medAuth->status,
+                'no_sessions'        => $medAuth->no_sessions,
+                'sessions_completed' => $medAuth->sessions_completed,
             ]);
 
             $userName = auth()->user()->name;
