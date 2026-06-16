@@ -1141,4 +1141,43 @@ class PatientAppointmentController extends Controller
 
         return response()->json($data ?? [], $httpCode ?: 500);
     }
+
+    public function getAppointment(Request $request){
+        try{
+
+            $appId = $request->query('app_id');
+            if(empty($appId)){
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Appointment ID is required',
+                ], 422);
+            }
+
+            $apptDetails = AhcsAttendance::where('id', $appId)->get([
+                    'id','ma_id','department','service','attend_type',
+                    'provider_id','provider_name','attend_date','time',
+                    'end_time','length','attend_status','attend_notes','is_virtual','transport'
+                ]);
+
+            if($apptDetails->isEmpty()){
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No appointment found for the given ID',
+                ], 404);
+            }
+
+            return response()->json([
+                'success' => true,
+                'data' => $apptDetails
+            ], 200);
+
+
+        }catch(\Throwable $e){
+            return response()->json([
+                'success' => false,
+                'error' => $e->getMessage(),
+                'message' => 'Something went wrong',
+            ], 500);
+        }
+    }
 }
