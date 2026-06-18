@@ -106,4 +106,4 @@ Route::middleware('auth')->group(function () {
 });
 
 Route::get('/sso-login/{user}', [LoginController::class, 'ssoWebLogin'])
-    ->name('sso.web.login');
+    ->name('sso.web.login')->middleware('signed');
