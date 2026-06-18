@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Models\User;
 use App\Models\UserFunnel;
 use App\Models\Funnel;
 use Illuminate\Http\Request;
@@ -65,11 +66,14 @@ class LoginController extends Controller
         ]);
 
         $user = User::where('email', $request->email)->first();
-        if ($user) {
-            Auth::guard('web')->login($user);
-            return redirect()->intended(route('dashboard'));
-        } else {
+
+        if (!$user) {
             return response()->json(['message' => 'User not found'], 404);
         }
+
+        
+            Auth::guard('web')->login($user);
+            return redirect()->intended(route('dashboard'));
+        
     }
 }
