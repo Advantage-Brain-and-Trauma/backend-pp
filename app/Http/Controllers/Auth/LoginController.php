@@ -8,6 +8,7 @@ use App\Models\UserFunnel;
 use App\Models\Funnel;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\URL;
 
 class LoginController extends Controller
 {
@@ -60,7 +61,8 @@ class LoginController extends Controller
         return redirect()->route('login');
     }
 
-    public function directLogin(Request $request){
+    public function directLogin(Request $request)
+    {
         $request->validate([
             'email' => ['required', 'email'],
         ]);
@@ -68,12 +70,31 @@ class LoginController extends Controller
         $user = User::where('email', $request->email)->first();
 
         if (!$user) {
-            return response()->json(['message' => 'User not found'], 404);
+            return response()->json([
+                'success' => false,
+                'message' => 'User not found',
+            ], 404);
         }
 
+        $loginUrl = URL::temporarySignedRoute(
+            'sso.web.login',
+            now()->addMinute(),
+            ['user' => $user->id]
+        );
+
+        return response()->json([
+            'success' => true,
+            'login_url' => $loginUrl,
+        ]);
+    }
+
+    public function ssoWebLogin(Request $request, $user)
+    {
+        $user = User::findOrFail($user);
+
         Auth::guard('web')->login($user);
-        // return redirect()->intended(route('dashboard'));
+        $request->session()->regenerate();
+
         return redirect()->route('dashboard');
-        
     }
 }

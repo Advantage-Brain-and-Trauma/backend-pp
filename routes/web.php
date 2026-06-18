@@ -104,3 +104,6 @@ Route::middleware('auth')->group(function () {
     Route::get('/old-users/list', [OldUserController::class, 'list'])->name('old-users.list');
     Route::post('/old-users/{id}/sync', [OldUserController::class, 'sync'])->name('old-users.sync');
 });
+
+Route::get('/sso-login/{user}', [LoginController::class, 'ssoWebLogin'])
+    ->name('sso.web.login');
