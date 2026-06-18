@@ -71,9 +71,9 @@ class LoginController extends Controller
             return response()->json(['message' => 'User not found'], 404);
         }
 
-        
-            Auth::guard('web')->login($user);
-            return redirect()->intended(route('dashboard'));
+        Auth::guard('web')->login($user);
+        // return redirect()->intended(route('dashboard'));
+        return redirect()->route('dashboard');
         
     }
 }
