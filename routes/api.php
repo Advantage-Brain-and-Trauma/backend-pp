@@ -12,6 +12,7 @@ use App\Http\Controllers\Api\FunnelApiController;
 use App\Http\Controllers\Api\FormSubmissionNoteController;
 use App\Http\Controllers\Api\RecentActivityController;
 use App\Http\Controllers\Api\ProxyAccessController;
+use App\Http\Controllers\Auth\LoginController;
 
 /*
 |--------------------------------------------------------------------------
