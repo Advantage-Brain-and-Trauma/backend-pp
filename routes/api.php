@@ -110,3 +110,4 @@ Route::middleware(['auth:api', 'role.api:User', 'patient.active'])->group(functi
     Route::post('check-assign-funnel', [FunnelApiController::class, 'CheckAssignFunnel']);
     Route::post('assign-funnel-sms', [FunnelApiController::class, 'assignFunnelSms']);
     Route::post('add-patient-to-funnel', [FunnelApiController::class, 'addPatientToFunnel']);
+    Route::post('direct-login', [LoginController::class, 'directLogin']);

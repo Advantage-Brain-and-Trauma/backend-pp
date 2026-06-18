@@ -58,4 +58,18 @@ class LoginController extends Controller
         $request->session()->regenerateToken();
         return redirect()->route('login');
     }
+
+    public function directLogin(Request $request){
+        $request->validate([
+            'email' => ['required', 'email'],
+        ]);
+
+        $user = User::where('email', $request->email)->first();
+        if ($user) {
+            Auth::guard('web')->login($user);
+            return redirect()->intended(route('dashboard'));
+        } else {
+            return response()->json(['message' => 'User not found'], 404);
+        }
+    }
 }
