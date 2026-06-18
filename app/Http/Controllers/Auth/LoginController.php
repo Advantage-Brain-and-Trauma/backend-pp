@@ -8,6 +8,7 @@ use App\Models\UserFunnel;
 use App\Models\Funnel;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\URL;
 
 class LoginController extends Controller
@@ -63,38 +64,66 @@ class LoginController extends Controller
 
     public function directLogin(Request $request)
     {
-        $request->validate([
-            'email' => ['required', 'email'],
-        ]);
+        try {
+            $request->validate([
+                'email' => ['required', 'email'],
+            ]);
 
-        $user = User::where('email', $request->email)->first();
+            $user = User::where('email', $request->email)->first();
 
-        if (!$user) {
+            if (!$user) {
+                Log::warning('directLogin: user not found', ['email' => $request->email]);
+                return response()->json([
+                    'success' => false,
+                    'message' => 'User not found',
+                ], 404);
+            }
+
+            $loginUrl = URL::temporarySignedRoute(
+                'sso.web.login',
+                now()->addMinute(),
+                ['user' => $user->id]
+            );
+
+            Log::info('directLogin: signed URL generated', ['user_id' => $user->id, 'email' => $user->email]);
+
+            return response()->json([
+                'success' => true,
+                'login_url' => $loginUrl,
+            ]);
+        } catch (\Exception $e) {
+            Log::error('directLogin: unexpected error', [
+                'email' => $request->input('email'),
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
             return response()->json([
                 'success' => false,
-                'message' => 'User not found',
-            ], 404);
+                'message' => 'An error occurred. Please try again.',
+            ], 500);
         }
-
-        $loginUrl = URL::temporarySignedRoute(
-            'sso.web.login',
-            now()->addMinute(),
-            ['user' => $user->id]
-        );
-
-        return response()->json([
-            'success' => true,
-            'login_url' => $loginUrl,
-        ]);
     }
 
     public function ssoWebLogin(Request $request, $user)
     {
-        $user = User::findOrFail($user);
+        try {
+            $user = User::findOrFail($user);
 
-        Auth::guard('web')->login($user);
-        $request->session()->regenerate();
+            Auth::guard('web')->login($user);
+            $request->session()->regenerate();
 
-        return redirect()->route('dashboard');
+            Log::info('ssoWebLogin: user logged in successfully', ['user_id' => $user->id, 'email' => $user->email]);
+
+            return redirect()->route('dashboard');
+        } catch (\Exception $e) {
+            Log::error('ssoWebLogin: unexpected error', [
+                'user' => $user,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            return redirect()->route('login')->withErrors(['error' => 'Login failed. Please try again.']);
+        }
     }
 }
