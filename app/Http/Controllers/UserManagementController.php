@@ -2,10 +2,14 @@
 
 namespace App\Http\Controllers;
 
+use App\Mail\PasswordResetMail;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Password;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Str;
 
 class UserManagementController extends Controller
 {
@@ -320,17 +324,37 @@ class UserManagementController extends Controller
     }
 
     /**
-     * Send a password reset link to the user.
+     * Send a password reset link to the user using the app's custom PasswordResetMail.
      */
     public function resetPassword(User $user)
     {
-        $status = Password::sendResetLink(['email' => $user->email]);
+        try {
+            DB::table('password_reset_tokens')->where('email', $user->email)->delete();
 
-        if ($status === Password::RESET_LINK_SENT) {
+            $plainToken = Str::random(64);
+
+            DB::table('password_reset_tokens')->insert([
+                'email'      => $user->email,
+                'token'      => Hash::make($plainToken),
+                'created_at' => now(),
+            ]);
+
+            $resetUrl = rtrim(config('app.frontend_url', 'https://app.advantagehcs.com'), '/')
+                . '/reset-password'
+                . '?token=' . urlencode($plainToken)
+                . '&email=' . urlencode($user->email);
+
+            Mail::to($user->email)->send(new PasswordResetMail(
+                $user->name ?? 'Patient',
+                $resetUrl,
+                (int) config('auth.passwords.users.expire', 60),
+            ));
+
             return response()->json(['success' => true, 'message' => 'Password reset email sent to ' . $user->email]);
+        } catch (\Exception $e) {
+            Log::error('Admin password reset failed for user ' . $user->id . ': ' . $e->getMessage());
+            return response()->json(['success' => false, 'message' => 'Failed to send reset email: ' . $e->getMessage()], 500);
         }
-
-        return response()->json(['success' => false, 'message' => 'Failed to send reset email. Please try again.'], 500);
     }
 
     /**
