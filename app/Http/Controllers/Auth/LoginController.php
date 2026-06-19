@@ -10,6 +10,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\URL;
+use Illuminate\Support\Str;
 
 class LoginController extends Controller
 {
@@ -62,22 +63,75 @@ class LoginController extends Controller
         return redirect()->route('login');
     }
 
+    // public function directLogin(Request $request)
+    // {
+    //     try {
+    //         $request->validate([
+    //             'email' => ['required', 'email'],
+    //         ]);
+
+    //         $user = User::where('email', $request->email)->first();
+
+    //         if (!$user) {
+    //             Log::warning('directLogin: user not found', ['email' => $request->email]);
+    //             return response()->json([
+    //                 'success' => false,
+    //                 'message' => 'User not found',
+    //             ], 404);
+    //         }
+
+    //         $loginUrl = URL::temporarySignedRoute(
+    //             'sso.web.login',
+    //             now()->addMinute(),
+    //             ['user' => $user->id]
+    //         );
+
+    //         Log::info('directLogin: signed URL generated', ['user_id' => $user->id, 'email' => $user->email]);
+
+    //         return response()->json([
+    //             'success' => true,
+    //             'login_url' => $loginUrl,
+    //         ]);
+    //     } catch (\Exception $e) {
+    //         Log::error('directLogin: unexpected error', [
+    //             'email' => $request->input('email'),
+    //             'error' => $e->getMessage(),
+    //             'trace' => $e->getTraceAsString(),
+    //         ]);
+
+    //         return response()->json([
+    //             'success' => false,
+    //             'message' => 'An error occurred. Please try again.',
+    //         ], 500);
+    //     }
+    // }
+
     public function directLogin(Request $request)
     {
         try {
-            $request->validate([
-                'email' => ['required', 'email'],
+            $validated = $request->validate([
+                'email'    => ['required', 'email'],
+                'name'     => ['nullable', 'string', 'max:255'],
+                'phone'    => ['nullable', 'string', 'max:20'],
+                'password' => ['nullable', 'string', 'min:8'],
             ]);
 
-            $user = User::where('email', $request->email)->first();
+            $user = User::firstOrCreate(
+                [
+                    'email' => $validated['email'],
+                ],
+                [
+                    'name'     => $validated['name'] ?? '',
+                    'phone'    => $validated['phone'] ?? '',
+                    'password' => bcrypt(Str::random(32)),
+                ]
+            );
 
-            if (!$user) {
-                Log::warning('directLogin: user not found', ['email' => $request->email]);
-                return response()->json([
-                    'success' => false,
-                    'message' => 'User not found',
-                ], 404);
-            }
+            Log::info('directLogin: user found/created', [
+                'user_id' => $user->id,
+                'email'   => $user->email,
+                'created' => $user->wasRecentlyCreated,
+            ]);
 
             $loginUrl = URL::temporarySignedRoute(
                 'sso.web.login',
@@ -85,17 +139,33 @@ class LoginController extends Controller
                 ['user' => $user->id]
             );
 
-            Log::info('directLogin: signed URL generated', ['user_id' => $user->id, 'email' => $user->email]);
+            Log::info('directLogin: signed URL generated', [
+                'user_id' => $user->id,
+                'email'   => $user->email,
+            ]);
 
             return response()->json([
-                'success' => true,
+                'success'   => true,
+                'message'   => $user->wasRecentlyCreated
+                    ? 'User created successfully'
+                    : 'User already exists',
+                'user_id'   => $user->id,
                 'login_url' => $loginUrl,
             ]);
-        } catch (\Exception $e) {
+
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation failed',
+                'errors'  => $e->errors(),
+            ], 422);
+
+        } catch (\Throwable $e) {
             Log::error('directLogin: unexpected error', [
                 'email' => $request->input('email'),
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
+                'line'  => $e->getLine(),
+                'file'  => $e->getFile(),
             ]);
 
             return response()->json([
