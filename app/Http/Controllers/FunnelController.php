@@ -65,19 +65,21 @@ class FunnelController extends Controller
     public function store(Request $request)
     {
         $request->validate([
-            'name'        => 'required|string|max:255',
-            'description' => 'nullable|string',
-            'status'      => 'nullable|in:draft,active,archived',
-            'form_ids'    => 'nullable|string',
+            'name'           => 'required|string|max:255',
+            'description'    => 'nullable|string',
+            'insurance_type' => 'nullable|in:PI,CASH,WC,DOL,COMM,MC,TriWest,ALL',
+            'status'         => 'nullable|in:draft,active,archived',
+            'form_ids'       => 'nullable|string',
         ]);
 
         $formIds = $this->decodeFormIds($request->form_ids);
         $steps   = $this->buildSteps($formIds);
 
         $funnel = Funnel::create([
-            'name'        => $request->name,
-            'description' => $request->description,
-            'status'      => $request->status ?? 'draft',
+            'name'           => $request->name,
+            'description'    => $request->description,
+            'insurance_type' => $request->insurance_type,
+            'status'         => $request->status ?? 'draft',
             'slug'        => Str::slug($request->name) . '-' . Str::random(6),
             'form_ids'    => $formIds,
             'steps'       => $steps,
@@ -114,19 +116,21 @@ class FunnelController extends Controller
     public function update(Request $request, Funnel $funnel)
     {
         $request->validate([
-            'name'        => 'required|string|max:255',
-            'description' => 'nullable|string',
-            'status'      => 'nullable|in:draft,active,archived',
-            'form_ids'    => 'nullable|string',
+            'name'           => 'required|string|max:255',
+            'description'    => 'nullable|string',
+            'insurance_type' => 'nullable|in:PI,CASH,WC,DOL,COMM,MC,TriWest,ALL',
+            'status'         => 'nullable|in:draft,active,archived',
+            'form_ids'       => 'nullable|string',
         ]);
 
         $formIds = $this->decodeFormIds($request->form_ids);
         $steps   = $this->buildSteps($formIds);
 
         $funnel->update([
-            'name'        => $request->name,
-            'description' => $request->description,
-            'status'      => $request->status ?? $funnel->status,
+            'name'           => $request->name,
+            'description'    => $request->description,
+            'insurance_type' => $request->insurance_type,
+            'status'         => $request->status ?? $funnel->status,
             'form_ids'    => $formIds,
             'steps'       => $steps,
         ]);

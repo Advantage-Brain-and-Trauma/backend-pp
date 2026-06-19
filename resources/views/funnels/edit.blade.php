@@ -130,6 +130,20 @@ html, body { height: 100%; font-family: -apple-system, BlinkMacSystemFont, 'Inte
         </div>
       </div>
       <div class="form-group">
+        <label class="form-label">Insurance Type</label>
+        <select class="form-input" id="funnelInsuranceType">
+          <option value="">Select Insurance Type</option>
+          <option value="PI" {{ $funnel->insurance_type === 'PI' ? 'selected' : '' }}>Auto/Pers Inj</option>
+          <option value="CASH" {{ $funnel->insurance_type === 'CASH' ? 'selected' : '' }}>Cash</option>
+          <option value="WC" {{ $funnel->insurance_type === 'WC' ? 'selected' : '' }}>Wk Comp</option>
+          <option value="DOL" {{ $funnel->insurance_type === 'DOL' ? 'selected' : '' }}>DOL</option>
+          <option value="COMM" {{ $funnel->insurance_type === 'COMM' ? 'selected' : '' }}>Comm Ins</option>
+          <option value="MC" {{ $funnel->insurance_type === 'MC' ? 'selected' : '' }}>MC</option>
+          <option value="TriWest" {{ $funnel->insurance_type === 'TriWest' ? 'selected' : '' }}>TriWest</option>
+          <option value="ALL" {{ $funnel->insurance_type === 'ALL' ? 'selected' : '' }}>All</option>
+        </select>
+      </div>
+      <div class="form-group">
         <label class="form-label">Description</label>
         <textarea class="form-input form-textarea" id="funnelDesc">{{ $funnel->description }}</textarea>
       </div>
@@ -183,6 +197,7 @@ html, body { height: 100%; font-family: -apple-system, BlinkMacSystemFont, 'Inte
   @csrf @method('PUT')
   <input type="hidden" name="name" id="hiddenName">
   <input type="hidden" name="description" id="hiddenDesc">
+  <input type="hidden" name="insurance_type" id="hiddenInsuranceType">
   <input type="hidden" name="status" id="hiddenStatus" value="draft">
   <input type="hidden" name="form_ids" id="hiddenFormIds">
 </form>
@@ -309,11 +324,12 @@ function saveFunnel(status) {
   if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
 
   const payload = {
-    name:        name,
-    description: document.getElementById('funnelDesc').value,
-    status:      status,
-    form_ids:    JSON.stringify(funnelSteps.map(s => s.id)),
-    _method:     'PUT',
+    name:           name,
+    description:    document.getElementById('funnelDesc').value,
+    insurance_type: document.getElementById('funnelInsuranceType').value,
+    status:         status,
+    form_ids:       JSON.stringify(funnelSteps.map(s => s.id)),
+    _method:        'PUT',
   };
 
   fetch('{{ route("funnels.update", $funnel) }}', {

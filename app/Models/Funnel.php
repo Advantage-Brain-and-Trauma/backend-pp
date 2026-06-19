@@ -11,7 +11,7 @@ class Funnel extends Model
     use HasFactory, SoftDeletes;
 
     protected $fillable = [
-        'name', 'description', 'slug', 'steps', 'form_ids', 'status', 'created_by',
+        'name', 'description', 'insurance_type', 'slug', 'steps', 'form_ids', 'status', 'created_by',
         'visit_count', 'completion_count', 'published_at',
     ];
 

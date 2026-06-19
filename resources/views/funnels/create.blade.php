@@ -145,6 +145,20 @@ html, body { height: 100%; font-family: -apple-system, BlinkMacSystemFont, 'Inte
         </div>
       </div>
       <div class="form-group">
+        <label class="form-label">Insurance Type</label>
+        <select class="form-input" id="funnelInsuranceType">
+          <option value="">Select Insurance Type</option>
+          <option value="PI">Auto/Pers Inj</option>
+          <option value="CASH">Cash</option>
+          <option value="WC">Wk Comp</option>
+          <option value="DOL">DOL</option>
+          <option value="COMM">Comm Ins</option>
+          <option value="MC">MC</option>
+          <option value="TriWest">TriWest</option>
+          <option value="ALL">All</option>
+        </select>
+      </div>
+      <div class="form-group">
         <label class="form-label">Description</label>
         <textarea class="form-input form-textarea" id="funnelDesc" placeholder="Enter funnel description..."></textarea>
       </div>
@@ -201,6 +215,7 @@ html, body { height: 100%; font-family: -apple-system, BlinkMacSystemFont, 'Inte
   @csrf
   <input type="hidden" name="name" id="hiddenName">
   <input type="hidden" name="description" id="hiddenDesc">
+  <input type="hidden" name="insurance_type" id="hiddenInsuranceType">
   <input type="hidden" name="status" id="hiddenStatus" value="draft">
   <input type="hidden" name="form_ids" id="hiddenFormIds">
 </form>
@@ -335,14 +350,16 @@ function saveFunnel(status) {
   }
   document.getElementById('hiddenName').value = name;
   document.getElementById('hiddenDesc').value = document.getElementById('funnelDesc').value;
+  document.getElementById('hiddenInsuranceType').value = document.getElementById('funnelInsuranceType').value;
   document.getElementById('hiddenStatus').value = status;
   const btn = document.querySelector('[onclick="saveFunnel(\'active\')"]');
   if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
 
   const payload = {
-    name:        name,
-    description: document.getElementById('funnelDesc').value,
-    status:      status,
+    name:           name,
+    description:    document.getElementById('funnelDesc').value,
+    insurance_type: document.getElementById('funnelInsuranceType').value,
+    status:         status,
     form_ids:    JSON.stringify(funnelSteps.map(s => s.id)),
   };
 
