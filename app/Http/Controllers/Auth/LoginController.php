@@ -11,6 +11,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 
 class LoginController extends Controller
 {
@@ -116,10 +117,13 @@ class LoginController extends Controller
                 'password' => ['nullable', 'string', 'min:8'],
             ]);
 
+            Log::channel('direct_login')->info('directLogin: request received', [
+                'email' => $validated['email'],
+                'ip'    => $request->ip(),
+            ]);
+
             $user = User::firstOrCreate(
-                [
-                    'email' => $validated['email'],
-                ],
+                ['email' => $validated['email']],
                 [
                     'name'     => $validated['name'] ?? '',
                     'phone'    => $validated['phone'] ?? '',
@@ -127,10 +131,11 @@ class LoginController extends Controller
                 ]
             );
 
-            Log::info('directLogin: user found/created', [
+            Log::channel('direct_login')->info('directLogin: user found/created', [
                 'user_id' => $user->id,
                 'email'   => $user->email,
                 'created' => $user->wasRecentlyCreated,
+                'ip'      => $request->ip(),
             ]);
 
             $loginUrl = URL::temporarySignedRoute(
@@ -139,7 +144,7 @@ class LoginController extends Controller
                 ['user' => $user->id]
             );
 
-            Log::info('directLogin: signed URL generated', [
+            Log::channel('direct_login')->info('directLogin: signed URL generated', [
                 'user_id' => $user->id,
                 'email'   => $user->email,
             ]);
@@ -153,7 +158,13 @@ class LoginController extends Controller
                 'login_url' => $loginUrl,
             ]);
 
-        } catch (\Illuminate\Validation\ValidationException $e) {
+        } catch (ValidationException $e) {
+            Log::channel('direct_login')->warning('directLogin: validation failed', [
+                'email'  => $request->input('email'),
+                'errors' => $e->errors(),
+                'ip'     => $request->ip(),
+            ]);
+
             return response()->json([
                 'success' => false,
                 'message' => 'Validation failed',
@@ -161,11 +172,12 @@ class LoginController extends Controller
             ], 422);
 
         } catch (\Throwable $e) {
-            Log::error('directLogin: unexpected error', [
+            Log::channel('direct_login')->error('directLogin: unexpected error', [
                 'email' => $request->input('email'),
                 'error' => $e->getMessage(),
                 'line'  => $e->getLine(),
                 'file'  => $e->getFile(),
+                'ip'    => $request->ip(),
             ]);
 
             return response()->json([
@@ -178,19 +190,34 @@ class LoginController extends Controller
     public function ssoWebLogin(Request $request, $user)
     {
         try {
+            Log::channel('sso_login')->info('ssoWebLogin: request received', [
+                'user_id' => $user,
+                'ip'      => $request->ip(),
+            ]);
+
             $user = User::findOrFail($user);
 
             Auth::guard('web')->login($user);
             $request->session()->regenerate();
 
-            Log::info('ssoWebLogin: user logged in successfully', ['user_id' => $user->id, 'email' => $user->email]);
+            $user->forceFill(['last_login_at' => now()])->save();
+
+            Log::channel('sso_login')->info('ssoWebLogin: user logged in successfully', [
+                'user_id'       => $user->id,
+                'email'         => $user->email,
+                'last_login_at' => $user->last_login_at,
+                'ip'            => $request->ip(),
+            ]);
 
             return redirect()->route('dashboard');
+
         } catch (\Exception $e) {
-            Log::error('ssoWebLogin: unexpected error', [
-                'user' => $user,
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
+            Log::channel('sso_login')->error('ssoWebLogin: unexpected error', [
+                'user_id' => is_object($user) ? $user->id : $user,
+                'error'   => $e->getMessage(),
+                'line'    => $e->getLine(),
+                'file'    => $e->getFile(),
+                'ip'      => $request->ip(),
             ]);
 
             return redirect()->route('login')->withErrors(['error' => 'Login failed. Please try again.']);

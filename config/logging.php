@@ -247,6 +247,22 @@ return [
             'replace_placeholders' => true,
         ],
 
+        'direct_login' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/auth/direct_login.log'),
+            'level' => env('LOG_LEVEL', 'debug'),
+            'days' => 30,
+            'replace_placeholders' => true,
+        ],
+
+        'sso_login' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/auth/sso_login.log'),
+            'level' => env('LOG_LEVEL', 'debug'),
+            'days' => 30,
+            'replace_placeholders' => true,
+        ],
+
         'proxy' => [
             'driver' => 'daily',
             'path' => storage_path('logs/proxy/proxy_access.log'),

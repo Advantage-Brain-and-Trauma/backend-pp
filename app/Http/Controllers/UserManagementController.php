@@ -329,6 +329,12 @@ class UserManagementController extends Controller
     public function resetPassword(User $user)
     {
         try {
+            Log::channel('password_reset')->info('Admin initiated password reset', [
+                'admin_id'    => auth()->id(),
+                'target_user' => $user->id,
+                'email'       => $user->email,
+            ]);
+
             DB::table('password_reset_tokens')->where('email', $user->email)->delete();
 
             $plainToken = Str::random(64);
@@ -350,9 +356,24 @@ class UserManagementController extends Controller
                 (int) config('auth.passwords.users.expire', 60),
             ));
 
+            Log::channel('password_reset')->info('Admin password reset email dispatched', [
+                'admin_id'    => auth()->id(),
+                'target_user' => $user->id,
+                'email'       => $user->email,
+            ]);
+
             return response()->json(['success' => true, 'message' => 'Password reset email sent to ' . $user->email]);
+
         } catch (\Exception $e) {
-            Log::error('Admin password reset failed for user ' . $user->id . ': ' . $e->getMessage());
+            Log::channel('password_reset')->error('Admin password reset failed', [
+                'admin_id'    => auth()->id(),
+                'target_user' => $user->id,
+                'email'       => $user->email,
+                'error'       => $e->getMessage(),
+                'line'        => $e->getLine(),
+                'file'        => $e->getFile(),
+            ]);
+
             return response()->json(['success' => false, 'message' => 'Failed to send reset email: ' . $e->getMessage()], 500);
         }
     }
