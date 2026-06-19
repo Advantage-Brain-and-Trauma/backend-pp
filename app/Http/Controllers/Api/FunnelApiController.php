@@ -1833,7 +1833,7 @@ class FunnelApiController extends Controller
             Log::channel('patient_funnel')->info('Fetching all active funnels - Start');
 
             $funnels = Funnel::where('status', 'active')
-                ->get(['id', 'name']);
+                ->get(['id', 'name', 'insurance_type']);
 
             $groupedFunnels = [
                 'NPPW' => [],
