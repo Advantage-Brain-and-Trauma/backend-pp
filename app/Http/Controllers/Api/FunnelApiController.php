@@ -1839,6 +1839,7 @@ class FunnelApiController extends Controller
                 'NPPW' => [],
                 'Consent' => [],
                 'Other' => [],
+                'Test' => []
             ];
 
             foreach ($funnels as $funnel) {
@@ -1853,6 +1854,10 @@ class FunnelApiController extends Controller
 
                     $groupedFunnels['Consent'][] = $funnel;
 
+                } elseif (str_contains($name, 'test')) {
+
+                    $groupedFunnels['Test'][] = $funnel;
+
                 } else {
 
                     $groupedFunnels['Other'][] = $funnel;
@@ -1863,6 +1868,7 @@ class FunnelApiController extends Controller
                 'total_funnels' => $funnels->count(),
                 'nppw_count'    => count($groupedFunnels['NPPW']),
                 'consent_count' => count($groupedFunnels['Consent']),
+                'test_count'    => count($groupedFunnels['Test']),
                 'other_count'   => count($groupedFunnels['Other']),
             ]);
 
