@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Password;
 
 class UserManagementController extends Controller
 {
@@ -316,6 +317,20 @@ class UserManagementController extends Controller
             'is_active' => $user->is_active,
             'message'   => 'User status updated.',
         ]);
+    }
+
+    /**
+     * Send a password reset link to the user.
+     */
+    public function resetPassword(User $user)
+    {
+        $status = Password::sendResetLink(['email' => $user->email]);
+
+        if ($status === Password::RESET_LINK_SENT) {
+            return response()->json(['success' => true, 'message' => 'Password reset email sent to ' . $user->email]);
+        }
+
+        return response()->json(['success' => false, 'message' => 'Failed to send reset email. Please try again.'], 500);
     }
 
     /**

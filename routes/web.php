@@ -82,6 +82,7 @@ Route::middleware('auth')->group(function () {
     Route::put('/user-management/{user}', [\App\Http\Controllers\UserManagementController::class, 'update'])->name('user-management.update');
     Route::delete('/user-management/{user}', [\App\Http\Controllers\UserManagementController::class, 'destroy'])->name('user-management.destroy');
     Route::post('/user-management/{user}/toggle-status', [\App\Http\Controllers\UserManagementController::class, 'toggleStatus'])->name('user-management.toggle-status');
+    Route::post('/user-management/{user}/reset-password', [\App\Http\Controllers\UserManagementController::class, 'resetPassword'])->name('user-management.reset-password');
 
     // ---- Billing ----
     Route::get('/billing', [BillingController::class, 'index'])->name('billing.index');

@@ -335,6 +335,7 @@ var COUNTRY_CODES = [
                 <p style="font-size:12px; color:#9ca3af; margin:4px 0 0;">Patient ID is read-only. It can only be set when creating a new user.</p>
             </div>
             <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:8px;">
+                <button type="button" id="resetPasswordBtn" onclick="resetUserPassword()" class="btn btn-warning">Reset Password</button>
                 <button type="button" onclick="closeEditModal()" class="btn btn-secondary">Close</button>
             </div>
         </form>
@@ -529,8 +530,24 @@ function openEditModalFromBtn(btn) {
 
     document.getElementById('editForm').action = '/user-management/' + id;
     document.getElementById('editModal').style.display = 'flex';
+    document.getElementById('resetPasswordBtn').setAttribute('data-user-id', id);
 }
 function closeEditModal() { document.getElementById('editModal').style.display = 'none'; }
+
+function resetUserPassword() {
+    var userId = document.getElementById('resetPasswordBtn').getAttribute('data-user-id');
+    if (!userId) return;
+    if (!confirm('Send a password reset email to this user?')) return;
+    fetch('/user-management/' + userId + '/reset-password', {
+        method: 'POST',
+        headers: { 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content, 'Accept': 'application/json' }
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        showToast(data.message || 'Password reset email sent.', data.success ? 'success' : 'error');
+    })
+    .catch(function() { showToast('Failed to send reset email.', 'error'); });
+}
 
 // ── Password validation ───────────────────────────────────────────────────────
 document.getElementById('editForm').addEventListener('submit', function(e) {
