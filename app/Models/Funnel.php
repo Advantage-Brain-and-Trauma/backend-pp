@@ -16,9 +16,10 @@ class Funnel extends Model
     ];
 
     protected $casts = [
-        'steps'        => 'array',
-        'form_ids'     => 'array',
-        'published_at' => 'datetime',
+        'steps'          => 'array',
+        'form_ids'       => 'array',
+        'insurance_type' => 'array',
+        'published_at'   => 'datetime',
     ];
 
     public function creator()

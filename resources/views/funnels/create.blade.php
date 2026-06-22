@@ -146,8 +146,7 @@ html, body { height: 100%; font-family: -apple-system, BlinkMacSystemFont, 'Inte
       </div>
       <div class="form-group">
         <label class="form-label">Insurance Type</label>
-        <select class="form-input" id="funnelInsuranceType">
-          <option value="">Select Insurance Type</option>
+        <select class="form-input" id="funnelInsuranceType" multiple size="8">
           <option value="PI">Auto/Pers Inj</option>
           <option value="CASH">Cash</option>
           <option value="WC">Wk Comp</option>
@@ -157,6 +156,7 @@ html, body { height: 100%; font-family: -apple-system, BlinkMacSystemFont, 'Inte
           <option value="TriWest">TriWest</option>
           <option value="ALL">All</option>
         </select>
+        <div style="font-size:11px;color:#9ca3af;margin-top:4px;">Hold Ctrl (Windows) or Cmd (Mac) to select multiple.</div>
       </div>
       <div class="form-group">
         <label class="form-label">Description</label>
@@ -358,7 +358,7 @@ function saveFunnel(status) {
   const payload = {
     name:           name,
     description:    document.getElementById('funnelDesc').value,
-    insurance_type: document.getElementById('funnelInsuranceType').value,
+    insurance_type: Array.from(document.getElementById('funnelInsuranceType').selectedOptions).map(o => o.value),
     status:         status,
     form_ids:    JSON.stringify(funnelSteps.map(s => s.id)),
   };

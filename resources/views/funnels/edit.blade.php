@@ -131,17 +131,18 @@ html, body { height: 100%; font-family: -apple-system, BlinkMacSystemFont, 'Inte
       </div>
       <div class="form-group">
         <label class="form-label">Insurance Type</label>
-        <select class="form-input" id="funnelInsuranceType">
-          <option value="">Select Insurance Type</option>
-          <option value="PI" {{ $funnel->insurance_type === 'PI' ? 'selected' : '' }}>Auto/Pers Inj</option>
-          <option value="CASH" {{ $funnel->insurance_type === 'CASH' ? 'selected' : '' }}>Cash</option>
-          <option value="WC" {{ $funnel->insurance_type === 'WC' ? 'selected' : '' }}>Wk Comp</option>
-          <option value="DOL" {{ $funnel->insurance_type === 'DOL' ? 'selected' : '' }}>DOL</option>
-          <option value="COMM" {{ $funnel->insurance_type === 'COMM' ? 'selected' : '' }}>Comm Ins</option>
-          <option value="MC" {{ $funnel->insurance_type === 'MC' ? 'selected' : '' }}>MC</option>
-          <option value="TriWest" {{ $funnel->insurance_type === 'TriWest' ? 'selected' : '' }}>TriWest</option>
-          <option value="ALL" {{ $funnel->insurance_type === 'ALL' ? 'selected' : '' }}>All</option>
+        @php $selectedInsuranceTypes = $funnel->insurance_type ?? []; @endphp
+        <select class="form-input" id="funnelInsuranceType" multiple size="8">
+          <option value="PI" {{ in_array('PI', $selectedInsuranceTypes) ? 'selected' : '' }}>Auto/Pers Inj</option>
+          <option value="CASH" {{ in_array('CASH', $selectedInsuranceTypes) ? 'selected' : '' }}>Cash</option>
+          <option value="WC" {{ in_array('WC', $selectedInsuranceTypes) ? 'selected' : '' }}>Wk Comp</option>
+          <option value="DOL" {{ in_array('DOL', $selectedInsuranceTypes) ? 'selected' : '' }}>DOL</option>
+          <option value="COMM" {{ in_array('COMM', $selectedInsuranceTypes) ? 'selected' : '' }}>Comm Ins</option>
+          <option value="MC" {{ in_array('MC', $selectedInsuranceTypes) ? 'selected' : '' }}>MC</option>
+          <option value="TriWest" {{ in_array('TriWest', $selectedInsuranceTypes) ? 'selected' : '' }}>TriWest</option>
+          <option value="ALL" {{ in_array('ALL', $selectedInsuranceTypes) ? 'selected' : '' }}>All</option>
         </select>
+        <div style="font-size:11px;color:#9ca3af;margin-top:4px;">Hold Ctrl (Windows) or Cmd (Mac) to select multiple.</div>
       </div>
       <div class="form-group">
         <label class="form-label">Description</label>
@@ -326,7 +327,7 @@ function saveFunnel(status) {
   const payload = {
     name:           name,
     description:    document.getElementById('funnelDesc').value,
-    insurance_type: document.getElementById('funnelInsuranceType').value,
+    insurance_type: Array.from(document.getElementById('funnelInsuranceType').selectedOptions).map(o => o.value),
     status:         status,
     form_ids:       JSON.stringify(funnelSteps.map(s => s.id)),
     _method:        'PUT',

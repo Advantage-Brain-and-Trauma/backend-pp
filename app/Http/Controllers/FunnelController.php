@@ -67,7 +67,8 @@ class FunnelController extends Controller
         $request->validate([
             'name'           => 'required|string|max:255',
             'description'    => 'nullable|string',
-            'insurance_type' => 'nullable|in:PI,CASH,WC,DOL,COMM,MC,TriWest,ALL',
+            'insurance_type'   => 'nullable|array',
+            'insurance_type.*' => 'in:PI,CASH,WC,DOL,COMM,MC,TriWest,ALL',
             'status'         => 'nullable|in:draft,active,archived',
             'form_ids'       => 'nullable|string',
         ]);
@@ -78,7 +79,7 @@ class FunnelController extends Controller
         $funnel = Funnel::create([
             'name'           => $request->name,
             'description'    => $request->description,
-            'insurance_type' => $request->insurance_type,
+            'insurance_type' => $request->insurance_type ?? [],
             'status'         => $request->status ?? 'draft',
             'slug'        => Str::slug($request->name) . '-' . Str::random(6),
             'form_ids'    => $formIds,
@@ -118,7 +119,8 @@ class FunnelController extends Controller
         $request->validate([
             'name'           => 'required|string|max:255',
             'description'    => 'nullable|string',
-            'insurance_type' => 'nullable|in:PI,CASH,WC,DOL,COMM,MC,TriWest,ALL',
+            'insurance_type'   => 'nullable|array',
+            'insurance_type.*' => 'in:PI,CASH,WC,DOL,COMM,MC,TriWest,ALL',
             'status'         => 'nullable|in:draft,active,archived',
             'form_ids'       => 'nullable|string',
         ]);
@@ -129,7 +131,7 @@ class FunnelController extends Controller
         $funnel->update([
             'name'           => $request->name,
             'description'    => $request->description,
-            'insurance_type' => $request->insurance_type,
+            'insurance_type' => $request->insurance_type ?? [],
             'status'         => $request->status ?? $funnel->status,
             'form_ids'    => $formIds,
             'steps'       => $steps,
