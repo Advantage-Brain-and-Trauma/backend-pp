@@ -1423,6 +1423,35 @@ class PatientAppointmentController extends Controller
                 'sessions_completed' => $medAuth->sessions_completed,
             ]);
 
+            $appointment = AhcsAttendance::where('id', $appId)
+                ->where('ma_id', $maId)
+                ->first(['id', 'attend_date', 'time']);
+
+            if (!$appointment) {
+                Log::channel('appointment')->warning('Appointment not found for reschedule', [
+                    'appt_id' => $appId,
+                    'ma_id'   => $maId,
+                ]);
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Appointment not found.',
+                ], 404);
+            }
+
+            $appointmentDateTime = Carbon::parse($appointment->attend_date . ' ' . $appointment->time);
+
+            if ($appointmentDateTime->lessThanOrEqualTo(now()->addHours(24))) {
+                Log::channel('appointment')->warning('Reschedule attempted within 24 hours of appointment', [
+                    'appt_id'      => $appId,
+                    'attend_date'  => $appointment->attend_date,
+                    'time'         => $appointment->time,
+                ]);
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Appointment can only be rescheduled at least 24 hours before the scheduled time.',
+                ], 422);
+            }
+
             $userName = auth()->user()->name;
             $payload  = $request->all();
 
