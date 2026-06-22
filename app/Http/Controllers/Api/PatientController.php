@@ -224,6 +224,133 @@ class PatientController extends Controller
     //     }
     // }
 
+    // public function getCaseIdsByEmail(): JsonResponse
+    // {
+    //     try {
+    //         $authUser = auth()->user();
+
+    //         if (!$authUser) {
+    //             return response()->json([
+    //                 'success' => false,
+    //                 'message' => 'Unauthenticated user',
+    //             ], 401);
+    //         }
+
+    //         Log::channel('patient')->info('Get case IDs by email API hit', [
+    //             'user_id' => $authUser->id,
+    //             'email'   => $authUser->email,
+    //         ]);
+
+    //         // ── Proxy context: read from JWT claims ───────────────────────
+    //         // When a proxy calls POST /api/proxy/switch-patient, a new JWT is
+    //         // issued with proxy_context embedded (patient_ids + case_ids).
+    //         // Read directly from the token — no session required.
+    //         $payload      = JWTAuth::parseToken()->getPayload();
+    //         $proxyContext = $payload->get('proxy_context');
+
+    //         if (!empty($proxyContext)) {
+    //             $patientIds = array_values(array_map('intval', $proxyContext['patient_ids'] ?? []));
+    //             $caseIds    = array_values(array_map('intval', $proxyContext['case_ids']    ?? []));
+
+    //             Log::channel('patient')->info('Proxy JWT context — returning patient data', [
+    //                 'proxy_user_id'   => $authUser->id,
+    //                 'patient_user_id' => $proxyContext['patient_user_id'] ?? null,
+    //                 'patient_ids'     => $patientIds,
+    //                 'case_count'      => count($caseIds),
+    //             ]);
+
+    //             return response()->json([
+    //                 'success'     => true,
+    //                 'email'       => $authUser->email,
+    //                 'patient_ids' => $patientIds,
+    //                 'case_ids'    => $caseIds,
+    //             ], 200);
+    //         }
+
+    //         // ── Regular patient (no proxy context in token) ───────────────
+    //         $userPatientIds = array_values(array_map('intval', $authUser->getActivePatientIds()));
+
+    //         if ($authUser->is_proxy_account) {
+    //             // Proxy account: fetch patients by patient_id only — no email filter,
+    //             // because the proxy user's email differs from the patient's email.
+    //             Log::channel('patient')->info('Proxy account — fetching patients by patient_id only', [
+    //                 'proxy_user_id'   => $authUser->id,
+    //                 'user_patient_ids' => $userPatientIds,
+    //             ]);
+
+    //             $patientIds = AhcsPatient::whereIn('id', $userPatientIds)
+    //                 ->whereNull('deleted_at')
+    //                 ->pluck('id')
+    //                 ->map(fn ($id) => (int) $id)
+    //                 ->unique()
+    //                 ->values()
+    //                 ->toArray();
+    //         } else {
+    //             // Regular patient: fetch patients by patient_id AND email.
+    //             Log::channel('patient')->info('Regular patient — fetching patients by patient_id and email', [
+    //                 'user_id'          => $authUser->id,
+    //                 'email'            => $authUser->email,
+    //                 'user_patient_ids' => $userPatientIds,
+    //             ]);
+
+    //             $patientIds = AhcsPatient::whereIn('id', $userPatientIds)
+    //                 ->where('email', $authUser->email)
+    //                 ->whereNull('deleted_at')
+    //                 ->pluck('id')
+    //                 ->map(fn ($id) => (int) $id)
+    //                 ->unique()
+    //                 ->values()
+    //                 ->toArray();
+    //         }
+
+    //         if (empty($patientIds)) {
+    //             Log::channel('patient')->warning('No patients found', [
+    //                 'user_id'          => $authUser->id,
+    //                 'is_proxy_account' => (bool) $authUser->is_proxy_account,
+    //                 'user_patient_ids' => $userPatientIds,
+    //             ]);
+    //             return response()->json([
+    //                 'success'  => false,
+    //                 'message'  => 'No patients found for this email',
+    //                 'case_ids' => [],
+    //             ], 404);
+    //         }
+
+    //         $caseIds = AhcsCase::whereIn('patient_id', $patientIds)
+    //             ->whereNull('deleted_at')
+    //             ->pluck('id')
+    //             ->unique()
+    //             ->values()
+    //             ->toArray();
+
+    //         Log::channel('patient')->info('Case IDs fetched successfully', [
+    //             'user_id'          => $authUser->id,
+    //             'is_proxy_account' => (bool) $authUser->is_proxy_account,
+    //             'patient_ids'      => $patientIds,
+    //             'case_count'       => count($caseIds),
+    //         ]);
+
+    //         return response()->json([
+    //             'success'     => true,
+    //             'email'       => $authUser->email,
+    //             'patient_ids' => $patientIds,
+    //             'case_ids'    => $caseIds,
+    //         ], 200);
+
+    //     } catch (\Throwable $e) {
+    //         Log::channel('patient')->error('Error fetching case IDs', [
+    //             'message' => $e->getMessage(),
+    //             'line'    => $e->getLine(),
+    //             'file'    => $e->getFile(),
+    //         ]);
+
+    //         return response()->json([
+    //             'success' => false,
+    //             'message' => 'Something went wrong while fetching case IDs',
+    //         ], 500);
+    //     }
+    // }
+
     public function getCaseIdsByEmail(): JsonResponse
     {
         try {
@@ -259,11 +386,21 @@ class PatientController extends Controller
                     'case_count'      => count($caseIds),
                 ]);
 
+                $cases = AhcsCase::whereIn('id', $caseIds)
+                    ->whereIn('patient_id', $patientIds)
+                    ->get(['id', 'patient_id', 'doi'])
+                    ->map(function ($case) {
+                        $patient = AhcsPatient::where('id', $case->patient_id)->first(['patient_name']);
+                        return ($patient->patient_name ?? '') . ' - ' . ($case->doi ?? '') . ' - ' . $case->id;
+                    })
+                    ->values();
+
                 return response()->json([
                     'success'     => true,
                     'email'       => $authUser->email,
                     'patient_ids' => $patientIds,
                     'case_ids'    => $caseIds,
+                    'cases'       => $cases,
                 ], 200);
             }
 
@@ -316,12 +453,21 @@ class PatientController extends Controller
                 ], 404);
             }
 
-            $caseIds = AhcsCase::whereIn('patient_id', $patientIds)
+            $caseRecords = AhcsCase::whereIn('patient_id', $patientIds)
                 ->whereNull('deleted_at')
-                ->pluck('id')
-                ->unique()
-                ->values()
-                ->toArray();
+                ->get(['id', 'patient_id', 'doi'])
+                ->unique('id')
+                ->values();
+
+            $caseIds = $caseRecords->pluck('id')->values()->toArray();
+
+            $patientNamesById = AhcsPatient::whereIn('id', $patientIds)
+                ->pluck('patient_name', 'id');
+
+            $cases = $caseRecords->map(function ($case) use ($patientNamesById) {
+                $patientName = $patientNamesById[$case->patient_id] ?? '';
+                return $patientName . ' - ' . ($case->doi ?? '') . ' - ' . $case->id;
+            })->values();
 
             Log::channel('patient')->info('Case IDs fetched successfully', [
                 'user_id'          => $authUser->id,
@@ -335,6 +481,7 @@ class PatientController extends Controller
                 'email'       => $authUser->email,
                 'patient_ids' => $patientIds,
                 'case_ids'    => $caseIds,
+                'cases'       => $cases,
             ], 200);
 
         } catch (\Throwable $e) {
