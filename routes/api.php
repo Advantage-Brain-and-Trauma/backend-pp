@@ -31,6 +31,7 @@ Route::post('magic-link/verify',[AuthApiController::class, 'magicLinkVerify']);
 // ── Password Reset (public – no auth required) ────────────────────────────
 Route::middleware('throttle:10,1')->group(function () {
     Route::post('password/forgot',          [PasswordResetApiController::class, 'forgotPassword']);
+    Route::post('password/forgot-phone',    [PasswordResetApiController::class, 'forgotPasswordByPhone']);
     Route::post('password/reset',           [PasswordResetApiController::class, 'resetPassword']);
     Route::get('password/validate-token',   [PasswordResetApiController::class, 'validateToken']);
 });

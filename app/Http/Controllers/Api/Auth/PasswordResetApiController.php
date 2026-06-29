@@ -10,6 +10,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Password;
@@ -17,6 +18,7 @@ use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rules\Password as PasswordRule;
 use Illuminate\Validation\ValidationException;
+use RuntimeException;
 
 class PasswordResetApiController extends Controller
 {
@@ -164,6 +166,211 @@ class PasswordResetApiController extends Controller
                 'status'  => false,
                 'message' => 'Something went wrong. Please try again later.',
             ], 500);
+        }
+    }
+
+    // ─── Forgot Password (by Phone) ──────────────────────────────────────────
+
+    /**
+     * Normalize a phone number to its last-10-digit form for lookup/comparison,
+     * regardless of how it was entered (with/without country code, dashes, +, etc).
+     */
+    private function normalizePhoneDigits(string $phone): string
+    {
+        $digitsOnly = preg_replace('/\D+/', '', $phone);
+
+        return substr($digitsOnly, -10);
+    }
+
+    /**
+     * POST /api/password/forgot-phone
+     *
+     * Accepts the patient's phone number, generates a cryptographically secure
+     * reset token (stored hashed in `password_reset_tokens`, keyed by the
+     * matched user's email), and texts a one-time reset link via Twilio SMS.
+     *
+     * To prevent user-enumeration attacks the response is identical whether or
+     * not the phone number exists in the database.
+     *
+     * Request Body:
+     *   { "phone": "+1 555-123-4567" }
+     *
+     * Response 200:
+     *   { "status": true, "message": "If that phone number is registered, a reset link has been sent." }
+     *
+     * Response 422:
+     *   { "status": false, "message": "Validation error message." }
+     *
+     * Response 429:
+     *   { "status": false, "message": "Too many requests. Please try again in X seconds." }
+     */
+    public function forgotPasswordByPhone(Request $request): JsonResponse
+    {
+        try {
+            // ── Validate ──────────────────────────────────────────────────────
+            $request->validate([
+                'phone' => ['required', 'string', 'max:20'],
+            ]);
+
+            $rawPhone     = trim($request->input('phone'));
+            $phoneDigits  = $this->normalizePhoneDigits($rawPhone);
+
+            if (strlen($phoneDigits) !== 10) {
+                throw ValidationException::withMessages([
+                    'phone' => 'Please enter a valid phone number.',
+                ]);
+            }
+
+            // ── Rate-limit per phone number ───────────────────────────────────
+            $rateLimitKey = 'password.forgot.phone.' . sha1($phoneDigits);
+
+            if (RateLimiter::tooManyAttempts($rateLimitKey, self::FORGOT_MAX_ATTEMPTS)) {
+                $seconds = RateLimiter::availableIn($rateLimitKey);
+
+                Log::channel('password_reset')->warning('Forgot-password (phone) rate limit hit', [
+                    'phone'            => $phoneDigits,
+                    'ip'               => $request->ip(),
+                    'retry_after_secs' => $seconds,
+                ]);
+
+                return response()->json([
+                    'status'  => false,
+                    'message' => "Too many password-reset requests. Please try again in {$seconds} seconds.",
+                ], 429);
+            }
+
+            RateLimiter::hit($rateLimitKey, self::FORGOT_DECAY_SECONDS);
+
+            Log::channel('password_reset')->info('Forgot-password (phone) request received', [
+                'phone' => $phoneDigits,
+                'ip'    => $request->ip(),
+            ]);
+
+            // ── Look up user by the last 10 digits of their stored phone ──────
+            // (no early return to avoid enumeration)
+            $user = User::whereNotNull('phone')
+                ->get(['id', 'email', 'name', 'phone'])
+                ->first(fn ($candidate) => $this->normalizePhoneDigits($candidate->phone) === $phoneDigits);
+
+            if ($user) {
+                $email = strtolower(trim($user->email));
+
+                // Delete any stale token for this email so the table stays tidy
+                DB::table('password_reset_tokens')->where('email', $email)->delete();
+
+                // Generate a plain-text token (64 random bytes → 128 hex chars)
+                $plainToken = Str::random(64);
+
+                // Store the hashed version — Hash::check() used on verify
+                DB::table('password_reset_tokens')->insert([
+                    'email'      => $email,
+                    'token'      => Hash::make($plainToken),
+                    'created_at' => now(),
+                ]);
+
+                // Build the frontend reset URL
+                // The frontend reads `token` + `email` from the query string
+                $resetUrl = rtrim(config('app.frontend_url', 'https://app.advantagehcs.com'), '/')
+                    . '/reset-password'
+                    . '?token=' . urlencode($plainToken)
+                    . '&email=' . urlencode($email);
+
+                $expiresInMinutes = (int) config('auth.passwords.users.expire', 60);
+
+                $this->sendResetLinkSms($user->phone, $user->name ?? 'Patient', $resetUrl, $expiresInMinutes);
+
+                Log::channel('password_reset')->info('Password-reset SMS dispatched', [
+                    'user_id' => $user->id,
+                    'phone'   => $phoneDigits,
+                ]);
+            } else {
+                // Log silently; do NOT reveal to the caller that the phone is unknown
+                Log::channel('password_reset')->info('Forgot-password (phone): phone not found (no action taken)', [
+                    'phone' => $phoneDigits,
+                    'ip'    => $request->ip(),
+                ]);
+            }
+
+            // Always return the same response (anti-enumeration)
+            return response()->json([
+                'status'  => true,
+                'message' => 'If that phone number is registered, a password reset link has been sent via text message.',
+            ], 200);
+
+        } catch (ValidationException $e) {
+            return response()->json([
+                'status'  => false,
+                'message' => $e->validator->errors()->first(),
+            ], 422);
+
+        } catch (\Throwable $e) {
+            Log::channel('password_reset')->error('Forgot-password (phone) error', [
+                'phone'   => $request->input('phone') ?? null,
+                'ip'      => $request->ip(),
+                'message' => $e->getMessage(),
+                'line'    => $e->getLine(),
+                'file'    => $e->getFile(),
+            ]);
+
+            return response()->json([
+                'status'  => false,
+                'message' => 'Something went wrong. Please try again later.',
+            ], 500);
+        }
+    }
+
+    /**
+     * Normalize a phone number for Twilio SMS delivery (E.164-ish: 1XXXXXXXXXX).
+     */
+    private function normalizePhoneForSms(string $phone): string
+    {
+        $trimmed    = trim($phone);
+        $digitsOnly = preg_replace('/\D+/', '', $trimmed);
+
+        if (str_starts_with($trimmed, '+')) {
+            return preg_replace('/\D+/', '', substr($trimmed, 1));
+        }
+
+        if (strlen($digitsOnly) === 10) {
+            return '1' . $digitsOnly;
+        }
+
+        return $digitsOnly;
+    }
+
+    /**
+     * Send the password-reset link via Twilio SMS.
+     */
+    private function sendResetLinkSms(string $phone, string $patientName, string $resetUrl, int $expiresInMinutes): void
+    {
+        $twilioSid   = config('services.twilio.sid');
+        $twilioToken = config('services.twilio.token');
+        $twilioFrom  = config('services.twilio.from');
+
+        if (empty($twilioSid) || empty($twilioToken) || empty($twilioFrom)) {
+            throw new RuntimeException('Twilio SMS configuration is missing.');
+        }
+
+        $expiresLabel = $expiresInMinutes % 60 === 0
+            ? ($expiresInMinutes / 60) . ' hour' . ($expiresInMinutes / 60 === 1 ? '' : 's')
+            : $expiresInMinutes . ' minutes';
+
+        $smsBody = "Hello, {$patientName}.\n"
+            . "We received a request to update your MedHiWa Patient Portal login credentials.\n"
+            . "Reset your password here: {$resetUrl}\n"
+            . "This link is valid for {$expiresLabel}. If you did not request this, you can ignore this message.\n\n"
+            . "Best Regards,\nMedHiWa Team";
+
+        $smsResponse = Http::withBasicAuth($twilioSid, $twilioToken)
+            ->asForm()
+            ->post("https://api.twilio.com/2010-04-01/Accounts/{$twilioSid}/Messages.json", [
+                'From' => $twilioFrom,
+                'To'   => $this->normalizePhoneForSms($phone),
+                'Body' => $smsBody,
+            ]);
+
+        if ($smsResponse->failed()) {
+            throw new RuntimeException('Twilio API error: ' . $smsResponse->body());
         }
     }
 
