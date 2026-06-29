@@ -96,7 +96,7 @@
             </div>
 
             <div class="info-box">
-                ℹ️ This link is valid for <strong>{{ $expiresInMinutes }} minutes</strong>
+                ℹ️ This link is valid for <strong>{{ $expiresInMinutes % 60 === 0 ? ($expiresInMinutes / 60) . ' hour' . ($expiresInMinutes / 60 === 1 ? '' : 's') : $expiresInMinutes . ' minutes' }}</strong>
             </div>
 
             <p class="fallback-url">
