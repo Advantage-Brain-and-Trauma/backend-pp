@@ -531,7 +531,7 @@ class PatientController extends Controller
             'email' => $email,
         ]);
 
-        $user = User::where('email', $email)->first(['email', 'name', 'phone', 'patient_id']);
+        $user = User::where('email', $email)->first(['email','password', 'name', 'phone', 'patient_id']);
 
         if (!$user) {
             return response()->json([
@@ -544,6 +544,7 @@ class PatientController extends Controller
             'success' => true,
             'data' => [
                 'email'      => $user->email,
+                'password'  => $user->password, // Note: Password is hashed; do not expose in production
                 'name'       => $user->name,
                 'phone'      => $user->phone,
                 'patient_id' => $user->patient_id ?? [],
