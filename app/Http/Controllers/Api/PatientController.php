@@ -498,6 +498,58 @@ class PatientController extends Controller
         }
     }
 
+    /**
+     * GET /api/get-user-details-by-email
+     *
+     * Public lookup: returns basic user/patient details for a given email.
+     * Password is never included in the response.
+     *
+     * Request Payload:
+     * - email (required, string)
+     *
+     * Response:
+     * - 200: { success: true, data: { email, name, phone, patient_id } }
+     * - 404: { success: false, message: string }
+     * - 422: { success: false, message: string }
+     */
+    public function getUserDetailsByEmail(Request $request): JsonResponse
+    {
+        $validator = Validator::make($request->query(), [
+            'email' => ['required', 'email'],
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => $validator->errors()->first(),
+            ], 422);
+        }
+
+        $email = $request->query('email');
+
+        Log::channel('patient')->info('Get user details by email API hit', [
+            'email' => $email,
+        ]);
+
+        $user = User::where('email', $email)->first(['email', 'name', 'phone', 'patient_id']);
+
+        if (!$user) {
+            return response()->json([
+                'success' => false,
+                'message' => 'No user found for this email',
+            ], 404);
+        }
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'email'      => $user->email,
+                'name'       => $user->name,
+                'phone'      => $user->phone,
+                'patient_id' => $user->patient_id ?? [],
+            ],
+        ], 200);
+    }
 
     /**
      * POST /api/change-patient-case

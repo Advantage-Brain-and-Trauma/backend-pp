@@ -38,6 +38,11 @@ Route::middleware('throttle:10,1')->group(function () {
 // Public: proxy accepts invitation via emailed token
 Route::post('proxy/accept/{token}', [ProxyAccessController::class, 'accept']);
 
+// Public: lookup basic user/patient details by email
+Route::middleware('throttle:30,1')->group(function () {
+    Route::get('get-user-details-by-email', [PatientController::class, 'getUserDetailsByEmail']);
+});
+
 Route::middleware('auth:api')->group(function () {
     Route::post('logout',[AuthApiController::class, 'logout']);
     Route::post('refresh-token',[AuthApiController::class, 'refreshToken']);
