@@ -67,6 +67,7 @@ Route::middleware(['auth:api', 'role.api:User', 'patient.active'])->group(functi
     Route::get('get-time-slots-date-range',[PatientAppointmentController::class, 'getTimeSlotDateRange']);
     Route::post('schedule-patient-appointment/{userName}/{caseId}',[PatientAppointmentController::class, 'schedulePatientAppointment']);
     Route::post('appointment-reschedule',[PatientAppointmentController::class, 'appointmentReschedule']);
+    Route::post('notify-patient-preauth-missing-details',[PatientAppointmentController::class, 'notifyPatientPreauthMissingDetails']);
 
     Route::get('get-patient-submited-form-data',[ClinicalController::class, 'getPatientSubmitedFormData'])->middleware('cors'); // old platform form data
     Route::post('download-patient-submited-form-pdf',[ClinicalController::class, 'downloadPatientSubmitedFormPdf']); // old platform form pdf download

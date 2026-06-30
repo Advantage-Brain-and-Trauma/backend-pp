@@ -19,6 +19,7 @@ use App\Models\MedhiwaAmdProviderCompanyMapping;
 use App\Models\MedhiwaAttendance;
 use App\Models\MedhiwaSpeciality;
 use App\Models\MedhiwaCareNewOrderType;
+use App\Models\PatientPortalPreAuthMissingDetail;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Http\JsonResponse;
@@ -1517,4 +1518,88 @@ class PatientAppointmentController extends Controller
             ], 500);
         }
     }
+
+    public function notifyPatientPreauthMissingDetails(Request $request)
+    {
+        try {
+            Log::channel('appointment')->info('Notify patient preauth missing details API hit', [
+                'user_id' => auth()->id()
+            ]);
+
+            $caseId = $request->query('case_id');
+            $ma_id = $request->query('ma_id');
+
+            if (empty($caseId)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Case ID is required.',
+                ], 422);
+            }
+
+            $patientIds = auth()->user()->getActivePatientIds();
+
+            $caseRecord = AhcsCase::where('id', $caseId)
+                ->whereIn('patient_id', $patientIds)
+                ->first(['patient_id']);
+
+            if (!$caseRecord) {
+                Log::channel('appointment')->warning('Invalid case ID for user', [
+                    'user_id' => auth()->id(),
+                    'case_id' => $caseId,
+                ]);
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Invalid Case ID for this patient.',
+                ], 422);
+            }
+
+            Log::channel('appointment')->info('Case validated', [
+                'case_id'    => $caseId,
+                'patient_id' => $caseRecord->patient_id,
+            ]);
+
+            $maDetails = AhcsMedAuth::where('id', $ma_id)
+                ->where('case_id', $caseId)
+                ->first();
+
+            if (!$maDetails) {
+                Log::channel('appointment')->warning('Med auth not found for case', [
+                    'ma_id'   => $ma_id,
+                    'case_id' => $caseId,
+                ]);
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Medauth Id Not Found',
+                ], 404);
+            }
+
+            Log::channel('appointment')->info('Patient notified for preauth missing details', [
+                'case_id'    => $caseId,
+                'patient_id' => $caseRecord->patient_id,
+                'ma_id'      => $ma_id,
+            ]);
+
+            PatientPortalPreAuthMissingDetail::create([
+                'case_id' => $caseId,
+                'patient_id' => $caseRecord->patient_id,
+                'ma_id' => $ma_id,
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Patient notified for preauth missing details successfully',
+            ], 200);
+
+        }catch(\Throwable $e) {
+            Log::channel('appointment')->error('Error notifying patient preauth missing details: ' . $e->getMessage(), [
+                'user_id' => auth()->id(),
+            ]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Something went wrong',
+                // 'error'   => $e->getMessage(),
+            ], 500);
+        }
+    }
+            
 }
