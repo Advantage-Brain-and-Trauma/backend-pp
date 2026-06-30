@@ -19,7 +19,7 @@ use App\Models\MedhiwaAmdProviderCompanyMapping;
 use App\Models\MedhiwaAttendance;
 use App\Models\MedhiwaSpeciality;
 use App\Models\MedhiwaCareNewOrderType;
-use App\Models\PatientPortalPreAuthMissingDetail;
+use App\Models\PatientPortalPreauthMissingDetail;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Http\JsonResponse;
@@ -1579,7 +1579,7 @@ class PatientAppointmentController extends Controller
                 'ma_id'      => $ma_id,
             ]);
 
-            PatientPortalPreAuthMissingDetail::create([
+            PatientPortalPreauthMissingDetail::create([
                 'case_id' => $caseId,
                 'patient_id' => $caseRecord->patient_id,
                 'ma_id' => $ma_id,
