@@ -13,6 +13,7 @@ use App\Http\Controllers\Api\FormSubmissionNoteController;
 use App\Http\Controllers\Api\RecentActivityController;
 use App\Http\Controllers\Api\ProxyAccessController;
 use App\Http\Controllers\Auth\LoginController;
+use App\Http\Controllers\Api\DirectEmailLoginController;
 
 /*
 |--------------------------------------------------------------------------
@@ -27,6 +28,10 @@ use App\Http\Controllers\Auth\LoginController;
 
 Route::post('login',[AuthApiController::class, 'login']);
 Route::post('magic-link/verify',[AuthApiController::class, 'magicLinkVerify']);
+
+// Internal: login directly via email only (no password) — issues the same JWT as normal login
+// Requires a shared secret header (X-API-KEY) since it bypasses password verification.
+Route::middleware('internal.api.key')->post('login-by-email', [DirectEmailLoginController::class, 'loginByEmail']);
 
 // ── Password Reset (public – no auth required) ────────────────────────────
 Route::middleware('throttle:10,1')->group(function () {

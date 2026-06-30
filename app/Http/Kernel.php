@@ -70,5 +70,6 @@ class Kernel extends HttpKernel
         'cors'           => \App\Http\Middleware\CorsMiddleware::class,
         'patient.active' => \App\Http\Middleware\CheckPatientActive::class,
         'proxy.log'      => \App\Http\Middleware\LogProxyAccessMiddleware::class,
+        'internal.api.key' => \App\Http\Middleware\VerifyInternalApiKey::class,
     ];
 }
