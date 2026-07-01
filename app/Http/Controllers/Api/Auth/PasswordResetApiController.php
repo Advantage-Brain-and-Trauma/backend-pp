@@ -422,8 +422,12 @@ class PasswordResetApiController extends Controller
                     PasswordRule::min(8)
                         ->mixedCase()     // uppercase + lowercase
                         ->letters()       // at least one letter
-                        ->numbers()       // at least one number
-                        ->symbols()       // at least one special character
+                        ->numbers(),       // at least one number
+                        // ->symbols()       // at least one special character
+                        'regex:/[!@#$%^&*()\-+=\[\]{};:\'",.<>\/?\\\\|`~]/',
+                ],
+                [
+                    'password.regex' => 'Password must be at least 8 characters long and include at least one uppercase letter, one lowercase letter, one number, and one special character.',
                 ],
             ]);
 
