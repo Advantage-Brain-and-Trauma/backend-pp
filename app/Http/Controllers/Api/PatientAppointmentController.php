@@ -1654,7 +1654,6 @@ class PatientAppointmentController extends Controller
 
                 'provider_code'   => 'nullable|string|max:50',
                 'company_name'    => 'nullable|string|max:255',
-                'is_patient_portal' => 'required|in:0,1',
             ]);
 
             if ($validator->fails()) {
