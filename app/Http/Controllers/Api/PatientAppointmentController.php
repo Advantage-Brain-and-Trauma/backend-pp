@@ -1601,5 +1601,188 @@ class PatientAppointmentController extends Controller
             ], 500);
         }
     }
-            
+
+    /**
+     * POST /api/appointment-schedule/{userName}/{caseId}/{maId}/{patientId}
+     *
+     * Validates that the case, med auth, and patient belong to the authenticated
+     * user, then proxies the appointment scheduling request to the app server.
+     *
+     * Request Payload:
+     * - department, service, physicanId, physicanName, attend_date, svc_date_start, svc_date_end, status, pa_resp, no_sessions (required)
+     * - attend_type, pa_req, attend_status, time, end_time, provider_code, company_name (optional)
+     *
+     * Response:
+     * - 200: proxied response from app server
+     * - 404: med auth not found for case
+     * - 422: validation / ownership errors
+     * - 502: upstream service unreachable
+     * - 500: unexpected error
+     */
+    public function appointmentSchedule(Request $request, $userName, $caseId, $maId, $patientId)
+    {
+        try {
+            Log::channel('appointment')->info('Appointment Schedule API hit', [
+                'user_id'    => auth()->id(),
+                'user_name'  => $userName,
+                'case_id'    => $caseId,
+                'ma_id'      => $maId,
+                'patient_id' => $patientId,
+            ]);
+
+            $validator = Validator::make($request->all(), [
+                'department'      => 'required|string|max:100',
+                'service'         => 'required|string|max:100',
+                'attend_type'     => 'nullable|string|max:10',
+                'pa_req'          => 'nullable|string|max:10',
+                'attend_status'   => 'nullable|string|max:10',
+
+                'physicanId'      => 'required|integer',
+                'physicanName'    => 'required|string|max:255',
+
+                'attend_date'     => 'required|date',
+                'svc_date_start'  => 'required|date|before_or_equal:svc_date_end',
+                'svc_date_end'    => 'required|date|after_or_equal:svc_date_start',
+
+                'time'            => 'nullable|date_format:H:i',
+                'end_time'        => 'nullable|date_format:H:i|after:time',
+
+                'status'          => 'required|string|max:50',
+                'pa_resp'         => 'required|string|max:50',
+
+                'no_sessions'     => 'required|integer|min:1',
+
+                'provider_code'   => 'nullable|string|max:50',
+                'company_name'    => 'nullable|string|max:255',
+                'is_patient_portal' => 'required|in:0,1',
+            ]);
+
+            if ($validator->fails()) {
+                Log::channel('appointment')->warning('Appointment schedule validation failed', [
+                    'case_id' => $caseId,
+                    'errors'  => $validator->errors()->toArray(),
+                ]);
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Validation errors',
+                    'errors'  => $validator->errors(),
+                ], 422);
+            }
+
+            $patientIds = auth()->user()->getActivePatientIds();
+
+            $caseRecord = AhcsCase::where('id', $caseId)
+                ->whereIn('patient_id', $patientIds)
+                ->first(['patient_id']);
+
+            if (!$caseRecord) {
+                Log::channel('appointment')->warning('Invalid case ID for user', [
+                    'user_id' => auth()->id(),
+                    'case_id' => $caseId,
+                ]);
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Invalid Case Id for this patient',
+                ], 422);
+            }
+
+            if ((string) $caseRecord->patient_id !== (string) $patientId) {
+                Log::channel('appointment')->warning('Patient ID does not match case', [
+                    'user_id'    => auth()->id(),
+                    'case_id'    => $caseId,
+                    'patient_id' => $patientId,
+                ]);
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Invalid Patient Id for this case',
+                ], 422);
+            }
+
+            Log::channel('appointment')->info('Case and patient validated', [
+                'case_id'    => $caseId,
+                'patient_id' => $patientId,
+            ]);
+
+            $medAuth = AhcsMedAuth::where('id', $maId)
+                ->where('case_id', $caseId)
+                ->first(['id']);
+
+            if (!$medAuth) {
+                Log::channel('appointment')->warning('Med auth not found for case', [
+                    'ma_id'   => $maId,
+                    'case_id' => $caseId,
+                ]);
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Medauth Id Not Found',
+                ], 404);
+            }
+
+            $payload = $request->all();
+            $payload['is_patient_portal'] = 1;
+
+            Log::channel('appointment')->info('Sending appointment schedule request', [
+                'user_name'  => $userName,
+                'case_id'    => $caseId,
+                'ma_id'      => $maId,
+                'patient_id' => $patientId,
+                'payload'    => $payload,
+            ]);
+
+            $url = config('services.app_server.api_url')
+                . '/patient-portal-schedule/' . urlencode($userName) . '/' . $caseId . '/' . $maId . '/' . $patientId;
+
+            $ch = curl_init($url);
+            curl_setopt_array($ch, [
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_TIMEOUT        => 30,
+                CURLOPT_CUSTOMREQUEST  => 'POST',
+                CURLOPT_POSTFIELDS     => json_encode($payload),
+                CURLOPT_HTTPHEADER     => [
+                    'Accept: application/json',
+                    'Content-Type: application/json',
+                ],
+            ]);
+
+            $body     = curl_exec($ch);
+            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $curlErr  = curl_error($ch);
+            curl_close($ch);
+
+            if ($curlErr) {
+                Log::channel('appointment')->error('appointmentSchedule curl error: ' . $curlErr, [
+                    'user_name' => $userName,
+                    'case_id'   => $caseId,
+                    'ma_id'     => $maId,
+                ]);
+                return response()->json([
+                    'status'  => false,
+                    'message' => 'Failed to reach appointment schedule service.',
+                    'error'   => $curlErr,
+                ], 502);
+            }
+
+            $data = json_decode($body, true);
+
+            Log::channel('appointment')->info('Appointment scheduled successfully', [
+                'user_name'  => $userName,
+                'case_id'    => $caseId,
+                'ma_id'      => $maId,
+                'patient_id' => $patientId,
+                'http_code'  => $httpCode,
+            ]);
+
+            return response()->json($data ?? [], $httpCode ?: 500);
+
+        } catch (\Throwable $e) {
+            Log::channel('appointment')->error('Error scheduling appointment: ' . $e->getMessage(), [
+                'user_id' => auth()->id(),
+            ]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Something went wrong',
+            ], 500);
+        }
+    }
+
 }
