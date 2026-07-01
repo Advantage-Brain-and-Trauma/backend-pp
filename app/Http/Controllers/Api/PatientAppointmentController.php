@@ -1729,7 +1729,7 @@ class PatientAppointmentController extends Controller
             ]);
 
             $url = config('services.app_server.staging_url')
-                . '/patient-portal-schedule/' . $userName . '/' . $caseId . '/' . $maId . '/' . $patientId;
+                . '/patient-portal-schedule/' . rawurlencode($userName) . '/' . $caseId . '/' . $maId . '/' . $patientId;
 
             $ch = curl_init($url);
             curl_setopt_array($ch, [
