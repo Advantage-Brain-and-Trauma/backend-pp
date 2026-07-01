@@ -60,6 +60,7 @@ return [
     'app_server' => [
         'base_url'    => env('APP_SERVER_BASE_URL', 'http://10.0.0.23'),
         'api_url'     => env('APP_SERVER_BASE_URL', 'http://10.0.0.23') . '/api',
+        'staging_url' => env('APP_SERVER_STAGING_URL', 'http://10.0.0.26') . '/api',
         'storage_url' => env('APP_SERVER_BASE_URL', 'http://10.0.0.23') . '/storage/files/mh',
         'webdav_url'  => env('APP_SERVER_BASE_URL', 'http://10.0.0.23') . '/webdav/mh',
     ],

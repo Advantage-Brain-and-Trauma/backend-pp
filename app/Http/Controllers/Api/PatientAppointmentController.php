@@ -1728,7 +1728,7 @@ class PatientAppointmentController extends Controller
                 'payload'    => $payload,
             ]);
 
-            $url = config('services.app_server.api_url')
+            $url = config('services.app_server.staging_url')
                 . '/patient-portal-schedule/' . urlencode($userName) . '/' . $caseId . '/' . $maId . '/' . $patientId;
 
             $ch = curl_init($url);
