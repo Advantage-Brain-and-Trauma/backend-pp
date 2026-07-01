@@ -102,6 +102,37 @@ class AuthApiController extends Controller
                 }
             }
 
+            // ── Ownership validation ──────────────────────────────────────────
+            // A regular patient may log in ONLY if an AHCS patient record linked
+            // to their account actually belongs to their email. This prevents a
+            // wrong users.patient_id mapping from exposing another patient's data.
+            // Proxy accounts are exempt: their login email intentionally differs
+            // from the patient's email, and they were already authorised via the
+            // active ProxyAccess grant check above.
+            if (!$user->is_proxy_account && !empty($patientIds)) {
+                $loginEmail = strtolower(trim($user->email));
+
+                $ownsPatient = AhcsPatient::whereIn('id', $patientIds)
+                    ->whereNull('deleted_at')
+                    ->get(['id', 'email'])
+                    ->contains(fn ($p) => strtolower(trim((string) $p->email)) === $loginEmail);
+
+                if (!$ownsPatient) {
+                    Auth::guard('api')->logout();
+
+                    Log::channel('auth')->warning('Login blocked: email/patient ownership mismatch', [
+                        'user_id'     => $user->id,
+                        'email'       => $user->email,
+                        'patient_ids' => $patientIds,
+                    ]);
+
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Something went wrong. Please contact the administrator.',
+                    ], 403);
+                }
+            }
+
             // ── Invalidate any existing active sessions ───────────────────────
             // $activeSessions = UserSession::where('user_id', $user->id)
             //     ->where('is_active', 1)
