@@ -159,8 +159,14 @@ class PatientAppointmentController extends Controller
                             return [strtolower($key) => $value];
                         });
 
+            // Fetch svc_date_start & svc_date_end for all ma_ids in one query
+            $maIds = $appointments->pluck('ma_id')->filter()->unique()->values();
+            $medAuthDates = AhcsMedAuth::whereIn('id', $maIds)
+                ->get(['id', 'svc_date_start', 'svc_date_end'])
+                ->keyBy('id');
+
             // ✅ Map names
-            $appointments->transform(function ($appointment) use ($specialities, $attendTypes, $caseId, $attachmentByAttendId) {
+            $appointments->transform(function ($appointment) use ($specialities, $attendTypes, $caseId, $attachmentByAttendId, $medAuthDates) {
                 $appointment->service_full_name = $specialities[$appointment->service] ?? null;
                 $code = strtolower($appointment->attend_type);
                 $appointment->attend_type_full_name = $attendTypes[$code] ?? null;
@@ -175,6 +181,10 @@ class PatientAppointmentController extends Controller
                     ? $this->resolvePreferredAttachmentUrl($attachment)
                     : null;
                 $appointment->clinical_note = $resolvedAttachmentUrl;
+
+                $medAuth = $medAuthDates->get($appointment->ma_id);
+                $appointment->svc_date_start = $medAuth->svc_date_start ?? null;
+                $appointment->svc_date_end   = $medAuth->svc_date_end ?? null;
 
                 return $appointment;
             });
