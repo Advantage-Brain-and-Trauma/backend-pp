@@ -1270,13 +1270,13 @@ class PatientAppointmentController extends Controller
                 'patient_id' => $caseRecord->patient_id,
             ]);
 
-            $apptDetails = AhcsAttendance::where('id', $appId)->get([
+            $apptDetails = AhcsAttendance::where('id', $appId)->first([
                     'id','ma_id','department','service','attend_type',
                     'provider_id','provider_name','attend_date','time',
                     'end_time','length','attend_status','attend_notes','is_virtual','transport'
                 ]);
 
-            if($apptDetails->isEmpty()){
+            if(!$apptDetails){
                 Log::channel('appointment')->warning('No appointment found', [
                     'appt_id' => $appId,
                 ]);
@@ -1286,14 +1286,31 @@ class PatientAppointmentController extends Controller
                 ], 404);
             }
 
+            $svcDateStart = null;
+            $svcDateEnd   = null;
+
+            if (!empty($apptDetails->ma_id)) {
+                $medAuth = AhcsMedAuth::where('id', $apptDetails->ma_id)
+                    ->first(['svc_date_start', 'svc_date_end']);
+
+                if ($medAuth) {
+                    $svcDateStart = $medAuth->svc_date_start;
+                    $svcDateEnd   = $medAuth->svc_date_end;
+                }
+            }
+
             Log::channel('appointment')->info('Appointment fetched successfully', [
-                'appt_id'  => $appId,
+                'appt_id' => $appId,
                 'case_id' => $caseId,
+                'ma_id'   => $apptDetails->ma_id,
             ]);
 
             return response()->json([
                 'success' => true,
-                'data' => $apptDetails
+                'data'    => array_merge($apptDetails->toArray(), [
+                    'svc_date_start' => $svcDateStart,
+                    'svc_date_end'   => $svcDateEnd,
+                ]),
             ], 200);
 
 
