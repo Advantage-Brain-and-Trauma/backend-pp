@@ -1763,6 +1763,31 @@ class PatientAppointmentController extends Controller
                 ], 404);
             }
 
+            $preauthFields = [
+                'medauth_facility',
+                'pa_req',
+                'referred_by_physician',
+                'referred_company_name',
+                'referred_physician_code',
+                'svc_date_start',
+                'svc_date_end',
+                'service',
+            ];
+
+            foreach ($preauthFields as $field) {
+                if (!is_null($maDetails->{$field})) {
+                    Log::channel('appointment')->warning('Preauth details are not missing for this med auth', [
+                        'ma_id'   => $ma_id,
+                        'case_id' => $caseId,
+                        'field'   => $field,
+                    ]);
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Preauth details are not missing for this med auth.',
+                    ], 422);
+                }
+            }
+
             $existing = PatientPortalPreauthMissingDetail::where('case_id', $caseId)
                 ->where('patient_id', $caseRecord->patient_id)
                 ->where('ma_id', $ma_id)
