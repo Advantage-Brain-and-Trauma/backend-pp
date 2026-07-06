@@ -981,7 +981,7 @@ class PatientAppointmentController extends Controller
             'start_time'  => $startTime,
         ], fn($v) => $v !== null);
 
-        $url = config('services.app_server.api_url') . '/available-time-slots?' . http_build_query($params);
+        $url = config('services.app_server.staging_url') . '/patient-portal/available-time-slots?' . http_build_query($params);
 
         $ch = curl_init($url);
         curl_setopt_array($ch, [
@@ -1031,7 +1031,7 @@ class PatientAppointmentController extends Controller
             'ma_id'   => $maId,
         ], fn($v) => $v !== null);
 
-        $url = config('services.app_server.api_url') . '/preauth/check-sessions-completed?' . http_build_query($params);
+        $url = config('services.app_server.staging_url') . '/patient-portal/check-sessions-completed?' . http_build_query($params);
 
         $ch = curl_init($url);
         curl_setopt_array($ch, [
@@ -1074,7 +1074,7 @@ class PatientAppointmentController extends Controller
             return response()->json(['status' => false, 'message' => 'Invalid Case ID for this patient.'], 422);
         }
 
-        $url = config('services.app_server.api_url') . '/preauth/get-approved-preauth'
+        $url = config('services.app_server.staging_url') . '/patient-portal/get-approved-preauth'
             . ($caseId ? '?' . http_build_query(['case_id' => $caseId]) : '');
 
         $ch = curl_init($url);
@@ -1125,7 +1125,7 @@ class PatientAppointmentController extends Controller
             'location'    => $request->query('location'),
         ], fn($v) => $v !== null);
 
-        $url = config('services.app_server.api_url') . '/get-time-slots-date-range?' . http_build_query($params);
+        $url = config('services.app_server.staging_url') . '/patient-portal/get-time-slots-date-range?' . http_build_query($params);
 
         $ch = curl_init($url);
         curl_setopt_array($ch, [
@@ -1490,8 +1490,8 @@ class PatientAppointmentController extends Controller
                 'payload'   => $payload,
             ]);
 
-            $url = config('services.app_server.api_url')
-                . '/patient-portal-physician-update-appt-schedule/' . urlencode($userName) . '/' . $caseId . '/' . $appId;
+            $url = config('services.app_server.staging_url')
+                . '/patient-portal/patient-portal-physician-update-appt-schedule/' . urlencode($userName) . '/' . $caseId . '/' . $appId;
 
             $ch = curl_init($url);
             curl_setopt_array($ch, [
@@ -1756,7 +1756,7 @@ class PatientAppointmentController extends Controller
             ]);
 
             $url = config('services.app_server.staging_url')
-                . '/patient-portal-schedule/' . rawurlencode($userName) . '/' . $caseId . '/' . $maId . '/' . $patientId;
+                . '/patient-portal/schedule/' . rawurlencode($userName) . '/' . $caseId . '/' . $maId . '/' . $patientId;
 
             $ch = curl_init($url);
             curl_setopt_array($ch, [
