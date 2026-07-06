@@ -21,6 +21,7 @@ use Tymon\JWTAuth\Token;
 use Illuminate\Support\Facades\Auth;
 use App\Models\ProxyAccess;
 use App\Models\UserSession;
+use Illuminate\Support\Str;
 use Exception;
 
 class PatientController extends Controller
@@ -642,7 +643,7 @@ class PatientController extends Controller
             'success' => true,
             'data' => [
                 'email'      => $user->email,
-                'password'  => str_random(10), // Return a random string instead of the actual password
+                'password'  => Str::random(10), // Return a random string instead of the actual password
                 'name'       => $user->name,
                 'phone'      => $user->phone,
                 'patient_id' => $user->patient_id ?? [],
