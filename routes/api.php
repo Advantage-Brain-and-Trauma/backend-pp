@@ -67,6 +67,7 @@ Route::middleware(['auth:api', 'role.api:User', 'patient.active'])->group(functi
     Route::get('get-time-slots-date-range',[PatientAppointmentController::class, 'getTimeSlotDateRange']);
     Route::post('schedule-patient-appointment/{userName}/{caseId}',[PatientAppointmentController::class, 'schedulePatientAppointment']);
     Route::post('appointment-reschedule',[PatientAppointmentController::class, 'appointmentReschedule']);
+    Route::post('update-transport',[PatientAppointmentController::class, 'updateTransport']);
     Route::post('notify-patient-preauth-missing-details',[PatientAppointmentController::class, 'notifyPatientPreauthMissingDetails']);
     Route::post('appointment-schedule/{userName}/{caseId}/{maId}/{patientId}',[PatientAppointmentController::class, 'appointmentSchedule']);
 

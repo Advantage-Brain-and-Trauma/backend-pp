@@ -1546,6 +1546,169 @@ class PatientAppointmentController extends Controller
         }
     }
 
+    /**
+     * POST /api/update-transport
+     *
+     * Updates pick-up/drop-off transport details for a patient appointment.
+     *
+     * Request Payload:
+     * - case_id (required, integer)
+     * - appt_id (required, integer)
+     * - pu_address1, pu_city, pu_state, pu_zip, pu_phone, pu_cell (required, string)
+     * - pick_up_time, drop_off_time (required, string)
+     * - transport (required, integer)
+     * - pu_driver, do_driver (optional, string)
+     *
+     * Response:
+     * - 200: proxied response body from the app server
+     * - 404: { success: false, message: string }
+     * - 422: { success: false, message: string } or { success: false, message: 'Validation errors', errors: object }
+     * - 502: { status: false, message: string, error: string }
+     */
+    public function updateTransport(Request $request)
+    {
+        try {
+            Log::channel('appointment')->info('Update Transport API hit', [
+                'user_id' => auth()->id()
+            ]);
+
+            $caseId = $request->input('case_id');
+            $apptId = $request->input('appt_id');
+
+            if (empty($caseId)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Case ID is required.',
+                ], 422);
+            }
+
+            if (empty($apptId)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Appointment ID is required.',
+                ], 422);
+            }
+
+            $patientIds = auth()->user()->getActivePatientIds();
+
+            $caseRecord = AhcsCase::where('id', $caseId)
+                ->whereIn('patient_id', $patientIds)
+                ->first(['patient_id']);
+
+            if (!$caseRecord) {
+                Log::channel('appointment')->warning('Invalid case ID for user', [
+                    'user_id' => auth()->id(),
+                    'case_id' => $caseId,
+                ]);
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Invalid Case ID for this patient.',
+                ], 422);
+            }
+
+            $appointment = AhcsAttendance::where('id', $apptId)
+                ->whereIn('ma_id', AhcsMedAuth::where('case_id', $caseId)->pluck('id'))
+                ->first(['id']);
+
+            if (!$appointment) {
+                Log::channel('appointment')->warning('Appointment not found for transport update', [
+                    'appt_id' => $apptId,
+                    'case_id' => $caseId,
+                ]);
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Appointment not found for this case.',
+                ], 404);
+            }
+
+            $validator = Validator::make($request->all(), [
+                'pu_address1'    => 'required|string|max:255',
+                'pu_city'        => 'required|string|max:100',
+                'pu_state'       => 'required|string|max:50',
+                'pu_zip'         => 'required|string|max:20',
+                'pu_phone'       => 'required|string|max:20',
+                'pu_cell'        => 'required|string|max:20',
+                'pick_up_time'   => 'required|string|max:20',
+                'drop_off_time'  => 'required|string|max:20',
+                'transport'      => 'required|integer',
+                'pu_driver'      => 'nullable|string|max:100',
+                'do_driver'      => 'nullable|string|max:100',
+            ]);
+
+            if ($validator->fails()) {
+                Log::channel('appointment')->warning('Update transport validation failed', [
+                    'appt_id' => $apptId,
+                    'case_id' => $caseId,
+                    'errors'  => $validator->errors()->toArray(),
+                ]);
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Validation errors',
+                    'errors'  => $validator->errors()
+                ], 422);
+            }
+
+            $payload = $validator->validated();
+            $payload['user'] = auth()->user()->name;
+
+            Log::channel('appointment')->info('Sending update transport request', [
+                'appt_id' => $apptId,
+                'case_id' => $caseId,
+                'payload' => $payload,
+            ]);
+
+            $url = config('services.app_server.staging_url') . '/patient-portal/update-transport/' . $apptId;
+
+            $ch = curl_init($url);
+            curl_setopt_array($ch, [
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_TIMEOUT        => 30,
+                CURLOPT_CUSTOMREQUEST  => 'POST',
+                CURLOPT_POSTFIELDS     => json_encode($payload),
+                CURLOPT_HTTPHEADER     => [
+                    'Accept: application/json',
+                    'Content-Type: application/json',
+                ],
+            ]);
+
+            $body     = curl_exec($ch);
+            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $curlErr  = curl_error($ch);
+            curl_close($ch);
+
+            if ($curlErr) {
+                Log::channel('appointment')->error('updateTransport curl error: ' . $curlErr, [
+                    'appt_id' => $apptId,
+                    'case_id' => $caseId,
+                ]);
+                return response()->json([
+                    'status'  => false,
+                    'message' => 'Failed to reach transport update service.',
+                    'error'   => $curlErr,
+                ], 502);
+            }
+
+            $data = json_decode($body, true);
+
+            Log::channel('appointment')->info('Transport updated successfully', [
+                'appt_id'   => $apptId,
+                'case_id'   => $caseId,
+                'http_code' => $httpCode,
+            ]);
+
+            return response()->json($data ?? [], $httpCode ?: 500);
+
+        } catch (\Throwable $e) {
+            Log::channel('appointment')->error('Error updating transport: ' . $e->getMessage(), [
+                'user_id' => auth()->id(),
+            ]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Something went wrong',
+            ], 500);
+        }
+    }
+
     public function notifyPatientPreauthMissingDetails(Request $request)
     {
         try {
