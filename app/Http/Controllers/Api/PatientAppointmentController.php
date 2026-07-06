@@ -1763,6 +1763,23 @@ class PatientAppointmentController extends Controller
                 ], 404);
             }
 
+            $existing = PatientPortalPreauthMissingDetail::where('case_id', $caseId)
+                ->where('patient_id', $caseRecord->patient_id)
+                ->where('ma_id', $ma_id)
+                ->first();
+
+            if ($existing) {
+                Log::channel('appointment')->warning('Duplicate preauth missing details notification attempted', [
+                    'case_id'    => $caseId,
+                    'patient_id' => $caseRecord->patient_id,
+                    'ma_id'      => $ma_id,
+                ]);
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Patient has already been notified for preauth missing details for this med auth.',
+                ], 409);
+            }
+
             Log::channel('appointment')->info('Patient notified for preauth missing details', [
                 'case_id'    => $caseId,
                 'patient_id' => $caseRecord->patient_id,
