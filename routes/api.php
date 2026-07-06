@@ -83,6 +83,7 @@ Route::middleware(['auth:api', 'role.api:User', 'patient.active'])->group(functi
     Route::get('attach/preview/{caseId}/{folder}/{subFolder}/{filename}', [ClinicalNoteController::class, 'previewAttachmentPath']);
 
     Route::get('get-patient-details',[PatientController::class, 'getPatientDetails'])->middleware('proxy.log');
+    Route::get('get-patient-info',[PatientController::class, 'getPatientInfo'])->middleware('proxy.log');
     Route::get('get-case-ids-by-patient-id', [PatientController::class, 'getCaseIdsByPatientId']);
     Route::get('get-case-ids-by-email', [PatientController::class, 'getCaseIdsByEmail']);
     Route::post('change-patient-case', [PatientController::class, 'changePatientCase']);

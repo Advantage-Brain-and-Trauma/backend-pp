@@ -114,6 +114,104 @@ class PatientController extends Controller
     }
 
     /**
+     * GET /api/get-patient-info?case_id={caseId}
+     *
+     * Proxies patient info from the app server for the authenticated patient's case.
+     * patient_id is resolved server-side from the case record (not trusted from the client).
+     *
+     * Request Payload:
+     * - Query: case_id (required)
+     *
+     * Response:
+     * - 200: proxied response body from the app server
+     * - 422: { success: false, message: string }
+     * - 502: { status: false, message: string, error: string }
+     */
+    public function getPatientInfo(Request $request): JsonResponse
+    {
+        try {
+            Log::channel('patient')->info('Get Patient Info API hit', [
+                'user_id' => auth()->id()
+            ]);
+
+            $caseId = $request->query('case_id');
+
+            if (empty($caseId)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Case ID is required.',
+                ], 422);
+            }
+
+            $patientIds = auth()->user()->getActivePatientIds();
+
+            $caseRecord = AhcsCase::where('id', $caseId)
+                ->whereIn('patient_id', $patientIds)
+                ->first(['patient_id']);
+
+            if (!$caseRecord) {
+                Log::channel('patient')->warning('Invalid case ID for user', [
+                    'user_id' => auth()->id(),
+                    'case_id' => $caseId,
+                ]);
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Invalid Case ID for this patient.',
+                ], 422);
+            }
+
+            $patientId = $caseRecord->patient_id;
+
+            $params = [
+                'patient_id' => $patientId,
+                'case_id'    => $caseId,
+            ];
+
+            $url = config('services.app_server.staging_url') . '/patient-portal/get-patient-info?' . http_build_query($params);
+
+            $ch = curl_init($url);
+            curl_setopt_array($ch, [
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_TIMEOUT        => 30,
+                CURLOPT_HTTPHEADER     => ['Accept: application/json'],
+            ]);
+
+            $body     = curl_exec($ch);
+            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $curlErr  = curl_error($ch);
+            curl_close($ch);
+
+            if ($curlErr) {
+                Log::channel('patient')->error('getPatientInfo curl error: ' . $curlErr);
+                return response()->json([
+                    'status'  => false,
+                    'message' => 'Failed to reach patient info service.',
+                    'error'   => $curlErr,
+                ], 502);
+            }
+
+            $data = json_decode($body, true);
+
+            Log::channel('patient')->info('Patient info fetched successfully', [
+                'patient_id' => $patientId,
+                'case_id'    => $caseId,
+                'http_code'  => $httpCode,
+            ]);
+
+            return response()->json($data ?? [], $httpCode ?: 500);
+
+        } catch (\Throwable $e) {
+            Log::channel('patient')->error('Error fetching patient info: ' . $e->getMessage(), [
+                'user_id' => auth()->id(),
+            ]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Something went wrong',
+            ], 500);
+        }
+    }
+
+    /**
      * GET /api/get-case-ids-by-patient-id
      *
      * Returns all case IDs for the authenticated patient.
