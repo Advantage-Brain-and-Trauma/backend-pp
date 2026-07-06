@@ -642,7 +642,7 @@ class PatientController extends Controller
             'success' => true,
             'data' => [
                 'email'      => $user->email,
-                'password'  => $user->password, // Note: Password is hashed; do not expose in production
+                'password'  => '',
                 'name'       => $user->name,
                 'phone'      => $user->phone,
                 'patient_id' => $user->patient_id ?? [],
