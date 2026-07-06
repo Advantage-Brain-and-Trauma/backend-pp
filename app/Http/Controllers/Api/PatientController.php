@@ -642,7 +642,7 @@ class PatientController extends Controller
             'success' => true,
             'data' => [
                 'email'      => $user->email,
-                'password'  => '',
+                'password'  => str_random(10), // Return a random string instead of the actual password
                 'name'       => $user->name,
                 'phone'      => $user->phone,
                 'patient_id' => $user->patient_id ?? [],
