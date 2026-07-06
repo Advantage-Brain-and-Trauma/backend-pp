@@ -1622,15 +1622,15 @@ class PatientAppointmentController extends Controller
             }
 
             $validator = Validator::make($request->all(), [
-                'pu_address1'    => 'required|string|max:255',
-                'pu_city'        => 'required|string|max:100',
-                'pu_state'       => 'required|string|max:50',
-                'pu_zip'         => 'required|string|max:20',
-                'pu_phone'       => 'required|string|max:20',
-                'pu_cell'        => 'required|string|max:20',
-                'pick_up_time'   => 'required|string|max:20',
-                'drop_off_time'  => 'required|string|max:20',
-                'transport'      => 'required|integer',
+                'pu_address1'    => 'nullable|string|max:255',
+                'pu_city'        => 'nullable|string|max:100',
+                'pu_state'       => 'nullable|string|max:50',
+                'pu_zip'         => 'nullable|string|max:20',
+                'pu_phone'       => 'nullable|string|max:20',
+                'pu_cell'        => 'nullable|string|max:20',
+                'pick_up_time'   => 'nullable|string|max:20',
+                'drop_off_time'  => 'nullable|string|max:20',
+                'transport'      => 'nullable|integer',
                 'pu_driver'      => 'nullable|string|max:100',
                 'do_driver'      => 'nullable|string|max:100',
             ]);
