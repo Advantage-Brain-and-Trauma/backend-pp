@@ -973,11 +973,16 @@ class PatientAppointmentController extends Controller
         $date       = $request->query('date');
         $location   = $request->query('location');
         $startTime  = $request->query('start_time');
+        $service    = $request->query('service');
+        $visitType  = $request->query('visit_type');
 
         $params = array_filter([
+            'case_id'     => $caseId,
             'provider_id' => $providerId,
-            'date'        => $date,
             'location'    => $location,
+            'service'     => $service,
+            'visit_type'  => $visitType,
+            'date'        => $date,
             'start_time'  => $startTime,
         ], fn($v) => $v !== null);
 
