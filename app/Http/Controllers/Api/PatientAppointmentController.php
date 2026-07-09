@@ -1643,6 +1643,7 @@ class PatientAppointmentController extends Controller
                 'transport'      => 'nullable|integer',
                 'pu_driver'      => 'nullable|string|max:100',
                 'do_driver'      => 'nullable|string|max:100',
+                'is_virtual'     => 'nullable'
             ]);
 
             if ($validator->fails()) {
