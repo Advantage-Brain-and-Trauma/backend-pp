@@ -1119,10 +1119,15 @@ class PatientAppointmentController extends Controller
         }
 
         $params = array_filter([
-            'provider_id' => $request->query('provider_id'),
-            'svc_date_start'  => $request->query('svc_date_start'),
-            'svc_date_end'    => $request->query('svc_date_end'),
-            'location'    => $request->query('location'),
+            'ma_id'          => $request->query('ma_id'),
+            'case_id'        => $caseId,
+            'provider_id'    => $request->query('provider_id'),
+            'location'       => $request->query('location'),
+            'service'        => $request->query('service'),
+            'visit_type'     => $request->query('visit_type'),
+            'svc_date_start' => $request->query('svc_date_start'),
+            'svc_date_end'   => $request->query('svc_date_end'),
+            'ext_date'       => $request->query('ext_date'),
         ], fn($v) => $v !== null);
 
         $url = config('services.app_server.staging_url') . '/patient-portal/get-time-slots-date-range?' . http_build_query($params);
