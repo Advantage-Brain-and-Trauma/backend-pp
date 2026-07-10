@@ -1812,7 +1812,7 @@ class PatientAppointmentController extends Controller
                 ]);
                 return response()->json([
                     'success' => false,
-                    'message' => 'Patient has already been notified for preauth missing details for this med auth.',
+                    'message' => 'You have already been notified about the missing preauthorization details for this medical authorization.',
                 ], 409);
             }
 
@@ -1830,7 +1830,7 @@ class PatientAppointmentController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => 'Patient notified for preauth missing details successfully',
+                'message' => "Your preauthorization activation request has been sent to our Support Team. You'll receive an update via SMS or email once it's processed.",
             ], 200);
 
         }catch(\Throwable $e) {
