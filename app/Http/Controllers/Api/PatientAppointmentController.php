@@ -1883,7 +1883,7 @@ class PatientAppointmentController extends Controller
                 'physicanId'      => 'required|integer',
                 'physicanName'    => 'required|string|max:255',
 
-                'attend_date'     => 'required|date',
+                'attend_date'     => 'required|date|after:' . now()->addHours(24)->toDateTimeString(),
                 'svc_date_start'  => 'required|date|before_or_equal:svc_date_end',
                 'svc_date_end'    => 'required|date|after_or_equal:svc_date_start',
 
@@ -1897,6 +1897,8 @@ class PatientAppointmentController extends Controller
 
                 'provider_code'   => 'nullable|string|max:50',
                 'company_name'    => 'nullable|string|max:255',
+            ], [
+                'attend_date.after' => 'The attend date must be at least 24 hours from now.',
             ]);
 
             if ($validator->fails()) {
