@@ -1476,9 +1476,9 @@ class PatientAppointmentController extends Controller
                 ], 404);
             }
 
-            $appointmentDateTime = Carbon::parse($appointment->attend_date . ' ' . $appointment->time);
+            $appointmentDateTime = Carbon::parse($appointment->attend_date . ' ' . $appointment->time, 'America/Chicago');
 
-            if ($appointmentDateTime->lessThanOrEqualTo(now()->addHours(24))) {
+            if ($appointmentDateTime->lessThanOrEqualTo(now('America/Chicago')->addHours(24))) {
                 Log::channel('appointment')->warning('Reschedule attempted within 24 hours of appointment', [
                     'appt_id'      => $appId,
                     'attend_date'  => $appointment->attend_date,
