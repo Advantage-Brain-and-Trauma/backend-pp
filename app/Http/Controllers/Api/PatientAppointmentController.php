@@ -1883,7 +1883,7 @@ class PatientAppointmentController extends Controller
                 'physicanId'      => 'required|integer',
                 'physicanName'    => 'required|string|max:255',
 
-                'attend_date'     => 'required|date|after:' . now('America/Chicago')->addHours(24)->toDateTimeString(),
+                'attend_date'     => 'required|date',
                 'svc_date_start'  => 'required|date|before_or_equal:svc_date_end',
                 'svc_date_end'    => 'required|date|after_or_equal:svc_date_start',
 
@@ -1897,9 +1897,26 @@ class PatientAppointmentController extends Controller
 
                 'provider_code'   => 'nullable|string|max:50',
                 'company_name'    => 'nullable|string|max:255',
-            ], [
-                'attend_date.after' => 'The attend date must be at least 24 hours from now.',
             ]);
+
+            $validator->after(function ($validator) use ($request) {
+                $attendDate = $request->input('attend_date');
+                if (!$attendDate) {
+                    return;
+                }
+
+                $attendDateTime = trim($attendDate . ' ' . $request->input('time', ''));
+
+                try {
+                    $scheduledAt = Carbon::parse($attendDateTime, 'America/Chicago');
+                } catch (\Throwable $e) {
+                    return;
+                }
+
+                if ($scheduledAt->lt(now('America/Chicago')->addHours(24))) {
+                    $validator->errors()->add('attend_date', 'The attend date and time must be at least 24 hours from now.');
+                }
+            });
 
             if ($validator->fails()) {
                 Log::channel('appointment')->warning('Appointment schedule validation failed', [
