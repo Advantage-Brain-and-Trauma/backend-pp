@@ -64,49 +64,6 @@ class LoginController extends Controller
         return redirect()->route('login');
     }
 
-    // public function directLogin(Request $request)
-    // {
-    //     try {
-    //         $request->validate([
-    //             'email' => ['required', 'email'],
-    //         ]);
-
-    //         $user = User::where('email', $request->email)->first();
-
-    //         if (!$user) {
-    //             Log::warning('directLogin: user not found', ['email' => $request->email]);
-    //             return response()->json([
-    //                 'success' => false,
-    //                 'message' => 'User not found',
-    //             ], 404);
-    //         }
-
-    //         $loginUrl = URL::temporarySignedRoute(
-    //             'sso.web.login',
-    //             now()->addMinute(),
-    //             ['user' => $user->id]
-    //         );
-
-    //         Log::info('directLogin: signed URL generated', ['user_id' => $user->id, 'email' => $user->email]);
-
-    //         return response()->json([
-    //             'success' => true,
-    //             'login_url' => $loginUrl,
-    //         ]);
-    //     } catch (\Exception $e) {
-    //         Log::error('directLogin: unexpected error', [
-    //             'email' => $request->input('email'),
-    //             'error' => $e->getMessage(),
-    //             'trace' => $e->getTraceAsString(),
-    //         ]);
-
-    //         return response()->json([
-    //             'success' => false,
-    //             'message' => 'An error occurred. Please try again.',
-    //         ], 500);
-    //     }
-    // }
-
     public function directLogin(Request $request)
     {
         try {
