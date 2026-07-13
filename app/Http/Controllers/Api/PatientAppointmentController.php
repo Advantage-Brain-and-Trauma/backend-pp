@@ -2046,4 +2046,187 @@ class PatientAppointmentController extends Controller
         }
     }
 
+    /**
+     * POST /api/appointment-cancel/{userName}/{caseId}/{attendId}
+     *
+     * Cancels an existing patient appointment.
+     *
+     * Request Payload:
+     * - attend_id, ma_id, case_id, provider_id, attend_date2, attend_status, attend_reason_id (required)
+     * - attend_notes (optional)
+     *
+     * Response:
+     * - 200: upstream response body
+     * - 422: { success: false, message: string, errors?: object }
+     * - 404: { success: false, message: string }
+     * - 502: { status: false, message: string, error: string }
+     */
+    public function appointmentCancel(Request $request, $userName, $caseId, $attendId)
+    {
+        try {
+            Log::channel('appointment')->info('Appointment Cancel API hit', [
+                'user_id'   => auth()->id(),
+                'user_name' => $userName,
+                'case_id'   => $caseId,
+                'attend_id' => $attendId,
+            ]);
+
+            $validator = Validator::make($request->all(), [
+                'attend_id'        => 'required|integer',
+                'ma_id'            => 'required|integer',
+                'case_id'          => 'required|integer',
+                'provider_id'      => 'required|integer',
+                'attend_date2'     => 'required|date',
+                'attend_status'    => 'required|string|max:20',
+                'attend_reason_id' => 'required|integer',
+                'attend_notes'     => 'nullable|string',
+            ]);
+
+            if ($validator->fails()) {
+                Log::channel('appointment')->warning('Appointment cancel validation failed', [
+                    'case_id' => $caseId,
+                    'errors'  => $validator->errors()->toArray(),
+                ]);
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Validation errors',
+                    'errors'  => $validator->errors(),
+                ], 422);
+            }
+
+            if ((string) $request->input('case_id') !== (string) $caseId) {
+                Log::channel('appointment')->warning('Case Id mismatch on cancel', [
+                    'url_case_id'     => $caseId,
+                    'payload_case_id' => $request->input('case_id'),
+                ]);
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Case Id mismatch.',
+                ], 422);
+            }
+
+            if ((string) $request->input('attend_id') !== (string) $attendId) {
+                Log::channel('appointment')->warning('Attendance Id mismatch on cancel', [
+                    'url_attend_id'     => $attendId,
+                    'payload_attend_id' => $request->input('attend_id'),
+                ]);
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Attendance Id mismatch.',
+                ], 422);
+            }
+
+            $patientIds = auth()->user()->getActivePatientIds();
+
+            $caseRecord = AhcsCase::where('id', $caseId)
+                ->whereIn('patient_id', $patientIds)
+                ->first(['patient_id']);
+
+            if (!$caseRecord) {
+                Log::channel('appointment')->warning('Invalid case ID for user', [
+                    'user_id' => auth()->id(),
+                    'case_id' => $caseId,
+                ]);
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Invalid Case Id for this patient',
+                ], 422);
+            }
+
+            $maId = $request->input('ma_id');
+
+            $medAuth = AhcsMedAuth::where('id', $maId)
+                ->where('case_id', $caseId)
+                ->first(['id']);
+
+            if (!$medAuth) {
+                Log::channel('appointment')->warning('Med auth not found for case', [
+                    'ma_id'   => $maId,
+                    'case_id' => $caseId,
+                ]);
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Medauth Id Not Found',
+                ], 404);
+            }
+
+            $appointment = AhcsAttendance::where('id', $attendId)
+                ->where('ma_id', $maId)
+                ->first(['id']);
+
+            if (!$appointment) {
+                Log::channel('appointment')->warning('Appointment not found for cancel', [
+                    'attend_id' => $attendId,
+                    'ma_id'     => $maId,
+                ]);
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Appointment not found.',
+                ], 404);
+            }
+
+            $payload = $request->all();
+
+            Log::channel('appointment')->info('Sending appointment cancel request', [
+                'user_name' => $userName,
+                'case_id'   => $caseId,
+                'attend_id' => $attendId,
+                'payload'   => $payload,
+            ]);
+
+            $url = config('services.app_server.staging_url')
+                . '/patient-portal/appointment-cancel/' . rawurlencode($userName) . '/' . $caseId . '/' . $attendId;
+
+            $ch = curl_init($url);
+            curl_setopt_array($ch, [
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_TIMEOUT        => 30,
+                CURLOPT_CUSTOMREQUEST  => 'POST',
+                CURLOPT_POSTFIELDS     => json_encode($payload),
+                CURLOPT_HTTPHEADER     => [
+                    'Accept: application/json',
+                    'Content-Type: application/json',
+                ],
+            ]);
+
+            $body     = curl_exec($ch);
+            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $curlErr  = curl_error($ch);
+            curl_close($ch);
+
+            if ($curlErr) {
+                Log::channel('appointment')->error('appointmentCancel curl error: ' . $curlErr, [
+                    'user_name' => $userName,
+                    'case_id'   => $caseId,
+                    'attend_id' => $attendId,
+                ]);
+                return response()->json([
+                    'status'  => false,
+                    'message' => 'Failed to reach appointment cancel service.',
+                    'error'   => $curlErr,
+                ], 502);
+            }
+
+            $data = json_decode($body, true);
+
+            Log::channel('appointment')->info('Appointment cancelled successfully', [
+                'user_name' => $userName,
+                'case_id'   => $caseId,
+                'attend_id' => $attendId,
+                'http_code' => $httpCode,
+            ]);
+
+            return response()->json($data ?? [], $httpCode ?: 500);
+
+        } catch (\Throwable $e) {
+            Log::channel('appointment')->error('Error cancelling appointment: ' . $e->getMessage(), [
+                'user_id' => auth()->id(),
+            ]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Something went wrong',
+            ], 500);
+        }
+    }
+
 }
