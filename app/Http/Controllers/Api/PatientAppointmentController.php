@@ -1883,7 +1883,7 @@ class PatientAppointmentController extends Controller
                 'physicanId'      => 'required|integer',
                 'physicanName'    => 'required|string|max:255',
 
-                'attend_date'     => 'required|date|after:' . now()->addHours(24)->toDateTimeString(),
+                'attend_date'     => 'required|date|after:' . now('America/Chicago')->addHours(24)->toDateTimeString(),
                 'svc_date_start'  => 'required|date|before_or_equal:svc_date_end',
                 'svc_date_end'    => 'required|date|after_or_equal:svc_date_start',
 
