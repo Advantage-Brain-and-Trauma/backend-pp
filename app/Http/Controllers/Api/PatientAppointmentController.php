@@ -1308,6 +1308,7 @@ class PatientAppointmentController extends Controller
 
             $svcDateStart = null;
             $svcDateEnd   = null;
+            $extDate      = null;
 
             if (!empty($apptDetails->ma_id)) {
                 $medAuth = AhcsMedAuth::where('id', $apptDetails->ma_id)
@@ -1316,6 +1317,8 @@ class PatientAppointmentController extends Controller
                 if ($medAuth) {
                     $svcDateStart = $medAuth->svc_date_start;
                     $svcDateEnd   = $medAuth->svc_date_end;
+                    $extDate      = $medAuth->ext_date;
+
                 }
             }
 
@@ -1501,7 +1504,7 @@ class PatientAppointmentController extends Controller
             ]);
 
             $url = config('services.app_server.staging_url')
-                . '/patient-portal/patient-portal-physician-update-appt-schedule/' . urlencode($userName) . '/' . $caseId . '/' . $appId;
+                . '/patient-portal-physician-update-appt-schedule/' . urlencode($userName) . '/' . $caseId . '/' . $appId;
 
             $ch = curl_init($url);
             curl_setopt_array($ch, [
