@@ -2079,7 +2079,7 @@ class PatientAppointmentController extends Controller
                 'attend_date2'     => 'required|date',
                 'attend_status'    => 'required|string|max:20',
                 'attend_reason_id' => 'required|integer',
-                'attend_notes'     => 'nullable|string',
+                'attend_notes'     => 'required|string',
             ]);
 
             if ($validator->fails()) {
