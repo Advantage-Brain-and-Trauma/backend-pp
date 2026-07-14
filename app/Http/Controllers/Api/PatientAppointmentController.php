@@ -1333,6 +1333,7 @@ class PatientAppointmentController extends Controller
                 'data'    => array_merge($apptDetails->toArray(), [
                     'svc_date_start' => $svcDateStart,
                     'svc_date_end'   => $svcDateEnd,
+                    'ext_date'       => $extDate
                 ]),
             ], 200);
 
