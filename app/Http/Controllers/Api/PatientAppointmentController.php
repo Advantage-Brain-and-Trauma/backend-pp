@@ -1312,13 +1312,12 @@ class PatientAppointmentController extends Controller
 
             if (!empty($apptDetails->ma_id)) {
                 $medAuth = AhcsMedAuth::where('id', $apptDetails->ma_id)
-                    ->first(['svc_date_start', 'svc_date_end']);
+                    ->first(['svc_date_start', 'svc_date_end', 'ext_date', 'made_via']);
 
-                if ($medAuth) {
+                if ($medAuth && $medAuth->made_via === 'preauth') {
                     $svcDateStart = $medAuth->svc_date_start;
                     $svcDateEnd   = $medAuth->svc_date_end;
                     $extDate      = $medAuth->ext_date;
-
                 }
             }
 
