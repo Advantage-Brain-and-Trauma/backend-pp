@@ -991,7 +991,7 @@ class PatientAppointmentController extends Controller
         $ch = curl_init($url);
         curl_setopt_array($ch, [
             CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_TIMEOUT        => 30,
+            CURLOPT_TIMEOUT        => 90,
             CURLOPT_HTTPHEADER     => ['Accept: application/json'],
         ]);
 
@@ -1041,7 +1041,7 @@ class PatientAppointmentController extends Controller
         $ch = curl_init($url);
         curl_setopt_array($ch, [
             CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_TIMEOUT        => 30,
+            CURLOPT_TIMEOUT        => 90,
             CURLOPT_HTTPHEADER     => ['Accept: application/json'],
         ]);
 
@@ -1085,7 +1085,7 @@ class PatientAppointmentController extends Controller
         $ch = curl_init($url);
         curl_setopt_array($ch, [
             CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_TIMEOUT        => 30,
+            CURLOPT_TIMEOUT        => 90,
             CURLOPT_HTTPHEADER     => ['Accept: application/json'],
         ]);
 
@@ -1140,7 +1140,7 @@ class PatientAppointmentController extends Controller
         $ch = curl_init($url);
         curl_setopt_array($ch, [
             CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_TIMEOUT        => 30,
+            CURLOPT_TIMEOUT        => 90,
             CURLOPT_HTTPHEADER     => ['Accept: application/json'],
         ]);
 
@@ -1206,7 +1206,7 @@ class PatientAppointmentController extends Controller
             $ch = curl_init($url);
             curl_setopt_array($ch, [
                 CURLOPT_RETURNTRANSFER => true,
-                CURLOPT_TIMEOUT        => 30,
+                CURLOPT_TIMEOUT        => 90,
                 CURLOPT_HTTPHEADER     => ['Accept: application/json'],
             ]);
 
@@ -1510,7 +1510,7 @@ class PatientAppointmentController extends Controller
             $ch = curl_init($url);
             curl_setopt_array($ch, [
                 CURLOPT_RETURNTRANSFER => true,
-                CURLOPT_TIMEOUT        => 30,
+                CURLOPT_TIMEOUT        => 90,
                 CURLOPT_CUSTOMREQUEST  => 'POST',
                 CURLOPT_POSTFIELDS     => json_encode($payload),
                 CURLOPT_HTTPHEADER     => [
@@ -1677,7 +1677,7 @@ class PatientAppointmentController extends Controller
             $ch = curl_init($url);
             curl_setopt_array($ch, [
                 CURLOPT_RETURNTRANSFER => true,
-                CURLOPT_TIMEOUT        => 30,
+                CURLOPT_TIMEOUT        => 90,
                 CURLOPT_CUSTOMREQUEST  => 'POST',
                 CURLOPT_POSTFIELDS     => json_encode($payload),
                 CURLOPT_HTTPHEADER     => [
@@ -2000,7 +2000,7 @@ class PatientAppointmentController extends Controller
             $ch = curl_init($url);
             curl_setopt_array($ch, [
                 CURLOPT_RETURNTRANSFER => true,
-                CURLOPT_TIMEOUT        => 30,
+                CURLOPT_TIMEOUT        => 90,
                 CURLOPT_CUSTOMREQUEST  => 'POST',
                 CURLOPT_POSTFIELDS     => json_encode($payload),
                 CURLOPT_HTTPHEADER     => [
@@ -2198,7 +2198,7 @@ class PatientAppointmentController extends Controller
             $ch = curl_init($url);
             curl_setopt_array($ch, [
                 CURLOPT_RETURNTRANSFER => true,
-                CURLOPT_TIMEOUT        => 30,
+                CURLOPT_TIMEOUT        => 90,
                 CURLOPT_CUSTOMREQUEST  => 'POST',
                 CURLOPT_POSTFIELDS     => json_encode($payload),
                 CURLOPT_HTTPHEADER     => [

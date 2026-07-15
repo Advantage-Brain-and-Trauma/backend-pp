@@ -173,7 +173,7 @@ class PatientController extends Controller
             $ch = curl_init($url);
             curl_setopt_array($ch, [
                 CURLOPT_RETURNTRANSFER => true,
-                CURLOPT_TIMEOUT        => 30,
+                CURLOPT_TIMEOUT        => 90,
                 CURLOPT_HTTPHEADER     => ['Accept: application/json'],
             ]);
 
