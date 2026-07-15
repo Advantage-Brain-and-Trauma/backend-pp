@@ -1330,10 +1330,10 @@ class PatientAppointmentController extends Controller
             return response()->json([
                 'success' => true,
                 'data'    => array_merge($apptDetails->toArray(), [
+                    'made_via'       => $medAuth->made_via,
                     'svc_date_start' => $svcDateStart,
                     'svc_date_end'   => $svcDateEnd,
                     'ext_date'       => $extDate,
-                    'made_via'       => $medAuth->made_via,
                 ]),
             ], 200);
 
