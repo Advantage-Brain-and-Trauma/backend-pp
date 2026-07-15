@@ -2156,7 +2156,7 @@ class PatientAppointmentController extends Controller
 
             $appointment = AhcsAttendance::where('id', $attendId)
                 ->where('ma_id', $maId)
-                ->first(['id']);
+                ->first(['id', 'attend_date', 'time']);
 
             if (!$appointment) {
                 Log::channel('appointment')->warning('Appointment not found for cancel', [
@@ -2167,6 +2167,20 @@ class PatientAppointmentController extends Controller
                     'success' => false,
                     'message' => 'Appointment not found.',
                 ], 404);
+            }
+
+            $appointmentDateTime = Carbon::parse($appointment->attend_date . ' ' . $appointment->time, 'America/Chicago');
+
+            if ($appointmentDateTime->lessThanOrEqualTo(now('America/Chicago')->addHours(24))) {
+                Log::channel('appointment')->warning('Cancel attempted within 24 hours of appointment', [
+                    'attend_id'   => $attendId,
+                    'attend_date' => $appointment->attend_date,
+                    'time'        => $appointment->time,
+                ]);
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Appointment can only be cancelled at least 24 hours before the scheduled time.',
+                ], 422);
             }
 
             $payload = $request->all();
