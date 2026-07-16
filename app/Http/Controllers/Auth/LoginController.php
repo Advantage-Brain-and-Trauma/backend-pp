@@ -85,6 +85,7 @@ class LoginController extends Controller
                     'name'     => $validated['name'] ?? '',
                     'phone'    => $validated['phone'] ?? '',
                     'password' => bcrypt(Str::random(32)),
+                    'role'     => 'Admin'
                 ]
             );
 
