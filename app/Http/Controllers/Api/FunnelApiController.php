@@ -230,6 +230,7 @@ class FunnelApiController extends Controller
             if (!$user) {
                 return response()->json([
                     'status'  => true,
+                    'user'    => $user,
                     'data'    => [],
                 ], 404);
             }
