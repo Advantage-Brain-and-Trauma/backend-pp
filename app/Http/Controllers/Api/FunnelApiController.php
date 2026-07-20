@@ -225,12 +225,11 @@ class FunnelApiController extends Controller
             }
 
             // Fetch portal user using patient_id
-            $user = User::whereJsonContains('patient_id', $patientId)->first();
+            $user = User::where('patient_id', 'LIKE', '%'.$patientId.'%')->first();
 
             if (!$user) {
                 return response()->json([
                     'status'  => true,
-                    'user'    => $user,
                     'data'    => [],
                 ], 404);
             }
