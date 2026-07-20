@@ -180,6 +180,142 @@ class FunnelApiController extends Controller
     }
 
     /**
+     * GET /api/get-direct-patient-funnels
+     *
+     * Request Payload:
+     * - patient_id, case_id
+     *
+     * Response:
+     * - 200: { status: true, message: string, data: [{ id, funnel_name, submission_status, pending_count }] }
+     * - 500: { status: false, message: string }
+     */
+    
+
+    public function getDirectPatientFunnels(Request $request)
+    {
+        try {
+
+            $patientId = $request->input('patient_id');
+            $caseId    = $request->input('case_id');
+
+            if (empty($patientId)) {
+                return response()->json([
+                    'status'  => false,
+                    'message' => 'Patient Id is required.',
+                ], 422);
+            }
+
+            if (empty($caseId)) {
+                return response()->json([
+                    'status'  => false,
+                    'message' => 'Case Id is required.',
+                ], 422);
+            }
+
+            // Validate that case belongs to patient
+            $isValidCase = AhcsCase::where('id', $caseId)
+                ->where('patient_id', $patientId)
+                ->exists();
+
+            if (!$isValidCase) {
+                return response()->json([
+                    'status'  => false,
+                    'message' => 'Invalid Case Id for this patient.',
+                ], 422);
+            }
+
+            // Fetch portal user using patient_id
+            $user = User::where('patient_id', $patientId)->first();
+
+            if (!$user) {
+                return response()->json([
+                    'status'  => true,
+                    'data'    => [],
+                ], 404);
+            }
+
+            Log::channel('patient_funnel')->info('Fetching patient funnels - Start', [
+                'user_id'    => $user->id,
+                'patient_id' => $patientId,
+                'case_id'    => $caseId,
+            ]);
+
+            $userFunnelsQuery = UserFunnel::where('user_id', $user->id)
+                ->whereHas('patientCase', function ($q) use ($caseId) {
+                    $q->where('case_id', $caseId);
+                });
+
+            $userFunnelRows = $userFunnelsQuery->get(['id', 'funnel_id']);
+
+            $userFunnels = $userFunnelRows->pluck('funnel_id');
+
+            $userFunnelIdByFunnel = $userFunnelRows->pluck('id', 'funnel_id');
+
+            $funnels = Funnel::whereIn('id', $userFunnels)
+                ->where('status', 'active')
+                ->get(['id', 'name', 'form_ids']);
+
+            $funnels->transform(function ($funnel) use ($user, $userFunnelIdByFunnel) {
+
+                $formIds = is_array($funnel->form_ids)
+                    ? $funnel->form_ids
+                    : json_decode($funnel->form_ids ?? '[]', true);
+
+                $formIds = is_array($formIds) ? $formIds : [];
+
+                $totalForms = count($formIds);
+
+                $userFunnelId = $userFunnelIdByFunnel->get($funnel->id);
+
+                $submittedForms = FormSubmission::where('user_id', $user->id)
+                    ->where('funnel_id', $funnel->id)
+                    ->where('user_funnel_id', $userFunnelId)
+                    ->whereIn('form_id', $formIds)
+                    ->where('status', 'completed')
+                    ->distinct('form_id')
+                    ->count('form_id');
+
+                $pendingCount = max($totalForms - $submittedForms, 0);
+
+                return [
+                    'id'                => $funnel->id,
+                    'funnel_name'       => $funnel->name,
+                    'submission_status' => $pendingCount === 0 ? 'completed' : 'pending',
+                    'pending_count'     => $pendingCount,
+                ];
+            });
+
+            Log::channel('patient_funnel')->info('Fetching patient funnels - Success', [
+                'user_id'       => $user->id,
+                'patient_id'    => $patientId,
+                'total_funnels' => $funnels->count(),
+            ]);
+
+            return response()->json([
+                'status'  => true,
+                'message' => 'Funnels retrieved successfully.',
+                'data'    => $funnels,
+            ], 200);
+
+        } catch (\Throwable $e) {
+
+            Log::channel('patient_funnel')->error('Error fetching patient funnels', [
+                'patient_id' => $patientId ?? null,
+                'case_id'    => $caseId ?? null,
+                'message'    => $e->getMessage(),
+                'line'       => $e->getLine(),
+                'file'       => $e->getFile(),
+            ]);
+
+            return response()->json([
+                'status'  => false,
+                'message' => 'Error fetching patient funnels.',
+            ], 500);
+        }
+    }
+    
+
+    /**
      * GET /api/get-patient-funnel-submission-details/{funnelId}
      *
      * Returns funnel details with per-form submission status for the authenticated user.
