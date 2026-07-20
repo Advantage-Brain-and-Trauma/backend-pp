@@ -168,7 +168,7 @@ class PatientController extends Controller
                 'case_id'    => $caseId,
             ];
 
-            $url = config('services.app_server.staging_url') . '/patient-portal/get-patient-info?' . http_build_query($params);
+            $url = config('services.app_server.api_url') . '/patient-portal/get-patient-info?' . http_build_query($params);
 
             $ch = curl_init($url);
             curl_setopt_array($ch, [

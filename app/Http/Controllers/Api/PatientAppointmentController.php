@@ -812,131 +812,6 @@ class PatientAppointmentController extends Controller
         }
     }
 
-    /**
-     * POST /api/schedule-patient-appointment/{userName}/{caseId}
-     *
-     * Creates a new patient appointment request.
-     *
-     * Request Payload:
-     * - department, service, physicanId, physicanName, attend_date, svc_date_start, svc_date_end, status, pa_resp, no_sessions (required)
-     * - attend_type, pa_req, time, end_time, attend_notes, provider_code, company_name (optional)
-     *
-     * Response:
-     * - 200: { success: true, message: string, appointment_id: int }
-     * - 422: { success: false, message: string, errors: object }
-     * - 500: { success: false, message: string, error: string }
-     */
-    public function schedulePatientAppointment(Request $request, $userName, $caseId){
-        try{
-            Log::channel('appointment')->info('Schedule appointment request started', [
-                'user_name' => $userName,
-                'case_id' => $caseId,
-            ]);
-
-            $validator = Validator::make($request->all(), [
-                
-                'department'      => 'required|string|max:100',
-                'service'         => 'required|string|max:100',
-                'attend_type'     => 'nullable|string|max:10',
-                'pa_req'          => 'nullable|string|max:10',
-
-                'physicanId'      => 'required|integer',
-                'physicanName'    => 'required|string|max:255',
-
-                'attend_date'     => 'required|date',
-                'svc_date_start'  => 'required|date|before_or_equal:svc_date_end',
-                'svc_date_end'    => 'required|date|after_or_equal:svc_date_start',
-
-                'time'            => 'nullable|date_format:H:i',
-                'end_time'        => 'nullable|date_format:H:i|after:time',
-
-                'status'          => 'required|string|max:50',
-                'pa_resp'         => 'required|string|max:50',
-
-                'attend_notes'    => 'nullable|string',
-
-                'no_sessions'     => 'required|integer|min:1',
-
-                'provider_code'   => 'nullable|string|max:50',
-                'company_name'    => 'nullable|string|max:255',
-            
-            ]);
-
-            if ($validator->fails()) {
-                Log::channel('appointment')->warning('Schedule appointment validation failed', [
-                    'user_name' => $userName,
-                    'case_id' => $caseId,
-                    'errors' => $validator->errors()->toArray(),
-                ]);
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Validation errors',
-                    'errors' => $validator->errors()
-                ], 422);
-            }
-            
-
-            // Log the incoming request data
-            Log::channel('appointment')->info("Scheduling appointment for user: $userName, case: $caseId", [
-                'request_data' => $request->all()
-            ]);
-
-            $start_time = date('H:i:s', strtotime($request->input('time')));
-            $end_time = date('H:i:s', strtotime($request->input('end_time')));
-
-            $start = Carbon::parse($start_time);
-            $end = Carbon::parse($end_time);
-            $duration = $start->diffInMinutes($end);
-
-            $diff = $end->diff($start);
-            $hours = $diff->h;
-            $minutes = $diff->i / 60;
-
-            $pixels = ($hours * 92 + $minutes * 92) . 'px';
-
-            $appointment = MedhiwaAttendance::create([
-                'username' => $userName,
-                'ma_id' => 1,
-                'department' => $request->input('department'),
-                'service' => $request->input('service'),
-                'attend_type' => $request->input('attend_type', null),
-                'pa_req' => $request->input('pa_req', null),
-                'provider_id' => $request->input('physicanId'),
-                'provider_name' => $request->input('physicanName'),
-                'attend_date' => $request->input('attend_date'),
-                'time' => $request->input('time', null),
-                'end_time' => $request->input('end_time', null),
-                'attend_status' =>  'Requested' ?? $request->input('attend_status') ,
-                'attend_notes' => $request->input('attend_notes', null),
-                'provider_code' => $request->input('provider_code', null),
-                'company_name' => $request->input('company_name', null),
-                'pixels' => $pixels,
-                'length' => $duration,
-                'platform_name' => 'New Patient',
-            ]);
-
-            Log::channel('appointment')->info('Schedule appointment request completed', [
-                'appointment_id' => $appointment->id,
-                'user_name' => $userName,
-                'case_id' => $caseId,
-            ]);
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Appointment request submitted successfully',
-                'appointment_id' => $appointment->id
-            ],200);
-
-        }catch(\Throwable $e){
-            Log::channel('appointment')->error("Error scheduling patient appointment: " . $e->getMessage());
-            return response()->json([
-                'success' => false,
-                // 'error' => $e->getMessage(),
-                'message' => 'Something went wrong',
-            ], 500);
-        }
-    }
-
 
     /**
      * Return start-time and (optionally) end-time options that match the scheduling popup dropdowns.
@@ -986,7 +861,7 @@ class PatientAppointmentController extends Controller
             'start_time'  => $startTime,
         ], fn($v) => $v !== null);
 
-        $url = config('services.app_server.staging_url') . '/patient-portal/available-time-slots?' . http_build_query($params);
+        $url = config('services.app_server.api_url') . '/patient-portal/available-time-slots?' . http_build_query($params);
 
         $ch = curl_init($url);
         curl_setopt_array($ch, [
@@ -1036,7 +911,7 @@ class PatientAppointmentController extends Controller
             'ma_id'   => $maId,
         ], fn($v) => $v !== null);
 
-        $url = config('services.app_server.staging_url') . '/patient-portal/check-sessions-completed?' . http_build_query($params);
+        $url = config('services.app_server.api_url') . '/patient-portal/check-sessions-completed?' . http_build_query($params);
 
         $ch = curl_init($url);
         curl_setopt_array($ch, [
@@ -1079,7 +954,7 @@ class PatientAppointmentController extends Controller
             return response()->json(['status' => false, 'message' => 'Invalid Case ID for this patient.'], 422);
         }
 
-        $url = config('services.app_server.staging_url') . '/patient-portal/get-approved-preauth'
+        $url = config('services.app_server.api_url') . '/patient-portal/get-approved-preauth'
             . ($caseId ? '?' . http_build_query(['case_id' => $caseId]) : '');
 
         $ch = curl_init($url);
@@ -1135,7 +1010,7 @@ class PatientAppointmentController extends Controller
             'ext_date'       => $request->query('ext_date'),
         ], fn($v) => $v !== null);
 
-        $url = config('services.app_server.staging_url') . '/patient-portal/get-time-slots-date-range?' . http_build_query($params);
+        $url = config('services.app_server.api_url') . '/patient-portal/get-time-slots-date-range?' . http_build_query($params);
 
         $ch = curl_init($url);
         curl_setopt_array($ch, [
@@ -1504,7 +1379,7 @@ class PatientAppointmentController extends Controller
                 'payload'   => $payload,
             ]);
 
-            $url = config('services.app_server.staging_url')
+            $url = config('services.app_server.api_url')
                 . '/patient-portal/physician-update-appt-schedule/' . urlencode($userName) . '/' . $caseId . '/' . $appId;
 
             $ch = curl_init($url);
@@ -1672,7 +1547,7 @@ class PatientAppointmentController extends Controller
                 'payload' => $payload,
             ]);
 
-            $url = config('services.app_server.staging_url') . '/patient-portal/update-transport/' . $apptId;
+            $url = config('services.app_server.api_url') . '/patient-portal/update-transport/' . $apptId;
 
             $ch = curl_init($url);
             curl_setopt_array($ch, [
@@ -1994,7 +1869,7 @@ class PatientAppointmentController extends Controller
                 'payload'    => $payload,
             ]);
 
-            $url = config('services.app_server.staging_url')
+            $url = config('services.app_server.api_url')
                 . '/patient-portal/schedule/' . rawurlencode($userName) . '/' . $caseId . '/' . $maId . '/' . $patientId;
 
             $ch = curl_init($url);
@@ -2192,7 +2067,7 @@ class PatientAppointmentController extends Controller
                 'payload'   => $payload,
             ]);
 
-            $url = config('services.app_server.staging_url')
+            $url = config('services.app_server.api_url')
                 . '/patient-portal/appointment-cancel/' . rawurlencode($userName) . '/' . $caseId . '/' . $attendId;
 
             $ch = curl_init($url);

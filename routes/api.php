@@ -65,7 +65,6 @@ Route::middleware(['auth:api', 'role.api:User', 'patient.active'])->group(functi
     Route::get('check-sessions-completed',[PatientAppointmentController::class, 'checkSessionsCompleted']);
     Route::get('get-approved-preauth',[PatientAppointmentController::class, 'getApprovedPreauth']);
     Route::get('get-time-slots-date-range',[PatientAppointmentController::class, 'getTimeSlotDateRange']);
-    Route::post('schedule-patient-appointment/{userName}/{caseId}',[PatientAppointmentController::class, 'schedulePatientAppointment']);
     Route::post('appointment-reschedule',[PatientAppointmentController::class, 'appointmentReschedule']);
     Route::post('update-transport',[PatientAppointmentController::class, 'updateTransport']);
     Route::post('notify-patient-preauth-missing-details',[PatientAppointmentController::class, 'notifyPatientPreauthMissingDetails']);
