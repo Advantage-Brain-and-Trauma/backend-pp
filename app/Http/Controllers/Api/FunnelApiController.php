@@ -186,10 +186,10 @@ class FunnelApiController extends Controller
      * - patient_id, case_id
      *
      * Response:
-     * - 200: { status: true, message: string, data: [{ id, funnel_name, submission_status, pending_count }] }
+     * - 200: { status: true, message: string, data: [{ id, funnel_name, form_submission_status }] }
      * - 500: { status: false, message: string }
      */
-    
+
 
     public function getDirectPatientFunnels(Request $request)
     {
@@ -265,8 +265,6 @@ class FunnelApiController extends Controller
 
                 $formIds = is_array($formIds) ? $formIds : [];
 
-                $totalForms = count($formIds);
-
                 $userFunnelId = $userFunnelIdByFunnel->get($funnel->id);
 
                 $submittedForms = FormSubmission::where('user_id', $user->id)
@@ -277,13 +275,10 @@ class FunnelApiController extends Controller
                     ->distinct('form_id')
                     ->count('form_id');
 
-                $pendingCount = max($totalForms - $submittedForms, 0);
-
                 return [
-                    'id'                => $funnel->id,
-                    'funnel_name'       => $funnel->name,
-                    'submission_status' => $pendingCount === 0 ? 'completed' : 'pending',
-                    'pending_count'     => $pendingCount,
+                    'id'                       => $funnel->id,
+                    'funnel_name'              => $funnel->name,
+                    'form_submission_status'   => $submittedForms > 0 ? 'completed' : 'pending',
                 ];
             });
 
