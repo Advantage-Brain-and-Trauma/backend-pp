@@ -180,7 +180,7 @@ class FunnelApiController extends Controller
     }
 
     /**
-     * GET /api/get-direct-patient-funnels
+     * GET /api/check-funnel-form-completion
      *
      * Request Payload:
      * - patient_id, case_id
@@ -191,7 +191,7 @@ class FunnelApiController extends Controller
      */
 
 
-    public function getDirectPatientFunnels(Request $request)
+    public function checkFunnelFormCompletion(Request $request)
     {
         try {
 
