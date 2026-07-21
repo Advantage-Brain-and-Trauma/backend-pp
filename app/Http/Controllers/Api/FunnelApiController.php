@@ -253,6 +253,8 @@ class FunnelApiController extends Controller
 
             $funnels = Funnel::whereIn('id', $userFunnels)
                 ->where('status', 'active')
+                ->whereRaw('LOWER(name) LIKE ?', ['%nppw%'])
+                ->limit(1)
                 ->get(['id', 'name', 'form_ids']);
 
             $funnels->transform(function ($funnel) use ($user, $userFunnelIdByFunnel) {
