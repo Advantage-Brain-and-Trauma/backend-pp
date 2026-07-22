@@ -1250,7 +1250,7 @@ class PatientAppointmentController extends Controller
                     'svc_date_start' => $svcDateStart,
                     'svc_date_end'   => $svcDateEnd,
                     'ext_date'       => $extDate,
-                    'appointment'    => [
+                    'appointments'    => [
                         'upcoming_appt' => $upcomingAppt,
                         'past_appt'     => $pastAppt,
                     ],
