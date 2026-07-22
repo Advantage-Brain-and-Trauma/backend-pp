@@ -1243,16 +1243,16 @@ class PatientAppointmentController extends Controller
 
             return response()->json([
                 'success' => true,
-                'data'    => [
-                    'appointment' => array_merge($apptDetails->toArray(), [
-                        'made_via'       => $madeVia,
-                        'svc_date_start' => $svcDateStart,
-                        'svc_date_end'   => $svcDateEnd,
-                        'ext_date'       => $extDate,
-                        'upcoming_appt'  => $upcomingAppt,
-                        'past_appt'      => $pastAppt,
-                    ]),
-                ],
+                'data'    => array_merge($apptDetails->toArray(), [
+                    'made_via'       => $madeVia,
+                    'svc_date_start' => $svcDateStart,
+                    'svc_date_end'   => $svcDateEnd,
+                    'ext_date'       => $extDate,
+                    'appointment'    => [
+                        'upcoming_appt' => $upcomingAppt,
+                        'past_appt'     => $pastAppt,
+                    ],
+                ]),
             ], 200);
 
 
