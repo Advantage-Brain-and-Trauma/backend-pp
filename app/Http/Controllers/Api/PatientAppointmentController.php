@@ -1212,6 +1212,7 @@ class PatientAppointmentController extends Controller
                     ->where('service',$apptDetails->service)
                     ->where('provider_id', $apptDetails->provider_id)
                     ->where('id', '!=', $appId)
+                    ->whereIn('attend_status', ['S', 'Check In', 'Check Out'])
                     ->get(['attend_date', 'time', 'end_time', 'attend_status']);
 
                 $now = now('America/Chicago');
