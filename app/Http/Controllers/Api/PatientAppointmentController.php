@@ -1205,7 +1205,10 @@ class PatientAppointmentController extends Controller
             $pastAppt     = [];
 
             if (!empty($apptDetails->ma_id) && !empty($apptDetails->provider_id)) {
-                $relatedAppointments = AhcsAttendance::where('provider_id', $apptDetails->provider_id)
+                $caseMedAuthIds = AhcsMedAuth::where('case_id', $caseId)->pluck('id');
+
+                $relatedAppointments = AhcsAttendance::whereIn('ma_id', $caseMedAuthIds)
+                    ->where('provider_id', $apptDetails->provider_id)
                     ->where('id', '!=', $appId)
                     ->get(['attend_date', 'time', 'end_time', 'attend_status']);
 
