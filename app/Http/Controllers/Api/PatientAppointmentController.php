@@ -1184,15 +1184,48 @@ class PatientAppointmentController extends Controller
             $svcDateStart = null;
             $svcDateEnd   = null;
             $extDate      = null;
+            $madeVia      = null;
 
             if (!empty($apptDetails->ma_id)) {
                 $medAuth = AhcsMedAuth::where('id', $apptDetails->ma_id)
                     ->first(['svc_date_start', 'svc_date_end', 'ext_date', 'made_via']);
 
-                if ($medAuth && $medAuth->made_via === 'preauth') {
-                    $svcDateStart = $medAuth->svc_date_start;
-                    $svcDateEnd   = $medAuth->svc_date_end;
-                    $extDate      = $medAuth->ext_date;
+                if ($medAuth) {
+                    $madeVia = $medAuth->made_via;
+
+                    if ($medAuth->made_via === 'preauth') {
+                        $svcDateStart = $medAuth->svc_date_start;
+                        $svcDateEnd   = $medAuth->svc_date_end;
+                        $extDate      = $medAuth->ext_date;
+                    }
+                }
+            }
+
+            $upcomingAppt = [];
+            $pastAppt     = [];
+
+            if (!empty($apptDetails->ma_id) && !empty($apptDetails->provider_id)) {
+                $relatedAppointments = AhcsAttendance::where('provider_id', $apptDetails->provider_id)
+                    ->where('id', '!=', $appId)
+                    ->get(['attend_date', 'time', 'end_time', 'attend_status']);
+
+                $now = now('America/Chicago');
+
+                foreach ($relatedAppointments as $relatedAppt) {
+                    $apptDateTime = Carbon::parse($relatedAppt->attend_date . ' ' . $relatedAppt->time, 'America/Chicago');
+
+                    $apptRow = [
+                        'attend_date'   => $relatedAppt->attend_date,
+                        'time'          => $relatedAppt->time,
+                        'end_time'      => $relatedAppt->end_time,
+                        'attend_status' => $relatedAppt->attend_status,
+                    ];
+
+                    if ($apptDateTime->gte($now)) {
+                        $upcomingAppt[] = $apptRow;
+                    } else {
+                        $pastAppt[] = $apptRow;
+                    }
                 }
             }
 
@@ -1204,12 +1237,16 @@ class PatientAppointmentController extends Controller
 
             return response()->json([
                 'success' => true,
-                'data'    => array_merge($apptDetails->toArray(), [
-                    'made_via'       => $medAuth->made_via,
-                    'svc_date_start' => $svcDateStart,
-                    'svc_date_end'   => $svcDateEnd,
-                    'ext_date'       => $extDate,
-                ]),
+                'data'    => [
+                    'appointment' => array_merge($apptDetails->toArray(), [
+                        'made_via'       => $madeVia,
+                        'svc_date_start' => $svcDateStart,
+                        'svc_date_end'   => $svcDateEnd,
+                        'ext_date'       => $extDate,
+                        'upcoming_appt'  => $upcomingAppt,
+                        'past_appt'      => $pastAppt,
+                    ]),
+                ],
             ], 200);
 
 
