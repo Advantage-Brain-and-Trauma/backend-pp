@@ -1208,6 +1208,8 @@ class PatientAppointmentController extends Controller
                 $caseMedAuthIds = AhcsMedAuth::where('case_id', $caseId)->pluck('id');
 
                 $relatedAppointments = AhcsAttendance::whereIn('ma_id', $caseMedAuthIds)
+                    ->where('department',$apptDetails->department)
+                    ->where('service',$apptDetails->service)
                     ->where('provider_id', $apptDetails->provider_id)
                     ->where('id', '!=', $appId)
                     ->get(['attend_date', 'time', 'end_time', 'attend_status']);
