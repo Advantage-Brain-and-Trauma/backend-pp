@@ -954,7 +954,7 @@ class PatientAppointmentController extends Controller
             return response()->json(['status' => false, 'message' => 'Invalid Case ID for this patient.'], 422);
         }
 
-        $url = config('services.app_server.api_url') . '/patient-portal/get-approved-preauth'
+        $url = config('services.app_server.staging_url') . '/patient-portal/get-approved-preauth'
             . ($caseId ? '?' . http_build_query(['case_id' => $caseId]) : '');
 
         $ch = curl_init($url);
