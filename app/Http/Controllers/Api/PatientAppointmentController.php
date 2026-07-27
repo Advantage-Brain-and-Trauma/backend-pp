@@ -1207,7 +1207,7 @@ class PatientAppointmentController extends Controller
                         }
 
                         if (!empty($apptDetails->attend_type)) {
-                            $orderType = MedhiwaCareNewOrderType::where('code', $visitType->attend_type)
+                            $orderType = MedhiwaCareNewOrderType::where('code', $apptDetails->attend_type)
                                 ->first(['allow_patient_portal']);
                             $allowVisitType = $orderType->allow_patient_portal ?? null;
                         }

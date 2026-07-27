@@ -20,6 +20,7 @@ class MedhiwaSpecialityLocation extends Model
         'speciality_id',
         'company_id',
         'status',
+        'phone_no_patient_portal'
     ];
 
 
