@@ -1185,14 +1185,12 @@ class PatientAppointmentController extends Controller
             $svcDateEnd      = null;
             $extDate         = null;
             $madeVia         = null;
-            $medauthFacility = null;
             $facilityPhoneNo = null;
-            $visitType       = null;
             $allowVisitType  = null;
 
             if (!empty($apptDetails->ma_id)) {
                 $medAuth = AhcsMedAuth::where('id', $apptDetails->ma_id)
-                    ->first(['svc_date_start', 'svc_date_end', 'ext_date', 'made_via', 'medauth_facility', 'pa_req']);
+                    ->first(['svc_date_start', 'svc_date_end', 'ext_date', 'made_via']);
 
                 if ($medAuth) {
                     $madeVia = $medAuth->made_via;
@@ -1201,17 +1199,15 @@ class PatientAppointmentController extends Controller
                         $svcDateStart    = $medAuth->svc_date_start;
                         $svcDateEnd      = $medAuth->svc_date_end;
                         $extDate         = $medAuth->ext_date;
-                        $medauthFacility = $medAuth->medauth_facility;
-                        $visitType       = $medAuth->pa_req;
 
-                        if (!empty($medauthFacility)) {
-                            $location = MedhiwaSpecialityLocation::where('city', $medauthFacility)
+                        if (!empty($apptDetails->department)) {
+                            $location = MedhiwaSpecialityLocation::where('city', $apptDetails->department)
                                 ->first(['phone_no_patient_portal']);
                             $facilityPhoneNo = $location->phone_no_patient_portal ?? null;
                         }
 
-                        if (!empty($visitType)) {
-                            $orderType = MedhiwaCareNewOrderType::where('code', $visitType)
+                        if (!empty($apptDetails->attend_type)) {
+                            $orderType = MedhiwaCareNewOrderType::where('code', $visitType->attend_type)
                                 ->first(['allow_patient_portal']);
                             $allowVisitType = $orderType->allow_patient_portal ?? null;
                         }
@@ -1268,9 +1264,7 @@ class PatientAppointmentController extends Controller
                     'svc_date_start'   => $svcDateStart,
                     'svc_date_end'     => $svcDateEnd,
                     'ext_date'         => $extDate,
-                    // 'medauth_facility' => $medauthFacility,
                     'facility_phone_no' => $facilityPhoneNo,
-                    // 'visit_type'       => $visitType,
                     'allow_visit_type' => $allowVisitType,
                     'appointments'    => [
                         'upcoming_appt' => $upcomingAppt,
