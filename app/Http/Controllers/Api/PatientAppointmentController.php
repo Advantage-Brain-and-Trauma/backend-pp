@@ -1268,9 +1268,9 @@ class PatientAppointmentController extends Controller
                     'svc_date_start'   => $svcDateStart,
                     'svc_date_end'     => $svcDateEnd,
                     'ext_date'         => $extDate,
-                    'medauth_facility' => $medauthFacility,
+                    // 'medauth_facility' => $medauthFacility,
                     'facility_phone_no' => $facilityPhoneNo,
-                    'visit_type'       => $visitType,
+                    // 'visit_type'       => $visitType,
                     'allow_visit_type' => $allowVisitType,
                     'appointments'    => [
                         'upcoming_appt' => $upcomingAppt,
