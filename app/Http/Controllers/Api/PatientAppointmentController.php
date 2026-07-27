@@ -1199,19 +1199,19 @@ class PatientAppointmentController extends Controller
                         $svcDateStart    = $medAuth->svc_date_start;
                         $svcDateEnd      = $medAuth->svc_date_end;
                         $extDate         = $medAuth->ext_date;
-
-                        if (!empty($apptDetails->department)) {
-                            $location = MedhiwaSpecialityLocation::where('city', $apptDetails->department)
-                                ->first(['phone_no_patient_portal']);
-                            $facilityPhoneNo = $location->phone_no_patient_portal ?? null;
-                        }
-
-                        if (!empty($apptDetails->attend_type)) {
-                            $orderType = MedhiwaCareNewOrderType::where('code', $apptDetails->attend_type)
-                                ->first(['allow_patient_portal']);
-                            $allowVisitType = $orderType->allow_patient_portal ?? null;
-                        }
                     }
+                }
+
+                if (!empty($apptDetails->department)) {
+                    $location = MedhiwaSpecialityLocation::where('city', $apptDetails->department)
+                        ->first(['phone_no_patient_portal']);
+                    $facilityPhoneNo = $location->phone_no_patient_portal ?? null;
+                }
+
+                if (!empty($apptDetails->attend_type)) {
+                    $orderType = MedhiwaCareNewOrderType::where('code', $apptDetails->attend_type)
+                        ->first(['allow_patient_portal']);
+                    $allowVisitType = $orderType->allow_patient_portal ?? null;
                 }
             }
 
