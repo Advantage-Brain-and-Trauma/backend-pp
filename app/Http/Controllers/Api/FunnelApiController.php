@@ -24,9 +24,28 @@ use App\Services\PatientFormAmdSyncService;
 use Illuminate\Validation\Rules\Password;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use RuntimeException;
+use Carbon\Carbon;
 
 class FunnelApiController extends Controller
 {
+    /**
+     * Consent funnels (name contains "consent") must be resigned after 1 year;
+     * other funnel types (health questionnaires, etc.) never expire once completed.
+     */
+    private function isExpiredConsentAssignment(?Funnel $assignedFunnel, UserFunnel $assignment, array $funnelFormIds): bool
+    {
+        if (!$assignedFunnel || !str_contains(strtolower($assignedFunnel->name), 'consent')) {
+            return false;
+        }
+
+        $lastSignedAt = FormSubmission::where('user_funnel_id', $assignment->id)
+            ->whereIn('form_id', $funnelFormIds)
+            ->where('status', 'completed')
+            ->max('created_at');
+
+        return $lastSignedAt && Carbon::parse($lastSignedAt)->lt(now()->subYear());
+    }
+
     /**
      * Normalize a phone number for Twilio SMS delivery.
      * - 10 digits => 1XXXXXXXXXX
@@ -1186,26 +1205,40 @@ class FunnelApiController extends Controller
                     : 0;
 
                 if (count($funnelFormIds) > 0 && $completedCount >= count($funnelFormIds)) {
-                    DB::rollBack();
-                    Log::channel('patient_funnel')->info('Funnel already completed for this patient case.', [
+                    if ($this->isExpiredConsentAssignment($assignedFunnel, $existingActiveAssignment, $funnelFormIds)) {
+                        // Consent forms must be resigned after 1 year (health questionnaires and
+                        // other non-consent funnels never expire). Treat this like there was no
+                        // active assignment so a fresh one gets created and sent below.
+                        Log::channel('patient_funnel')->info('Consent funnel expired (signed over 1 year ago); reassigning.', [
+                            'patient_id' => $request->patient_id,
+                            'case_id'    => $request->case_id,
+                            'funnel_id'  => $existingActiveAssignment->funnel_id,
+                        ]);
+                        $existingActiveAssignment = null;
+                    } else {
+                        DB::rollBack();
+                        Log::channel('patient_funnel')->info('Funnel already completed for this patient case.', [
+                            'patient_id' => $request->patient_id,
+                            'case_id'    => $request->case_id,
+                            'funnel_id'  => $existingActiveAssignment->funnel_id,
+                            'user_id'    => $existingActiveAssignment->user_id,
+                        ]);
+                        return response()->json([
+                            'status'  => true,
+                            'message' => 'Funnel is already completed for this patient case.',
+                            'funnel_completed' => true,
+                        ], 200);
+                    }
+                }
+
+                if ($existingActiveAssignment) {
+                    Log::channel('patient_funnel')->warning('Active funnel assignment already exists for this patient case. Sending reminder.', [
                         'patient_id' => $request->patient_id,
                         'case_id'    => $request->case_id,
                         'funnel_id'  => $existingActiveAssignment->funnel_id,
                         'user_id'    => $existingActiveAssignment->user_id,
                     ]);
-                    return response()->json([
-                        'status'  => true,
-                        'message' => 'Funnel is already completed for this patient case.',
-                        'funnel_completed' => true,
-                    ], 200);
                 }
-
-                Log::channel('patient_funnel')->warning('Active funnel assignment already exists for this patient case. Sending reminder.', [
-                    'patient_id' => $request->patient_id,
-                    'case_id'    => $request->case_id,
-                    'funnel_id'  => $existingActiveAssignment->funnel_id,
-                    'user_id'    => $existingActiveAssignment->user_id,
-                ]);
             }
 
             // Always create a brand-new UserFunnel record.
@@ -1459,26 +1492,40 @@ class FunnelApiController extends Controller
                     : 0;
 
                 if (count($funnelFormIds) > 0 && $completedCount >= count($funnelFormIds)) {
-                    DB::rollBack();
-                    Log::channel('patient_funnel')->info('Funnel already completed for this patient case.', [
+                    if ($this->isExpiredConsentAssignment($assignedFunnel, $existingActiveAssignment, $funnelFormIds)) {
+                        // Consent forms must be resigned after 1 year (health questionnaires and
+                        // other non-consent funnels never expire). Treat this like there was no
+                        // active assignment so a fresh one gets created and sent below.
+                        Log::channel('patient_funnel')->info('Consent funnel expired (signed over 1 year ago); reassigning.', [
+                            'patient_id' => $request->patient_id,
+                            'case_id'    => $request->case_id,
+                            'funnel_id'  => $existingActiveAssignment->funnel_id,
+                        ]);
+                        $existingActiveAssignment = null;
+                    } else {
+                        DB::rollBack();
+                        Log::channel('patient_funnel')->info('Funnel already completed for this patient case.', [
+                            'patient_id' => $request->patient_id,
+                            'case_id'    => $request->case_id,
+                            'funnel_id'  => $existingActiveAssignment->funnel_id,
+                            'user_id'    => $existingActiveAssignment->user_id,
+                        ]);
+                        return response()->json([
+                            'status'  => true,
+                            'message' => 'Funnel is already completed for this patient case.',
+                            'funnel_completed' => true,
+                        ], 200);
+                    }
+                }
+
+                if ($existingActiveAssignment) {
+                    Log::channel('patient_funnel')->warning('Active funnel assignment already exists for this patient case. Sending reminder.', [
                         'patient_id' => $request->patient_id,
                         'case_id'    => $request->case_id,
                         'funnel_id'  => $existingActiveAssignment->funnel_id,
                         'user_id'    => $existingActiveAssignment->user_id,
                     ]);
-                    return response()->json([
-                        'status'  => true,
-                        'message' => 'Funnel is already completed for this patient case.',
-                        'funnel_completed' => true,
-                    ], 200);
                 }
-
-                Log::channel('patient_funnel')->warning('Active funnel assignment already exists for this patient case. Sending reminder.', [
-                    'patient_id' => $request->patient_id,
-                    'case_id'    => $request->case_id,
-                    'funnel_id'  => $existingActiveAssignment->funnel_id,
-                    'user_id'    => $existingActiveAssignment->user_id,
-                ]);
             }
 
             // Always create a brand-new UserFunnel record.
