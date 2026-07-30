@@ -125,6 +125,8 @@ Route::middleware(['auth:api', 'role.api:User', 'patient.active'])->group(functi
     Route::post('assign-funnel', [FunnelApiController::class, 'assignFunnel']);
     Route::post('check-assign-funnel', [FunnelApiController::class, 'CheckAssignFunnel']);
     Route::post('assign-funnel-sms', [FunnelApiController::class, 'assignFunnelSms']);
+    Route::post('multiple-assign-funnel', [FunnelApiController::class, 'multipleAssignFunnel']);
+    Route::post('multiple-assign-funnel-sms', [FunnelApiController::class, 'multipleAssignFunnelSms']);
     Route::post('add-patient-to-funnel', [FunnelApiController::class, 'addPatientToFunnel']);
     Route::post('direct-login', [LoginController::class, 'directLogin']);
     // Get direct patient funnels without auth 

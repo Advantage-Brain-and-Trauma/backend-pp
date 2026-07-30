@@ -1271,7 +1271,8 @@ class FunnelApiController extends Controller
                     $request->email,
                     $request->phone,
                     $flag,
-                    'email'
+                    'email',
+                    false
                 )
             );
             DB::commit();
@@ -1338,28 +1339,43 @@ class FunnelApiController extends Controller
                 'case_id'    => $request->case_id,
             ]);
 
-            $existingActiveAssignment = UserFunnel::where('patient_id', $request->patient_id)
+            $existingActiveAssignments = UserFunnel::where('patient_id', $request->patient_id)
                 ->where('patient_case_id', $patientCase->id)
-                ->first();
+                ->get();
 
-            if ($existingActiveAssignment) {
+            if ($existingActiveAssignments->isNotEmpty()) {
+
+                $firstAssignment = $existingActiveAssignments->first();
 
                 $flag = false;
-                $funnelName = Funnel::where('id', $existingActiveAssignment->funnel_id ?? null)->value('name');
-                if(isset($existingActiveAssignment->user_id) and !is_null($existingActiveAssignment->user_id)){
+                $funnelName = Funnel::where('id', $firstAssignment->funnel_id ?? null)->value('name');
+                if(isset($firstAssignment->user_id) and !is_null($firstAssignment->user_id)){
                     $flag = true;
                 }
+
+                $funnelIds = $existingActiveAssignments->pluck('funnel_id')->unique()->values();
+                $funnelNamesById = Funnel::whereIn('id', $funnelIds)->pluck('name', 'id');
+
+                $funnelDetails = $funnelIds->map(function ($funnelId) use ($funnelNamesById) {
+                    return [
+                        'funnel_id'   => $funnelId,
+                        'funnel_name' => $funnelNamesById->get($funnelId),
+                    ];
+                })->values();
+
                 return response()->json([
                     'status'  => true,
-                    'funnel_id' => $existingActiveAssignment->funnel_id,
+                    'funnel_id' => $firstAssignment->funnel_id,
                     'funnel_name' => $funnelName,
                     'assign_funnel' => $flag,
+                    'funnel_details' => $funnelDetails,
                 ]);
             }
 
             return response()->json([
                 'status'  => true,
                 'assign_funnel' => false,
+                'funnel_details' => [],
             ]);
         } catch (\Exception $e) {
 
@@ -1557,7 +1573,8 @@ class FunnelApiController extends Controller
                 (string) ($user?->email ?? ''),
                 (string) $normalizedPhone,
                 (string) $flag,
-                'sms'
+                'sms',
+                false
             ))->funnelUrl;
 
             $twilioSid = config('services.twilio.sid');
@@ -1617,6 +1634,536 @@ class FunnelApiController extends Controller
             return response()->json([
                 'status'  => false,
                 'message' => 'Something went wrong while assigning the funnel via SMS.',
+            ], 500);
+        }
+    }
+
+    /**
+     * POST /api/multiple-assign-funnel
+     *
+     * Assigns multiple funnels to a patient/case in a single request and sends
+     * one assignment email per funnel. Per-funnel behavior (existing-assignment
+     * guard, consent expiry, UserFunnel creation) is identical to assignFunnel().
+     *
+     * Request Payload:
+     * - patient_id (required, int, exists in ahcs.ahcs_patients)
+     * - case_id (required, int, exists in ahcs.ahcs_cases)
+     * - email (required, valid email)
+     * - phone (nullable, string, max:20)
+     * - funnels (required, array, min:1)
+     *   - funnels.*.funnel_id (required, int, exists in funnels)
+     *   - funnels.*.funnel_name (required, string, max:255)
+     *
+     * Example payload:
+     * {
+     *   "patient_id": 123,
+     *   "case_id": 456,
+     *   "email": "patient@example.com",
+     *   "phone": "5551234567",
+     *   "funnels": [
+     *     { "funnel_id": 1, "funnel_name": "NPPW Consent" },
+     *     { "funnel_id": 2, "funnel_name": "Health Questionnaire" }
+     *   ]
+     * }
+     *
+     * Response:
+     * - 200: { status: true, message: string, results: [{ funnel_id, funnel_name, status, message }] }
+     * - 422: { status: false, message: string, errors: string }
+     * - 500: { status: false, message: string }
+     */
+    public function multipleAssignFunnel(Request $request)
+    {
+        try {
+            Log::channel('patient_funnel')->info('Multiple assign funnel request received', [
+                'patient_id' => $request->patient_id,
+                'case_id'    => $request->case_id,
+                'funnels'    => $request->funnels,
+            ]);
+
+            $validator = Validator::make($request->all(), [
+                'patient_id'            => 'required|integer|exists:ahcs.ahcs_patients,id',
+                'case_id'               => 'required|integer|exists:ahcs.ahcs_cases,id',
+                'email'                 => 'required|email',
+                'phone'                 => 'nullable|string|max:20',
+                'funnels'               => 'required|array|min:1',
+                'funnels.*.funnel_id'   => 'required|integer|exists:funnels,id',
+                'funnels.*.funnel_name' => 'required|string|max:255',
+            ]);
+
+            if ($validator->fails()) {
+                Log::channel('patient_funnel')->warning('Multiple assign funnel validation failed', [
+                    'patient_id' => $request->patient_id,
+                    'case_id'    => $request->case_id,
+                    'error'      => $validator->errors()->first(),
+                ]);
+
+                return response()->json([
+                    'status'  => false,
+                    'message' => 'Validation failed.',
+                    'errors'  => $validator->errors()->first(),
+                ], 422);
+            }
+
+            DB::beginTransaction();
+
+            $patient = AhcsPatient::find($request->patient_id);
+
+            // Check for an existing user by email OR patient_id membership
+            // (handles both old plain-int and new JSON-array storage formats).
+            $user = User::where('email', $request->email)
+                ->orWhere(function ($q) use ($request) {
+                    $pid = (int) $request->patient_id;
+                    $q->whereJsonContains('patient_id', $pid)
+                      ->orWhere('patient_id', $pid);
+                })
+                ->first();
+
+            $userId = $user?->id;
+            $flag   = $user ? 'user_exists' : 'no_user';
+            $patientName = $patient->patient_name
+                ?? $user?->name
+                ?? 'Patient';
+
+            // If user already exists, append the patient_id to their array without
+            // overwriting any previously stored patient IDs.
+            if ($user) {
+                $user->appendPatientId((int) $request->patient_id);
+            }
+
+            // Create patient case if not exists
+            $patientCase = PatientCase::firstOrCreate([
+                'patient_id' => $request->patient_id,
+                'case_id'    => $request->case_id,
+            ]);
+
+            $results = [];
+
+            foreach ($request->funnels as $funnelInput) {
+                $funnelId   = (int) $funnelInput['funnel_id'];
+                $funnelName = $funnelInput['funnel_name'];
+
+                // Guard: reject if an ACTIVE (non-deleted) assignment of THIS SAME funnel
+                // already exists for this patient + case. Multiple different funnels can
+                // be assigned to the same patient case — only re-assigning the same
+                // funnel is blocked. A previously DELETED assignment is intentionally
+                // ignored here — re-assigning after deletion must always start fresh.
+
+                $existingActiveAssignment = UserFunnel::where('patient_id', $request->patient_id)
+                    ->where('patient_case_id', $patientCase->id)
+                    ->where('funnel_id', $funnelId)
+                    ->first();
+
+                if ($existingActiveAssignment) {
+                    $assignedFunnel = Funnel::find($existingActiveAssignment->funnel_id);
+                    $funnelFormIds  = $assignedFunnel
+                        ? (is_array($assignedFunnel->form_ids)
+                            ? $assignedFunnel->form_ids
+                            : json_decode($assignedFunnel->form_ids ?? '[]', true))
+                        : [];
+                    $funnelFormIds = is_array($funnelFormIds) ? $funnelFormIds : [];
+
+                    $completedCount = count($funnelFormIds) > 0
+                        ? FormSubmission::where('user_funnel_id', $existingActiveAssignment->id)
+                            ->whereIn('form_id', $funnelFormIds)
+                            ->where('status', 'completed')
+                            ->distinct('form_id')
+                            ->count('form_id')
+                        : 0;
+
+                    if (count($funnelFormIds) > 0 && $completedCount >= count($funnelFormIds)) {
+                        if ($this->isExpiredConsentAssignment($assignedFunnel, $existingActiveAssignment, $funnelFormIds)) {
+                            // Consent forms must be resigned after 1 year (health questionnaires and
+                            // other non-consent funnels never expire). Treat this like there was no
+                            // active assignment so a fresh one gets created and sent below.
+                            Log::channel('patient_funnel')->info('Consent funnel expired (signed over 1 year ago); reassigning.', [
+                                'patient_id' => $request->patient_id,
+                                'case_id'    => $request->case_id,
+                                'funnel_id'  => $funnelId,
+                            ]);
+                            $existingActiveAssignment = null;
+                        } else {
+                            Log::channel('patient_funnel')->info('Funnel already completed for this patient case.', [
+                                'patient_id' => $request->patient_id,
+                                'case_id'    => $request->case_id,
+                                'funnel_id'  => $funnelId,
+                                'user_id'    => $existingActiveAssignment->user_id,
+                            ]);
+                            $results[] = [
+                                'funnel_id'   => $funnelId,
+                                'funnel_name' => $funnelName,
+                                'status'      => 'already_completed',
+                                'message'     => 'Funnel is already completed for this patient case.',
+                            ];
+                            continue;
+                        }
+                    }
+
+                    if ($existingActiveAssignment) {
+                        Log::channel('patient_funnel')->warning('Active funnel assignment already exists for this patient case. Sending reminder.', [
+                            'patient_id' => $request->patient_id,
+                            'case_id'    => $request->case_id,
+                            'funnel_id'  => $funnelId,
+                            'user_id'    => $existingActiveAssignment->user_id,
+                        ]);
+                    }
+                }
+
+                // Always create a brand-new UserFunnel record.
+                //
+                // WHY: Restoring a soft-deleted record reuses the same primary key
+                // (user_funnel_id). All FormSubmissions previously linked to that ID
+                // would instantly re-appear, making the patient look like they already
+                // completed everything even though the assignment was deleted and
+                // re-created intentionally. A new record = new ID = clean slate.
+                if (!$existingActiveAssignment) {
+                    UserFunnel::create([
+                        'user_id'         => $userId,
+                        'patient_id'      => $request->patient_id,
+                        'funnel_id'       => $funnelId,
+                        'patient_case_id' => $patientCase->id,
+                        'assigned_via'    => 'email',
+                        'assigned_at'     => now(),
+                        'email'           => $request->email,
+                    ]);
+                }
+
+                // Send email
+                Mail::to($request->email)->send(
+                    new AssignFunnelMail(
+                        $request->patient_id,
+                        $request->case_id,
+                        $funnelId,
+                        $funnelName,
+                        $patientName,
+                        $request->email,
+                        $request->phone,
+                        $flag,
+                        'email',
+                        count($request->funnels) > 1
+                    )
+                );
+
+                $results[] = [
+                    'funnel_id'   => $funnelId,
+                    'funnel_name' => $funnelName,
+                    'status'      => 'assigned',
+                    'message'     => 'Funnel assigned and email sent successfully.',
+                ];
+            }
+
+            DB::commit();
+
+            Log::channel('patient_funnel')->info('Multiple funnels assigned successfully', [
+                'patient_id' => $request->patient_id,
+                'case_id'    => $request->case_id,
+                'user_id'    => $userId,
+                'flag'       => $flag,
+                'results'    => $results,
+            ]);
+
+            return response()->json([
+                'status'  => true,
+                'message' => 'Funnels processed successfully.',
+                'results' => $results,
+            ], 200);
+
+        } catch (\Throwable $e) {
+
+            DB::rollBack();
+
+            Log::channel('patient_funnel')->error('Error assigning multiple funnels', [
+                'patient_id' => $request->patient_id ?? null,
+                'case_id'    => $request->case_id ?? null,
+                'message'    => $e->getMessage(),
+                'line'       => $e->getLine(),
+                'file'       => $e->getFile(),
+            ]);
+
+            return response()->json([
+                'status'  => false,
+                'message' => 'Something went wrong while assigning the funnels.',
+            ], 500);
+        }
+    }
+
+    /**
+     * POST /api/multiple-assign-funnel-sms
+     *
+     * Assigns multiple funnels to a patient/case in a single request and sends
+     * one assignment SMS per funnel. Per-funnel behavior (existing-assignment
+     * guard, consent expiry, UserFunnel creation) is identical to assignFunnelSms().
+     *
+     * Request Payload:
+     * - patient_id (required, int, exists in ahcs.ahcs_patients)
+     * - case_id (required, int, exists in ahcs.ahcs_cases)
+     * - phone (required, string, max:20)
+     * - email (nullable, valid email, max:255) — stored in user_funnels and used for user lookup
+     * - funnels (required, array, min:1)
+     *   - funnels.*.funnel_id (required, int, exists in funnels)
+     *   - funnels.*.funnel_name (required, string, max:255)
+     *
+     * Example payload:
+     * {
+     *   "patient_id": 123,
+     *   "case_id": 456,
+     *   "phone": "5551234567",
+     *   "email": "patient@example.com",
+     *   "funnels": [
+     *     { "funnel_id": 1, "funnel_name": "NPPW Consent" },
+     *     { "funnel_id": 2, "funnel_name": "Health Questionnaire" }
+     *   ]
+     * }
+     *
+     * Response:
+     * - 200: { status: true, message: string, results: [{ funnel_id, funnel_name, status, message }] }
+     * - 422: { status: false, message: string, errors: string }
+     * - 500: { status: false, message: string }
+     */
+    public function multipleAssignFunnelSms(Request $request)
+    {
+        try {
+            Log::channel('patient_funnel')->info('Multiple assign funnel SMS request received', [
+                'patient_id' => $request->patient_id,
+                'case_id'    => $request->case_id,
+                'funnels'    => $request->funnels,
+            ]);
+
+            $validator = Validator::make($request->all(), [
+                'patient_id'            => 'required|integer|exists:ahcs.ahcs_patients,id',
+                'case_id'               => 'required|integer|exists:ahcs.ahcs_cases,id',
+                'phone'                 => 'required|string|max:20',
+                'email'                 => 'nullable|email|max:255',
+                'funnels'               => 'required|array|min:1',
+                'funnels.*.funnel_id'   => 'required|integer|exists:funnels,id',
+                'funnels.*.funnel_name' => 'required|string|max:255',
+            ]);
+
+            if ($validator->fails()) {
+                Log::channel('patient_funnel')->warning('Multiple assign funnel SMS validation failed', [
+                    'patient_id' => $request->patient_id,
+                    'case_id'    => $request->case_id,
+                    'error'      => $validator->errors()->first(),
+                ]);
+
+                return response()->json([
+                    'status'  => false,
+                    'message' => 'Validation failed.',
+                    'errors'  => $validator->errors()->first(),
+                ], 422);
+            }
+
+            DB::beginTransaction();
+            $normalizedPhone = $this->normalizePhoneForSms((string) $request->phone);
+            $normalizedDigits = preg_replace('/\D+/', '', $normalizedPhone);
+            if (strlen($normalizedDigits) < 11) {
+                return response()->json([
+                    'status'  => false,
+                    'message' => 'Validation failed.',
+                    'errors'  => 'Please provide a valid phone number.',
+                ], 422);
+            }
+
+            $patient = AhcsPatient::find($request->patient_id);
+
+            // Check for an existing user by email OR patient_id membership
+            // (handles both old plain-int and new JSON-array storage formats).
+            $user = $request->filled('email')
+                ? User::where('email', $request->email)
+                      ->orWhere(function ($q) use ($request) {
+                          $pid = (int) $request->patient_id;
+                          $q->whereJsonContains('patient_id', $pid)
+                            ->orWhere('patient_id', $pid);
+                      })
+                      ->first()
+                : User::hasPatientId((int) $request->patient_id)->first();
+
+            $userId = $user?->id;
+            $flag   = $user ? 'user_exists' : 'no_user';
+            $patientName = $patient->patient_name
+                ?? $user?->name
+                ?? 'Patient';
+
+            // If user already exists, append the patient_id to their array without
+            // overwriting any previously stored patient IDs.
+            if ($user) {
+                $user->appendPatientId((int) $request->patient_id);
+            }
+
+            $patientCase = PatientCase::firstOrCreate([
+                'patient_id' => $request->patient_id,
+                'case_id'    => $request->case_id,
+            ]);
+
+            $twilioSid = config('services.twilio.sid');
+            $twilioToken = config('services.twilio.token');
+            $twilioFrom = config('services.twilio.from');
+
+            if (empty($twilioSid) || empty($twilioToken) || empty($twilioFrom)) {
+                throw new RuntimeException('Twilio SMS configuration is missing.');
+            }
+
+            $results = [];
+
+            foreach ($request->funnels as $funnelInput) {
+                $funnelId   = (int) $funnelInput['funnel_id'];
+                $funnelName = $funnelInput['funnel_name'];
+
+                // Guard: reject if an ACTIVE (non-deleted) assignment of THIS SAME funnel
+                // already exists for this patient + case. Multiple different funnels can
+                // be assigned to the same patient case — only re-assigning the same
+                // funnel is blocked. A previously DELETED assignment is intentionally
+                // ignored here — re-assigning after deletion must always start fresh.
+
+                $existingActiveAssignment = UserFunnel::where('patient_id', $request->patient_id)
+                    ->where('patient_case_id', $patientCase->id)
+                    ->where('funnel_id', $funnelId)
+                    ->first();
+
+                if ($existingActiveAssignment) {
+                    $assignedFunnel = Funnel::find($existingActiveAssignment->funnel_id);
+                    $funnelFormIds  = $assignedFunnel
+                        ? (is_array($assignedFunnel->form_ids)
+                            ? $assignedFunnel->form_ids
+                            : json_decode($assignedFunnel->form_ids ?? '[]', true))
+                        : [];
+                    $funnelFormIds = is_array($funnelFormIds) ? $funnelFormIds : [];
+
+                    $completedCount = count($funnelFormIds) > 0
+                        ? FormSubmission::where('user_funnel_id', $existingActiveAssignment->id)
+                            ->whereIn('form_id', $funnelFormIds)
+                            ->where('status', 'completed')
+                            ->distinct('form_id')
+                            ->count('form_id')
+                        : 0;
+
+                    if (count($funnelFormIds) > 0 && $completedCount >= count($funnelFormIds)) {
+                        if ($this->isExpiredConsentAssignment($assignedFunnel, $existingActiveAssignment, $funnelFormIds)) {
+                            // Consent forms must be resigned after 1 year (health questionnaires and
+                            // other non-consent funnels never expire). Treat this like there was no
+                            // active assignment so a fresh one gets created and sent below.
+                            Log::channel('patient_funnel')->info('Consent funnel expired (signed over 1 year ago); reassigning.', [
+                                'patient_id' => $request->patient_id,
+                                'case_id'    => $request->case_id,
+                                'funnel_id'  => $funnelId,
+                            ]);
+                            $existingActiveAssignment = null;
+                        } else {
+                            Log::channel('patient_funnel')->info('Funnel already completed for this patient case.', [
+                                'patient_id' => $request->patient_id,
+                                'case_id'    => $request->case_id,
+                                'funnel_id'  => $funnelId,
+                                'user_id'    => $existingActiveAssignment->user_id,
+                            ]);
+                            $results[] = [
+                                'funnel_id'   => $funnelId,
+                                'funnel_name' => $funnelName,
+                                'status'      => 'already_completed',
+                                'message'     => 'Funnel is already completed for this patient case.',
+                            ];
+                            continue;
+                        }
+                    }
+
+                    if ($existingActiveAssignment) {
+                        Log::channel('patient_funnel')->warning('Active funnel assignment already exists for this patient case. Sending reminder.', [
+                            'patient_id' => $request->patient_id,
+                            'case_id'    => $request->case_id,
+                            'funnel_id'  => $funnelId,
+                            'user_id'    => $existingActiveAssignment->user_id,
+                        ]);
+                    }
+                }
+
+                // Always create a brand-new UserFunnel record.
+                //
+                // WHY: Restoring a soft-deleted record reuses the same primary key
+                // (user_funnel_id). All FormSubmissions previously linked to that ID
+                // would instantly re-appear, making the patient look like they already
+                // completed everything even though the assignment was deleted and
+                // re-created intentionally. A new record = new ID = clean slate.
+                if (!$existingActiveAssignment) {
+                    UserFunnel::create([
+                        'user_id'         => $userId,
+                        'patient_id'      => $request->patient_id,
+                        'funnel_id'       => $funnelId,
+                        'patient_case_id' => $patientCase->id,
+                        'assigned_via'    => 'sms',
+                        'assigned_at'     => now(),
+                        'email'           => $request->email ?: null,
+                        'phone_no'        => $normalizedPhone,
+                    ]);
+                }
+
+                $funnelUrl = (new AssignFunnelMail(
+                    (string) $request->patient_id,
+                    (string) $request->case_id,
+                    (string) $funnelId,
+                    (string) $funnelName,
+                    (string) $patientName,
+                    (string) ($user?->email ?? ''),
+                    (string) $normalizedPhone,
+                    (string) $flag,
+                    'sms',
+                    count($request->funnels) > 1
+                ))->funnelUrl;
+
+                $smsBody = "Hello, {$patientName}.\n"
+                    . "You have received a new funnel form link for: {$funnelName}. Please use the link below to access and complete the form.\n"
+                    . "Click here to open your funnel form: {$funnelUrl}\n"
+                    . "If you have any questions, feel free to contact support.\n\n"
+                    . "Best Regards,\n"
+                    . "MedHiWa Team";
+
+                $smsResponse = Http::withBasicAuth($twilioSid, $twilioToken)
+                    ->asForm()
+                    ->post("https://api.twilio.com/2010-04-01/Accounts/{$twilioSid}/Messages.json", [
+                        'From' => $twilioFrom,
+                        'To'   => $normalizedPhone,
+                        'Body' => $smsBody,
+                    ]);
+
+                if ($smsResponse->failed()) {
+                    throw new RuntimeException('Twilio API error: ' . $smsResponse->body());
+                }
+
+                $results[] = [
+                    'funnel_id'   => $funnelId,
+                    'funnel_name' => $funnelName,
+                    'status'      => 'assigned',
+                    'message'     => 'Funnel assigned and SMS sent successfully.',
+                ];
+            }
+
+            DB::commit();
+
+            Log::channel('patient_funnel')->info('Multiple funnels assigned and SMS sent successfully', [
+                'patient_id' => $request->patient_id,
+                'case_id'    => $request->case_id,
+                'user_id'    => $userId,
+                'flag'       => $flag,
+                'results'    => $results,
+            ]);
+
+            return response()->json([
+                'status'  => true,
+                'message' => 'Funnels processed successfully.',
+                'results' => $results,
+            ], 200);
+
+        } catch (\Throwable $e) {
+            DB::rollBack();
+
+            Log::channel('patient_funnel')->error('Error assigning multiple funnels via SMS', [
+                'patient_id' => $request->patient_id ?? null,
+                'case_id'    => $request->case_id ?? null,
+                'message'    => $e->getMessage(),
+                'line'       => $e->getLine(),
+                'file'       => $e->getFile(),
+            ]);
+
+            return response()->json([
+                'status'  => false,
+                'message' => 'Something went wrong while assigning the funnels via SMS.',
             ], 500);
         }
     }

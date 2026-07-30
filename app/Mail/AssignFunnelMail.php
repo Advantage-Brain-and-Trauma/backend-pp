@@ -17,8 +17,8 @@ class AssignFunnelMail extends Mailable
     public string $funnelUrl;
     public string $flag;
 
-    // public function __construct(string $patientName, string $funnelName, string $funnelSlug) 
-    public function __construct(string $patientId, string $caseId, string $funnelId, string $funnelName,  string $patientName, string $email, string $phone,  string $flag, string $source) 
+    // public function __construct(string $patientName, string $funnelName, string $funnelSlug)
+    public function __construct(string $patientId, string $caseId, string $funnelId, string $funnelName,  string $patientName, string $email, string $phone,  string $flag, string $source, bool $isMultipleFunnel = false)
     {
         $this->patientName = $patientName;
         $this->funnelName  = $funnelName;
@@ -45,6 +45,7 @@ class AssignFunnelMail extends Mailable
         $params[$this->base64UrlEncode('source')] = $encodedSource;
         $params[$this->base64UrlEncode('patient_id')] = $encodedPatientId;
         $params[$this->base64UrlEncode('case_id')] = $encodedCaseId;
+        $params[$this->base64UrlEncode('is_multiple_funnels')] = $this->base64UrlEncode($isMultipleFunnel ? 'true' : 'false');
 
         if ($flag !== 'user_exists') {
 
