@@ -1339,43 +1339,28 @@ class FunnelApiController extends Controller
                 'case_id'    => $request->case_id,
             ]);
 
-            $existingActiveAssignments = UserFunnel::where('patient_id', $request->patient_id)
+            $existingActiveAssignment = UserFunnel::where('patient_id', $request->patient_id)
                 ->where('patient_case_id', $patientCase->id)
-                ->get();
+                ->first();
 
-            if ($existingActiveAssignments->isNotEmpty()) {
-
-                $firstAssignment = $existingActiveAssignments->first();
+            if ($existingActiveAssignment) {
 
                 $flag = false;
-                $funnelName = Funnel::where('id', $firstAssignment->funnel_id ?? null)->value('name');
-                if(isset($firstAssignment->user_id) and !is_null($firstAssignment->user_id)){
+                $funnelName = Funnel::where('id', $existingActiveAssignment->funnel_id ?? null)->value('name');
+                if(isset($existingActiveAssignment->user_id) and !is_null($existingActiveAssignment->user_id)){
                     $flag = true;
                 }
-
-                $funnelIds = $existingActiveAssignments->pluck('funnel_id')->unique()->values();
-                $funnelNamesById = Funnel::whereIn('id', $funnelIds)->pluck('name', 'id');
-
-                $funnelDetails = $funnelIds->map(function ($funnelId) use ($funnelNamesById) {
-                    return [
-                        'funnel_id'   => $funnelId,
-                        'funnel_name' => $funnelNamesById->get($funnelId),
-                    ];
-                })->values();
-
                 return response()->json([
                     'status'  => true,
-                    'funnel_id' => $firstAssignment->funnel_id,
+                    'funnel_id' => $existingActiveAssignment->funnel_id,
                     'funnel_name' => $funnelName,
                     'assign_funnel' => $flag,
-                    'funnel_details' => $funnelDetails,
                 ]);
             }
 
             return response()->json([
                 'status'  => true,
                 'assign_funnel' => false,
-                'funnel_details' => [],
             ]);
         } catch (\Exception $e) {
 
