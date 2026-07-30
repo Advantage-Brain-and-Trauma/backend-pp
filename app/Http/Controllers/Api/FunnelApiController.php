@@ -1157,12 +1157,15 @@ class FunnelApiController extends Controller
                 'case_id'    => $request->case_id,
             ]);
 
-            // Guard: reject if an ACTIVE (non-deleted) assignment already exists for
-            // this patient + case. A previously DELETED assignment is intentionally
+            // Guard: reject if an ACTIVE (non-deleted) assignment of THIS SAME funnel
+            // already exists for this patient + case. Multiple different funnels can
+            // be assigned to the same patient case — only re-assigning the same
+            // funnel is blocked. A previously DELETED assignment is intentionally
             // ignored here — re-assigning after deletion must always start fresh.
 
             $existingActiveAssignment = UserFunnel::where('patient_id', $request->patient_id)
                 ->where('patient_case_id', $patientCase->id)
+                ->where('funnel_id', $request->funnel_id)
                 ->first();
 
             if ($existingActiveAssignment) {
@@ -1173,22 +1176,6 @@ class FunnelApiController extends Controller
                         : json_decode($assignedFunnel->form_ids ?? '[]', true))
                     : [];
                 $funnelFormIds = is_array($funnelFormIds) ? $funnelFormIds : [];
-
-                if($request->funnel_id != $existingActiveAssignment->funnel_id){
-                    DB::rollBack();
-                    Log::channel('patient_funnel')->warning('Active funnel assignment with different funnel already exists for this patient case.', [
-                        'patient_id' => $request->patient_id,
-                        'case_id'    => $request->case_id,
-                        'existing_funnel_id'  => $existingActiveAssignment->funnel_id,
-                        'new_funnel_id'  => $request->funnel_id,
-                        'user_id'    => $existingActiveAssignment->user_id,
-                    ]);
-                    return response()->json([
-                        'status'  => true,
-                        'message' => 'A different active funnel assignment already exists for this patient case.',
-                        'funnel_completed' => false,
-                    ], 200);
-                }
 
                 $completedCount = count($funnelFormIds) > 0
                     ? FormSubmission::where('user_funnel_id', $existingActiveAssignment->id)
@@ -1443,12 +1430,15 @@ class FunnelApiController extends Controller
                 'case_id'    => $request->case_id,
             ]);
 
-            // Guard: reject if an ACTIVE (non-deleted) assignment already exists for
-            // this patient + case. A previously DELETED assignment is intentionally
+            // Guard: reject if an ACTIVE (non-deleted) assignment of THIS SAME funnel
+            // already exists for this patient + case. Multiple different funnels can
+            // be assigned to the same patient case — only re-assigning the same
+            // funnel is blocked. A previously DELETED assignment is intentionally
             // ignored here — re-assigning after deletion must always start fresh.
 
             $existingActiveAssignment = UserFunnel::where('patient_id', $request->patient_id)
                 ->where('patient_case_id', $patientCase->id)
+                ->where('funnel_id', $request->funnel_id)
                 ->first();
 
             if ($existingActiveAssignment) {
@@ -1459,22 +1449,6 @@ class FunnelApiController extends Controller
                         : json_decode($assignedFunnel->form_ids ?? '[]', true))
                     : [];
                 $funnelFormIds = is_array($funnelFormIds) ? $funnelFormIds : [];
-
-                if($request->funnel_id != $existingActiveAssignment->funnel_id){
-                    DB::rollBack();
-                    Log::channel('patient_funnel')->warning('Active funnel assignment with different funnel already exists for this patient case.', [
-                        'patient_id' => $request->patient_id,
-                        'case_id'    => $request->case_id,
-                        'existing_funnel_id'  => $existingActiveAssignment->funnel_id,
-                        'new_funnel_id'  => $request->funnel_id,
-                        'user_id'    => $existingActiveAssignment->user_id,
-                    ]);
-                    return response()->json([
-                        'status'  => true,
-                        'message' => 'A different active funnel assignment already exists for this patient case.',
-                        'funnel_completed' => false,
-                    ], 200);
-                }
 
                 $completedCount = count($funnelFormIds) > 0
                     ? FormSubmission::where('user_funnel_id', $existingActiveAssignment->id)
