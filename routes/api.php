@@ -124,6 +124,7 @@ Route::middleware(['auth:api', 'role.api:User', 'patient.active'])->group(functi
     Route::get('get-all-funnel-list', [FunnelApiController::class, 'getAllFunnelList']); // get all funnel list
     Route::post('assign-funnel', [FunnelApiController::class, 'assignFunnel']);
     Route::post('check-assign-funnel', [FunnelApiController::class, 'CheckAssignFunnel']);
+    Route::post('check-multiple-assign-funnel', [FunnelApiController::class, 'checkMultipleAssignFunnel']);
     Route::post('assign-funnel-sms', [FunnelApiController::class, 'assignFunnelSms']);
     Route::post('multiple-assign-funnel', [FunnelApiController::class, 'multipleAssignFunnel']);
     Route::post('multiple-assign-funnel-sms', [FunnelApiController::class, 'multipleAssignFunnelSms']);

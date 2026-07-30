@@ -1372,6 +1372,89 @@ class FunnelApiController extends Controller
     }
 
     /**
+     * POST /api/check-multiple-assign-funnel
+     *
+     * Same as checkAssignFunnel(), but returns every funnel currently assigned
+     * to the patient/case instead of only the first one.
+     *
+     * Request Payload:
+     * - patient_id (required, int, exists in ahcs.ahcs_patients)
+     * - case_id (required, int, exists in ahcs.ahcs_cases)
+     * - email (nullable, valid email)
+     * - phone (nullable, string, max:20)
+     *
+     * Response:
+     * - 200: { status: true, assign_funnel: bool, funnels: [{ funnel_id, funnel_name, assign_funnel }] }
+     * - 422: { status: false, message: string, errors: object }
+     * - 500: { status: false, message: string }
+     */
+    public function checkMultipleAssignFunnel(Request $request)
+    {
+        try {
+            Log::channel('patient_funnel')->info('Check multiple assign funnel request received', [
+                'patient_id' => $request->patient_id,
+                'case_id'    => $request->case_id,
+            ]);
+
+            $validator = Validator::make($request->all(), [
+                'patient_id'  => 'required|integer|exists:ahcs.ahcs_patients,id',
+                'case_id'     => 'required|integer|exists:ahcs.ahcs_cases,id',
+                'email'       => 'nullable|email',
+                'phone'       => 'nullable|string|max:20',
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'status'  => false,
+                    'message' => 'Validation failed.',
+                    'errors'  => $validator->errors(),
+                ], 422);
+            }
+
+            // Create patient case if not exists
+            $patientCase = PatientCase::firstOrCreate([
+                'patient_id' => $request->patient_id,
+                'case_id'    => $request->case_id,
+            ]);
+
+            $existingActiveAssignments = UserFunnel::where('patient_id', $request->patient_id)
+                ->where('patient_case_id', $patientCase->id)
+                ->get();
+
+            if ($existingActiveAssignments->isEmpty()) {
+                return response()->json([
+                    'status'  => true,
+                    'assign_funnel' => false,
+                    'funnels' => [],
+                ]);
+            }
+
+            $funnelIds = $existingActiveAssignments->pluck('funnel_id')->unique()->values();
+            $funnelNamesById = Funnel::whereIn('id', $funnelIds)->pluck('name', 'id');
+
+            $funnels = $existingActiveAssignments->map(function ($assignment) use ($funnelNamesById) {
+                return [
+                    'funnel_id'     => $assignment->funnel_id,
+                    'funnel_name'   => $funnelNamesById->get($assignment->funnel_id),
+                    'assign_funnel' => isset($assignment->user_id) && !is_null($assignment->user_id),
+                ];
+            })->values();
+
+            return response()->json([
+                'status'  => true,
+                'assign_funnel' => true,
+                'funnels' => $funnels,
+            ]);
+        } catch (\Exception $e) {
+
+            return response()->json([
+                'status'  => false,
+                'message' => 'An error occurred while checking funnel assignment: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
      * POST /api/assign-funnel-sms
      *
      * Assigns a funnel to a patient/case and sends the assignment SMS.
