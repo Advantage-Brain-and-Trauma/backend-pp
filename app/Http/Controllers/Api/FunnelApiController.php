@@ -1321,8 +1321,6 @@ class FunnelApiController extends Controller
             $validator = Validator::make($request->all(), [
                 'patient_id'  => 'required|integer|exists:ahcs.ahcs_patients,id',
                 'case_id'     => 'required|integer|exists:ahcs.ahcs_cases,id',
-                'email'       => 'nullable|email',
-                'phone'       => 'nullable|string|max:20',
             ]);
 
             if ($validator->fails()) {
@@ -1380,8 +1378,7 @@ class FunnelApiController extends Controller
      * Request Payload:
      * - patient_id (required, int, exists in ahcs.ahcs_patients)
      * - case_id (required, int, exists in ahcs.ahcs_cases)
-     * - email (nullable, valid email)
-     * - phone (nullable, string, max:20)
+     * 
      *
      * Response:
      * - 200: { status: true, assign_funnel: bool, funnels: [{ funnel_id, funnel_name, assign_funnel }] }
@@ -1399,8 +1396,6 @@ class FunnelApiController extends Controller
             $validator = Validator::make($request->all(), [
                 'patient_id'  => 'required|integer|exists:ahcs.ahcs_patients,id',
                 'case_id'     => 'required|integer|exists:ahcs.ahcs_cases,id',
-                'email'       => 'nullable|email',
-                'phone'       => 'nullable|string|max:20',
             ]);
 
             if ($validator->fails()) {
