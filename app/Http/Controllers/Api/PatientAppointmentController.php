@@ -1204,8 +1204,8 @@ class PatientAppointmentController extends Controller
 
                 if (!empty($apptDetails->department)) {
                     $location = MedhiwaSpecialityLocation::whereRaw('LOWER(city) = ?', [strtolower($apptDetails->department)])
-                        ->first(['phone_no_patient_portal']);
-                    $facilityPhoneNo = $location->phone_no_patient_portal ?? null;
+                        ->first(['location_phone_no']);
+                    $facilityPhoneNo = $location->location_phone_no ?? null;
                 }
 
                 if (!empty($apptDetails->attend_type)) {
