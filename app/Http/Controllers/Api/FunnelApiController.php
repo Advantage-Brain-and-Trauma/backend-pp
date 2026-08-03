@@ -1260,21 +1260,21 @@ class FunnelApiController extends Controller
                 ]);
             }
 
-            // Send email
-            Mail::to($request->email)->send(
-                new AssignFunnelMail(
-                    $request->patient_id,
-                    $request->case_id,
-                    $request->funnel_id,
-                    $request->funnel_name,
-                    $patientName,
-                    $request->email,
-                    $request->phone,
-                    $flag,
-                    'email',
-                    false
-                )
+            $funnelMail = new AssignFunnelMail(
+                $request->patient_id,
+                $request->case_id,
+                $request->funnel_id,
+                $request->funnel_name,
+                $patientName,
+                $request->email,
+                $request->phone,
+                $flag,
+                'email',
+                false
             );
+
+            // Send email
+            Mail::to($request->email)->send($funnelMail);
             DB::commit();
 
             Log::channel('patient_funnel')->info('Funnel assigned successfully', [
@@ -1288,6 +1288,7 @@ class FunnelApiController extends Controller
             return response()->json([
                 'status'  => true,
                 'message' => 'Funnel assigned and email sent successfully.',
+                'url'     => $funnelMail->funnelUrl,
             ], 200);
 
         } catch (\Throwable $e) {
@@ -1680,6 +1681,7 @@ class FunnelApiController extends Controller
             return response()->json([
                 'status'  => true,
                 'message' => 'Funnel assigned and SMS sent successfully.',
+                'url'     => $funnelUrl,
             ], 200);
 
         } catch (\Throwable $e) {
@@ -1730,7 +1732,7 @@ class FunnelApiController extends Controller
      * }
      *
      * Response:
-     * - 200: { status: true, message: string, results: [{ funnel_id, funnel_name, status, message }] }
+     * - 200: { status: true, message: string, results: [{ funnel_id, funnel_name, status, message, url? }] }
      * - 422: { status: false, message: string, errors: string }
      * - 500: { status: false, message: string }
      */
@@ -1890,27 +1892,28 @@ class FunnelApiController extends Controller
                     ]);
                 }
 
-                // Send email
-                Mail::to($request->email)->send(
-                    new AssignFunnelMail(
-                        $request->patient_id,
-                        $request->case_id,
-                        $funnelId,
-                        $funnelName,
-                        $patientName,
-                        $request->email,
-                        $request->phone,
-                        $flag,
-                        'email',
-                        count($request->funnels) > 1
-                    )
+                $funnelMail = new AssignFunnelMail(
+                    $request->patient_id,
+                    $request->case_id,
+                    $funnelId,
+                    $funnelName,
+                    $patientName,
+                    $request->email,
+                    $request->phone,
+                    $flag,
+                    'email',
+                    count($request->funnels) > 1
                 );
+
+                // Send email
+                Mail::to($request->email)->send($funnelMail);
 
                 $results[] = [
                     'funnel_id'   => $funnelId,
                     'funnel_name' => $funnelName,
                     'status'      => 'assigned',
                     'message'     => 'Funnel assigned and email sent successfully.',
+                    'url'         => $funnelMail->funnelUrl,
                 ];
             }
 
@@ -1978,7 +1981,7 @@ class FunnelApiController extends Controller
      * }
      *
      * Response:
-     * - 200: { status: true, message: string, results: [{ funnel_id, funnel_name, status, message }] }
+     * - 200: { status: true, message: string, results: [{ funnel_id, funnel_name, status, message, url? }] }
      * - 422: { status: false, message: string, errors: string }
      * - 500: { status: false, message: string }
      */
@@ -2194,6 +2197,7 @@ class FunnelApiController extends Controller
                     'funnel_name' => $funnelName,
                     'status'      => 'assigned',
                     'message'     => 'Funnel assigned and SMS sent successfully.',
+                    'url'         => $funnelUrl,
                 ];
             }
 
