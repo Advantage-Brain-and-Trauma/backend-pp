@@ -305,13 +305,17 @@ class PatientController extends Controller
                 $referTypesById = AhcsIntake::whereIn('id', $caseRecords->pluck('id'))
                     ->pluck('refer_type', 'id');
 
-                $cases = $caseRecords->mapWithKeys(function ($case) use ($referTypesById) {
+                $cases = $caseRecords->map(function ($case) use ($referTypesById) {
                     $insuranceType = $referTypesById[$case->id] ?? null;
                     if (empty($insuranceType)) {
                         $insuranceType = $case->ins_type;
                     }
-                    return [(string) $case->id => [($case->doi ?? '') . ' - ' . ($insuranceType ?? '')]];
-                });
+                    return [
+                        'id'             => $case->id,
+                        'doi'            => $case->doi ?? '',
+                        'insurance_type' => $insuranceType ?? '',
+                    ];
+                })->values();
 
                 return response()->json([
                     'success'     => true,
@@ -382,13 +386,17 @@ class PatientController extends Controller
             $referTypesById = AhcsIntake::whereIn('id', $caseIds)
                 ->pluck('refer_type', 'id');
 
-            $cases = $caseRecords->mapWithKeys(function ($case) use ($referTypesById) {
+            $cases = $caseRecords->map(function ($case) use ($referTypesById) {
                 $insuranceType = $referTypesById[$case->id] ?? null;
                 if (empty($insuranceType)) {
                     $insuranceType = $case->ins_type;
                 }
-                return [(string) $case->id => [($case->doi ?? '') . ' - ' . ($insuranceType ?? '')]];
-            });
+                return [
+                    'id'             => $case->id,
+                    'doi'            => $case->doi ?? '',
+                    'insurance_type' => $insuranceType ?? '',
+                ];
+            })->values();
 
             Log::channel('patient')->info('Case IDs fetched successfully', [
                 'user_id'          => $authUser->id,
