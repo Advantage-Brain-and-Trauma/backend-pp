@@ -298,14 +298,20 @@ class PatientController extends Controller
                     'case_count'      => count($caseIds),
                 ]);
 
-                $cases = AhcsCase::whereIn('id', $caseIds)
+                $caseRecords = AhcsCase::whereIn('id', $caseIds)
                     ->whereIn('patient_id', $patientIds)
-                    ->get(['id', 'patient_id', 'doi'])
-                    ->map(function ($case) {
-                        $patient = AhcsPatient::where('id', $case->patient_id)->first(['patient_name']);
-                        return ($patient->patient_name ?? '') . ' - ' . ($case->doi ?? '') . ' - ' . $case->id;
-                    })
-                    ->values();
+                    ->get(['id', 'patient_id', 'doi', 'ins_type']);
+
+                $referTypesById = AhcsIntake::whereIn('id', $caseRecords->pluck('id'))
+                    ->pluck('refer_type', 'id');
+
+                $cases = $caseRecords->map(function ($case) use ($referTypesById) {
+                    $insuranceType = $referTypesById[$case->id] ?? null;
+                    if (empty($insuranceType)) {
+                        $insuranceType = $case->ins_type;
+                    }
+                    return ($case->doi ?? '') . ' - ' . ($insuranceType ?? '');
+                })->values();
 
                 return response()->json([
                     'success'     => true,
@@ -367,18 +373,21 @@ class PatientController extends Controller
 
             $caseRecords = AhcsCase::whereIn('patient_id', $patientIds)
                 ->whereNull('deleted_at')
-                ->get(['id', 'patient_id', 'doi'])
+                ->get(['id', 'patient_id', 'doi', 'ins_type'])
                 ->unique('id')
                 ->values();
 
             $caseIds = $caseRecords->pluck('id')->values()->toArray();
 
-            $patientNamesById = AhcsPatient::whereIn('id', $patientIds)
-                ->pluck('patient_name', 'id');
+            $referTypesById = AhcsIntake::whereIn('id', $caseIds)
+                ->pluck('refer_type', 'id');
 
-            $cases = $caseRecords->map(function ($case) use ($patientNamesById) {
-                $patientName = $patientNamesById[$case->patient_id] ?? '';
-                return $patientName . ' - ' . ($case->doi ?? '') . ' - ' . $case->id;
+            $cases = $caseRecords->map(function ($case) use ($referTypesById) {
+                $insuranceType = $referTypesById[$case->id] ?? null;
+                if (empty($insuranceType)) {
+                    $insuranceType = $case->ins_type;
+                }
+                return ($case->doi ?? '') . ' - ' . ($insuranceType ?? '');
             })->values();
 
             Log::channel('patient')->info('Case IDs fetched successfully', [
