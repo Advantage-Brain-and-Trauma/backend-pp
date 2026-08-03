@@ -305,13 +305,13 @@ class PatientController extends Controller
                 $referTypesById = AhcsIntake::whereIn('id', $caseRecords->pluck('id'))
                     ->pluck('refer_type', 'id');
 
-                $cases = $caseRecords->map(function ($case) use ($referTypesById) {
+                $cases = $caseRecords->mapWithKeys(function ($case) use ($referTypesById) {
                     $insuranceType = $referTypesById[$case->id] ?? null;
                     if (empty($insuranceType)) {
                         $insuranceType = $case->ins_type;
                     }
-                    return ($case->doi ?? '') . ' - ' . ($insuranceType ?? '');
-                })->values();
+                    return [(string) $case->id => [($case->doi ?? '') . ' - ' . ($insuranceType ?? '')]];
+                });
 
                 return response()->json([
                     'success'     => true,
@@ -382,13 +382,13 @@ class PatientController extends Controller
             $referTypesById = AhcsIntake::whereIn('id', $caseIds)
                 ->pluck('refer_type', 'id');
 
-            $cases = $caseRecords->map(function ($case) use ($referTypesById) {
+            $cases = $caseRecords->mapWithKeys(function ($case) use ($referTypesById) {
                 $insuranceType = $referTypesById[$case->id] ?? null;
                 if (empty($insuranceType)) {
                     $insuranceType = $case->ins_type;
                 }
-                return ($case->doi ?? '') . ' - ' . ($insuranceType ?? '');
-            })->values();
+                return [(string) $case->id => [($case->doi ?? '') . ' - ' . ($insuranceType ?? '')]];
+            });
 
             Log::channel('patient')->info('Case IDs fetched successfully', [
                 'user_id'          => $authUser->id,
