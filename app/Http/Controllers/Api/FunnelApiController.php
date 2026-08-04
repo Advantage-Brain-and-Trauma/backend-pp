@@ -1801,7 +1801,8 @@ class FunnelApiController extends Controller
                 'case_id'    => $request->case_id,
             ]);
 
-            $results = [];
+            $results     = [];
+            $primaryMail = null;
 
             foreach ($request->funnels as $funnelInput) {
                 $funnelId   = (int) $funnelInput['funnel_id'];
@@ -1906,16 +1907,24 @@ class FunnelApiController extends Controller
                     'emails.multiple-assign-funnel'
                 );
 
-                // Send email
-                Mail::to($request->email)->send($funnelMail);
+                // Only one email is sent per multiple-assign-funnel request. The first
+                // successfully-assigned funnel's link is used; the frontend resolves the
+                // rest of the pending funnels for this patient/case via is_multiple_funnels.
+                if (!$primaryMail) {
+                    $primaryMail = $funnelMail;
+                }
 
                 $results[] = [
                     'funnel_id'   => $funnelId,
                     'funnel_name' => $funnelName,
                     'status'      => 'assigned',
-                    'message'     => 'Funnel assigned and email sent successfully.',
+                    'message'     => 'Funnel assigned successfully.',
                     'url'         => $funnelMail->funnelUrl,
                 ];
+            }
+
+            if ($primaryMail) {
+                Mail::to($request->email)->send($primaryMail);
             }
 
             DB::commit();
@@ -2069,7 +2078,8 @@ class FunnelApiController extends Controller
                 throw new RuntimeException('Twilio SMS configuration is missing.');
             }
 
-            $results = [];
+            $results        = [];
+            $primaryFunnelUrl = null;
 
             foreach ($request->funnels as $funnelInput) {
                 $funnelId   = (int) $funnelInput['funnel_id'];
@@ -2174,9 +2184,26 @@ class FunnelApiController extends Controller
                     count($request->funnels) > 1
                 ))->funnelUrl;
 
+                // Only one SMS is sent per multiple-assign-funnel-sms request. The first
+                // successfully-assigned funnel's link is used; the frontend resolves the
+                // rest of the pending funnels for this patient/case via is_multiple_funnels.
+                if ($primaryFunnelUrl === null) {
+                    $primaryFunnelUrl = $funnelUrl;
+                }
+
+                $results[] = [
+                    'funnel_id'   => $funnelId,
+                    'funnel_name' => $funnelName,
+                    'status'      => 'assigned',
+                    'message'     => 'Funnel assigned successfully.',
+                    'url'         => $funnelUrl,
+                ];
+            }
+
+            if ($primaryFunnelUrl !== null) {
                 $smsBody = "Hello, {$patientName}.\n"
                     . "You have received a new funnel form link. Please use the link below to access and complete the form.\n"
-                    . "Click here to open your funnel form: {$funnelUrl}\n"
+                    . "Click here to open your funnel form: {$primaryFunnelUrl}\n"
                     . "If you have any questions, feel free to contact support.\n\n"
                     . "Best Regards,\n"
                     . "MedHiWa Team";
@@ -2192,14 +2219,6 @@ class FunnelApiController extends Controller
                 if ($smsResponse->failed()) {
                     throw new RuntimeException('Twilio API error: ' . $smsResponse->body());
                 }
-
-                $results[] = [
-                    'funnel_id'   => $funnelId,
-                    'funnel_name' => $funnelName,
-                    'status'      => 'assigned',
-                    'message'     => 'Funnel assigned and SMS sent successfully.',
-                    'url'         => $funnelUrl,
-                ];
             }
 
             DB::commit();
