@@ -16,15 +16,15 @@ class AssignFunnelMail extends Mailable
     public string $funnelName;
     public string $funnelUrl;
     public string $flag;
-    public string $view;
+    public string $templateView;
 
     // public function __construct(string $patientName, string $funnelName, string $funnelSlug)
     public function __construct(string $patientId, string $caseId, string $funnelId, string $funnelName,  string $patientName, string $email, string $phone,  string $flag, string $source, bool $isMultipleFunnel = false, string $view = 'emails.assign-funnel')
     {
-        $this->patientName = $patientName;
-        $this->funnelName  = $funnelName;
-        $this->flag        = $flag;
-        $this->view        = $view;
+        $this->patientName  = $patientName;
+        $this->funnelName   = $funnelName;
+        $this->flag         = $flag;
+        $this->templateView = $view;
 
         $baseUrl = 'https://app.advantagehcs.com';
 
@@ -78,7 +78,7 @@ class AssignFunnelMail extends Mailable
     public function content(): Content
     {
         return new Content(
-            view: $this->view,
+            view: $this->templateView,
         );
     }
 
