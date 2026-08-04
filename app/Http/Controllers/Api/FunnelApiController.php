@@ -2583,6 +2583,7 @@ class FunnelApiController extends Controller
         }
     }
 
+    
     /**
      * GET /api/get-all-funnel-list
      *
