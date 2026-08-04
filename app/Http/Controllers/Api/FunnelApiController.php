@@ -1902,7 +1902,8 @@ class FunnelApiController extends Controller
                     $request->phone,
                     $flag,
                     'email',
-                    count($request->funnels) > 1
+                    count($request->funnels) > 1,
+                    'emails.multiple-assign-funnel'
                 );
 
                 // Send email
@@ -2174,7 +2175,7 @@ class FunnelApiController extends Controller
                 ))->funnelUrl;
 
                 $smsBody = "Hello, {$patientName}.\n"
-                    . "You have received a new funnel form link for: {$funnelName}. Please use the link below to access and complete the form.\n"
+                    . "You have received a new funnel form link. Please use the link below to access and complete the form.\n"
                     . "Click here to open your funnel form: {$funnelUrl}\n"
                     . "If you have any questions, feel free to contact support.\n\n"
                     . "Best Regards,\n"
