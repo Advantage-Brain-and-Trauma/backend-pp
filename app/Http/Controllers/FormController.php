@@ -66,12 +66,15 @@ class FormController extends Controller
 
     public function create()
     {
+        Log::channel('admin_forms')->info('Form create form requested');
         $users = User::orderBy('name')->get(['id', 'name', 'email']);
         return view('forms.create', compact('users'));
     }
 
     public function store(Request $request)
     {
+        Log::channel('admin_forms')->info('Form store requested', $request->only(['name']));
+
         $validated = $request->validate([
             'name'             => 'required|string|max:255',
             'description'      => 'nullable|string',
@@ -84,28 +87,42 @@ class FormController extends Controller
             'bccemail'         => 'nullable|string',
         ]);
 
-        $validated['created_by'] = Auth::id();
-        $validated['slug']       = Str::slug($validated['name']) . '-' . Str::random(6);
-        $validated['fields']     = [];
+        try {
+            $validated['created_by'] = Auth::id();
+            $validated['slug']       = Str::slug($validated['name']) . '-' . Str::random(6);
+            $validated['fields']     = [];
 
-        if (($validated['assign_type'] ?? '') !== 'user') {
-            $validated['assign_user_id'] = null;
+            if (($validated['assign_type'] ?? '') !== 'user') {
+                $validated['assign_user_id'] = null;
+            }
+
+            $form = Form::create($validated);
+
+            Log::channel('admin_forms')->info('Form created successfully', ['form_id' => $form->id, 'name' => $form->name]);
+
+            return redirect()->route('forms.builder', $form)
+                ->with('success', 'Form created! Start building your form below.');
+        } catch (\Throwable $e) {
+            Log::channel('admin_forms')->error('Error creating form', [
+                'name'    => $request->name,
+                'message' => $e->getMessage(),
+                'line'    => $e->getLine(),
+                'file'    => $e->getFile(),
+            ]);
+            throw $e;
         }
-
-        $form = Form::create($validated);
-
-        return redirect()->route('forms.builder', $form)
-            ->with('success', 'Form created! Start building your form below.');
     }
 
     public function show(Form $form)
     {
+        Log::channel('admin_forms')->info('Form show requested', ['form_id' => $form->id]);
         $form->load('creator')->loadCount('submissions');
         return view('forms.show', compact('form'));
     }
 
     public function submissions(Form $form)
     {
+        Log::channel('admin_forms')->info('Form submissions list requested', ['form_id' => $form->id]);
         $submissions = FormSubmission::with(['user', 'funnel'])
             ->where('form_id', $form->id)
             ->latest()
@@ -117,6 +134,7 @@ class FormController extends Controller
 
     public function showSubmission(Form $form, FormSubmission $submission)
     {
+        Log::channel('admin_forms')->info('Form submission show requested', ['form_id' => $form->id, 'submission_id' => $submission->id]);
         abort_if((int) $submission->form_id !== (int) $form->id, 404);
 
         $submission->load(['user', 'funnel']);
@@ -236,17 +254,21 @@ class FormController extends Controller
 
     public function builder(Form $form)
     {
+        Log::channel('admin_forms')->info('Form builder requested', ['form_id' => $form->id]);
         return view('forms.builder', compact('form'));
     }
 
     public function edit(Form $form)
     {
+        Log::channel('admin_forms')->info('Form edit form requested', ['form_id' => $form->id]);
         $users = User::orderBy('name')->get();
         return view('forms.edit', compact('form', 'users'));
     }
 
     public function update(Request $request, Form $form)
     {
+        Log::channel('admin_forms')->info('Form update requested', ['form_id' => $form->id]);
+
         $validated = $request->validate([
             'name'             => 'required|string|max:255',
             'description'      => 'nullable|string',
@@ -260,49 +282,76 @@ class FormController extends Controller
             'bccemail'         => 'nullable|string',
         ]);
 
-        if (empty($form->slug)) {
-            $form->slug = Str::slug($validated['name']) . '-' . Str::random(6);
+        try {
+            if (empty($form->slug)) {
+                $form->slug = Str::slug($validated['name']) . '-' . Str::random(6);
+            }
+
+            $form->name        = $validated['name'];
+            $form->description = $validated['description'] ?? null;
+            $form->success_msg = $validated['success_msg'] ?? null;
+            $form->thanks_msg  = $validated['thanks_msg'] ?? null;
+            $form->assign_type = $validated['assign_type'] ?? null;
+            $form->email       = $validated['email'] ?? null;
+            $form->ccemail     = $validated['ccemail'] ?? null;
+            $form->bccemail    = $validated['bccemail'] ?? null;
+
+            if (($validated['assign_type'] ?? '') === 'user') {
+                $form->assign_user_id = $validated['assign_user_id'] ?? null;
+            } else {
+                $form->assign_user_id = null;
+            }
+
+            $form->save();
+
+            Log::channel('admin_forms')->info('Form updated successfully', ['form_id' => $form->id]);
+
+            return redirect()->route('forms.builder', $form)
+                ->with('success', 'Form settings saved.');
+        } catch (\Throwable $e) {
+            Log::channel('admin_forms')->error('Error updating form', [
+                'form_id' => $form->id,
+                'message' => $e->getMessage(),
+                'line'    => $e->getLine(),
+                'file'    => $e->getFile(),
+            ]);
+            throw $e;
         }
-
-        $form->name        = $validated['name'];
-        $form->description = $validated['description'] ?? null;
-        $form->success_msg = $validated['success_msg'] ?? null;
-        $form->thanks_msg  = $validated['thanks_msg'] ?? null;
-        $form->assign_type = $validated['assign_type'] ?? null;
-        $form->email       = $validated['email'] ?? null;
-        $form->ccemail     = $validated['ccemail'] ?? null;
-        $form->bccemail    = $validated['bccemail'] ?? null;
-
-        if (($validated['assign_type'] ?? '') === 'user') {
-            $form->assign_user_id = $validated['assign_user_id'] ?? null;
-        } else {
-            $form->assign_user_id = null;
-        }
-
-        $form->save();
-
-        return redirect()->route('forms.builder', $form)
-            ->with('success', 'Form settings saved.');
     }
 
     public function destroy(Form $form)
     {
-        $form->delete();
+        Log::channel('admin_forms')->info('Form destroy requested', ['form_id' => $form->id]);
 
-        if (request()->expectsJson()) {
-            return response()->json([
-                'status'  => true,
-                'message' => 'Form deleted successfully.',
+        try {
+            $form->delete();
+
+            Log::channel('admin_forms')->info('Form deleted successfully', ['form_id' => $form->id]);
+
+            if (request()->expectsJson()) {
+                return response()->json([
+                    'status'  => true,
+                    'message' => 'Form deleted successfully.',
+                ]);
+            }
+
+            return redirect()->route('forms.index')
+                ->with('toast_success', 'Form deleted successfully.');
+        } catch (\Throwable $e) {
+            Log::channel('admin_forms')->error('Error deleting form', [
+                'form_id' => $form->id,
+                'message' => $e->getMessage(),
+                'line'    => $e->getLine(),
+                'file'    => $e->getFile(),
             ]);
+            throw $e;
         }
-
-        return redirect()->route('forms.index')
-            ->with('toast_success', 'Form deleted successfully.');
     }
 
     public function bulkDestroy(Request $request)
     {
         $ids = $request->input('ids', []);
+        Log::channel('admin_forms')->info('Form bulkDestroy requested', ['ids' => $ids]);
 
         if (empty($ids) || !is_array($ids)) {
             return response()->json([
@@ -311,13 +360,25 @@ class FormController extends Controller
             ], 422);
         }
 
-        $count = Form::whereIn('id', $ids)->delete();
+        try {
+            $count = Form::whereIn('id', $ids)->delete();
 
-        return response()->json([
-            'status'  => true,
-            'message' => $count . ' form(s) deleted successfully.',
-            'deleted' => $count,
-        ]);
+            Log::channel('admin_forms')->info('Forms bulk deleted successfully', ['ids' => $ids, 'deleted' => $count]);
+
+            return response()->json([
+                'status'  => true,
+                'message' => $count . ' form(s) deleted successfully.',
+                'deleted' => $count,
+            ]);
+        } catch (\Throwable $e) {
+            Log::channel('admin_forms')->error('Error bulk deleting forms', [
+                'ids'     => $ids,
+                'message' => $e->getMessage(),
+                'line'    => $e->getLine(),
+                'file'    => $e->getFile(),
+            ]);
+            throw $e;
+        }
     }
 
     /**
@@ -327,18 +388,32 @@ class FormController extends Controller
      */
     public function duplicate(Form $form)
     {
-        $copy = $form->replicate();
-        $copy->name           = $form->name . ' (copy)';
-        $copy->slug           = Str::slug($form->name . '-copy') . '-' . Str::random(6);
-        $copy->submission_count = 0;
-        $copy->created_by     = Auth::id();
-        // Use current time so the copy appears at the top of the latest() sorted list
-        $copy->created_at     = now();
-        $copy->updated_at     = now();
-        $copy->save();
+        Log::channel('admin_forms')->info('Form duplicate requested', ['form_id' => $form->id]);
 
-        return redirect()->route('forms.index')
-            ->with('toast_success', '"' . $form->name . '" duplicated successfully.');
+        try {
+            $copy = $form->replicate();
+            $copy->name           = $form->name . ' (copy)';
+            $copy->slug           = Str::slug($form->name . '-copy') . '-' . Str::random(6);
+            $copy->submission_count = 0;
+            $copy->created_by     = Auth::id();
+            // Use current time so the copy appears at the top of the latest() sorted list
+            $copy->created_at     = now();
+            $copy->updated_at     = now();
+            $copy->save();
+
+            Log::channel('admin_forms')->info('Form duplicated successfully', ['form_id' => $form->id, 'copy_id' => $copy->id]);
+
+            return redirect()->route('forms.index')
+                ->with('toast_success', '"' . $form->name . '" duplicated successfully.');
+        } catch (\Throwable $e) {
+            Log::channel('admin_forms')->error('Error duplicating form', [
+                'form_id' => $form->id,
+                'message' => $e->getMessage(),
+                'line'    => $e->getLine(),
+                'file'    => $e->getFile(),
+            ]);
+            throw $e;
+        }
     }
 
     /**
@@ -347,43 +422,57 @@ class FormController extends Controller
      */
     public function saveSchema(Request $request, Form $form)
     {
-        // schema can arrive as a JSON string (from builder AJAX) or as an array
-        $rawSchema = $request->input('schema');
-        if (is_string($rawSchema)) {
-            $decoded = json_decode($rawSchema, true);
-            $schema  = $decoded ?? [];
-        } else {
-            $schema = $rawSchema ?? [];
+        Log::channel('admin_forms')->info('Form saveSchema requested', ['form_id' => $form->id]);
+
+        try {
+            // schema can arrive as a JSON string (from builder AJAX) or as an array
+            $rawSchema = $request->input('schema');
+            if (is_string($rawSchema)) {
+                $decoded = json_decode($rawSchema, true);
+                $schema  = $decoded ?? [];
+            } else {
+                $schema = $rawSchema ?? [];
+            }
+
+            // Save the schema (rows structure) into the fields column
+            $form->fields = $schema;
+
+            // Optionally update name and description from builder
+            if ($request->has('name') && $request->name) {
+                $form->name = $request->name;
+            }
+            if ($request->has('description')) {
+                $form->description = $request->description;
+            }
+
+            // Ensure slug exists
+            if (empty($form->slug)) {
+                $form->slug = Str::slug($form->name) . '-' . Str::random(6);
+            }
+
+            $form->save();
+
+            Log::channel('admin_forms')->info('Form schema saved successfully', ['form_id' => $form->id]);
+
+            return response()->json([
+                'status'  => 'success',
+                'message' => 'Form schema saved successfully.',
+                'form'    => [
+                    'id'          => $form->id,
+                    'slug'        => $form->slug,
+                    'url'         => $form->slug ? url('/f/' . $form->slug) : null,
+                    'fields_count' => is_array($form->fields) ? count($form->fields) : 0,
+                ],
+            ]);
+        } catch (\Throwable $e) {
+            Log::channel('admin_forms')->error('Error saving form schema', [
+                'form_id' => $form->id,
+                'message' => $e->getMessage(),
+                'line'    => $e->getLine(),
+                'file'    => $e->getFile(),
+            ]);
+            throw $e;
         }
-
-        // Save the schema (rows structure) into the fields column
-        $form->fields = $schema;
-
-        // Optionally update name and description from builder
-        if ($request->has('name') && $request->name) {
-            $form->name = $request->name;
-        }
-        if ($request->has('description')) {
-            $form->description = $request->description;
-        }
-
-        // Ensure slug exists
-        if (empty($form->slug)) {
-            $form->slug = Str::slug($form->name) . '-' . Str::random(6);
-        }
-
-        $form->save();
-
-        return response()->json([
-            'status'  => 'success',
-            'message' => 'Form schema saved successfully.',
-            'form'    => [
-                'id'          => $form->id,
-                'slug'        => $form->slug,
-                'url'         => $form->slug ? url('/f/' . $form->slug) : null,
-                'fields_count' => is_array($form->fields) ? count($form->fields) : 0,
-            ],
-        ]);
     }
 
     /**
@@ -392,16 +481,30 @@ class FormController extends Controller
      */
     public function publish(Form $form)
     {
-        if (empty($form->slug)) {
-            $form->slug = Str::slug($form->name) . '-' . Str::random(6);
-        }
-        $form->save();
+        Log::channel('admin_forms')->info('Form publish requested', ['form_id' => $form->id]);
 
-        return response()->json([
-            'status'  => 'success',
-            'message' => 'Form published successfully.',
-            'url'     => url('/f/' . $form->slug),
-        ]);
+        try {
+            if (empty($form->slug)) {
+                $form->slug = Str::slug($form->name) . '-' . Str::random(6);
+            }
+            $form->save();
+
+            Log::channel('admin_forms')->info('Form published successfully', ['form_id' => $form->id]);
+
+            return response()->json([
+                'status'  => 'success',
+                'message' => 'Form published successfully.',
+                'url'     => url('/f/' . $form->slug),
+            ]);
+        } catch (\Throwable $e) {
+            Log::channel('admin_forms')->error('Error publishing form', [
+                'form_id' => $form->id,
+                'message' => $e->getMessage(),
+                'line'    => $e->getLine(),
+                'file'    => $e->getFile(),
+            ]);
+            throw $e;
+        }
     }
 
     /**
@@ -410,14 +513,28 @@ class FormController extends Controller
      */
     public function toggleStatus(Form $form)
     {
-        $form->is_active = $form->is_active ? 0 : 1;
-        $form->save();
+        Log::channel('admin_forms')->info('Form toggleStatus requested', ['form_id' => $form->id]);
 
-        return response()->json([
-            'status'     => 'success',
-            'is_active'  => $form->is_active,
-            'message'    => 'Form ' . ($form->is_active ? 'activated' : 'deactivated') . ' successfully.',
-        ]);
+        try {
+            $form->is_active = $form->is_active ? 0 : 1;
+            $form->save();
+
+            Log::channel('admin_forms')->info('Form status toggled successfully', ['form_id' => $form->id, 'is_active' => $form->is_active]);
+
+            return response()->json([
+                'status'     => 'success',
+                'is_active'  => $form->is_active,
+                'message'    => 'Form ' . ($form->is_active ? 'activated' : 'deactivated') . ' successfully.',
+            ]);
+        } catch (\Throwable $e) {
+            Log::channel('admin_forms')->error('Error toggling form status', [
+                'form_id' => $form->id,
+                'message' => $e->getMessage(),
+                'line'    => $e->getLine(),
+                'file'    => $e->getFile(),
+            ]);
+            throw $e;
+        }
     }
 
     /**
@@ -426,6 +543,7 @@ class FormController extends Controller
      */
     public function publicForm(string $slug)
     {
+        Log::channel('admin_forms')->info('Public form page requested', ['slug' => $slug]);
         $form = Form::where('slug', $slug)->firstOrFail();
         return view('forms.public', compact('form'));
     }
@@ -436,44 +554,58 @@ class FormController extends Controller
      */
     public function submitPublicForm(Request $request, string $slug)
     {
-        $form = Form::where('slug', $slug)->firstOrFail();
+        Log::channel('admin_forms')->info('Public form submission requested', ['slug' => $slug]);
 
-        $submittedData = $request->input('fields', []);
+        try {
+            $form = Form::where('slug', $slug)->firstOrFail();
 
-        // Handle file uploads
-        if ($request->hasFile('fields')) {
-            foreach ($request->file('fields') as $fieldId => $file) {
-                if ($file && $file->isValid()) {
-                    $path = $file->store('form-uploads/' . $form->id, 'public');
-                    $submittedData[$fieldId] = $path;
+            $submittedData = $request->input('fields', []);
+
+            // Handle file uploads
+            if ($request->hasFile('fields')) {
+                foreach ($request->file('fields') as $fieldId => $file) {
+                    if ($file && $file->isValid()) {
+                        $path = $file->store('form-uploads/' . $form->id, 'public');
+                        $submittedData[$fieldId] = $path;
+                    }
                 }
             }
-        }
 
-        // Determine status: 'completed' if at least one field has a non-null/non-empty value,
-        // 'draft' if all fields are empty/null (partial or blank submission)
-        $hasData = collect($submittedData)->filter(fn($v) => $v !== null && $v !== '')->isNotEmpty();
-        $submissionStatus = $hasData ? 'completed' : 'draft';
+            // Determine status: 'completed' if at least one field has a non-null/non-empty value,
+            // 'draft' if all fields are empty/null (partial or blank submission)
+            $hasData = collect($submittedData)->filter(fn($v) => $v !== null && $v !== '')->isNotEmpty();
+            $submissionStatus = $hasData ? 'completed' : 'draft';
 
-        FormSubmission::create([
-            'user_id'    => auth()->id(),
-            'form_id'    => $form->id,
-            'data'       => $submittedData,
-            'ip_address' => $request->ip(),
-            'user_agent' => $request->userAgent(),
-            'status'     => $submissionStatus,
-        ]);
-
-        $form->increment('submission_count');
-
-        if ($request->ajax() || $request->wantsJson()) {
-            return response()->json([
-                'status'  => 'success',
-                'message' => 'Form submitted successfully. Thank you!',
+            FormSubmission::create([
+                'user_id'    => auth()->id(),
+                'form_id'    => $form->id,
+                'data'       => $submittedData,
+                'ip_address' => $request->ip(),
+                'user_agent' => $request->userAgent(),
+                'status'     => $submissionStatus,
             ]);
-        }
 
-        return redirect()->back()->with('success', 'Form submitted successfully. Thank you!');
+            $form->increment('submission_count');
+
+            Log::channel('admin_forms')->info('Public form submitted successfully', ['slug' => $slug, 'form_id' => $form->id]);
+
+            if ($request->ajax() || $request->wantsJson()) {
+                return response()->json([
+                    'status'  => 'success',
+                    'message' => 'Form submitted successfully. Thank you!',
+                ]);
+            }
+
+            return redirect()->back()->with('success', 'Form submitted successfully. Thank you!');
+        } catch (\Throwable $e) {
+            Log::channel('admin_forms')->error('Error submitting public form', [
+                'slug'    => $slug,
+                'message' => $e->getMessage(),
+                'line'    => $e->getLine(),
+                'file'    => $e->getFile(),
+            ]);
+            throw $e;
+        }
     }
 
     /**
@@ -481,12 +613,24 @@ class FormController extends Controller
      */
     public function getPublicUrl(Form $form)
     {
-        if (empty($form->slug)) {
-            $form->slug = Str::slug($form->name) . '-' . Str::random(6);
-            $form->save();
+        Log::channel('admin_forms')->info('Form getPublicUrl requested', ['form_id' => $form->id]);
+
+        try {
+            if (empty($form->slug)) {
+                $form->slug = Str::slug($form->name) . '-' . Str::random(6);
+                $form->save();
+            }
+            $url = url('/f/' . $form->slug);
+            return response()->json(['status' => 'success', 'url' => $url]);
+        } catch (\Throwable $e) {
+            Log::channel('admin_forms')->error('Error getting public URL for form', [
+                'form_id' => $form->id,
+                'message' => $e->getMessage(),
+                'line'    => $e->getLine(),
+                'file'    => $e->getFile(),
+            ]);
+            throw $e;
         }
-        $url = url('/f/' . $form->slug);
-        return response()->json(['status' => 'success', 'url' => $url]);
     }
 }
 
