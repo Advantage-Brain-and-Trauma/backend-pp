@@ -612,7 +612,7 @@ class PatientController extends Controller
     }
 
     /**
-     * POST /api/update-patient-email
+     * POST /api/update-patient-profile
      *
      * Updates the authenticated patient's email address across all systems:
      * - users table (new_patient_portal DB)
@@ -630,7 +630,7 @@ class PatientController extends Controller
      * - 422: { success: false, message: string }
      * - 500: { success: false, message: string }
      */
-    public function updatePatientEmail(Request $request): JsonResponse
+    public function updatePatientProfile(Request $request): JsonResponse
     {
         try {
             $userDetails = auth()->user();
