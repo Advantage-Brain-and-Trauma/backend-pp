@@ -88,6 +88,7 @@ Route::middleware(['auth:api', 'role.api:User', 'patient.active'])->group(functi
     Route::get('get-case-ids-by-patient-id', [PatientController::class, 'getCaseIdsByPatientId']);
     Route::get('get-case-ids-by-email', [PatientController::class, 'getCaseIdsByEmail']);
     Route::post('change-patient-case', [PatientController::class, 'changePatientCase']);
+    Route::post('update-patient-email', [PatientController::class, 'updatePatientEmail']);
 
     // Funnels API
     Route::get('get-patient-funnels', [FunnelApiController::class, 'getPatientFunnels'])->middleware('proxy.log');

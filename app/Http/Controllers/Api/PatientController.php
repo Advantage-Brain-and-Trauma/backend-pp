@@ -21,7 +21,9 @@ use Tymon\JWTAuth\Token;
 use Illuminate\Support\Facades\Auth;
 use App\Models\ProxyAccess;
 use App\Models\UserSession;
+use App\Services\PatientFormAmdSyncService;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use Exception;
 
 class PatientController extends Controller
@@ -606,6 +608,140 @@ class PatientController extends Controller
                 'success' => false,
                 'message' => 'Patient case change failed'
             ], 401);
+        }
+    }
+
+    /**
+     * POST /api/update-patient-email
+     *
+     * Updates the authenticated patient's email address across all systems:
+     * - users table (new_patient_portal DB)
+     * - ahcs_patients table (ahcs DB)
+     * - AMD (AdvancedMD), if a mapping exists for the given patient/case
+     *
+     * Request Payload:
+     * - email (required, email, max:255, must be unique among users)
+     * - case_id (required, integer)
+     *
+     * Response:
+     * - 200: { success: true, message: string, data: { email }, amd_sync: {...} }
+     * - 401: { success: false, message: string }
+     * - 404: { success: false, message: string }
+     * - 422: { success: false, message: string }
+     * - 500: { success: false, message: string }
+     */
+    public function updatePatientEmail(Request $request): JsonResponse
+    {
+        try {
+            $userDetails = auth()->user();
+
+            Log::channel('patient')->info('Update patient email API hit', [
+                'user_id' => $userDetails->id,
+                'case_id' => $request->case_id,
+            ]);
+
+            $validator = Validator::make($request->all(), [
+                'email'   => ['required', 'email', 'max:255', Rule::unique('users', 'email')->ignore($userDetails->id)],
+                'case_id' => ['required', 'integer'],
+            ]);
+
+            if ($validator->fails()) {
+                Log::channel('patient')->warning('Update patient email validation failed', [
+                    'user_id' => $userDetails->id,
+                    'error'   => $validator->errors()->first(),
+                ]);
+
+                return response()->json([
+                    'success' => false,
+                    'message' => $validator->errors()->first(),
+                ], 422);
+            }
+
+            $email  = $request->input('email');
+            $caseId = $request->input('case_id');
+
+            $patientIds = $userDetails->getActivePatientIds();
+
+            $caseRecord = AhcsCase::where('id', $caseId)
+                ->whereIn('patient_id', $patientIds)
+                ->first(['patient_id']);
+
+            if (!$caseRecord) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Invalid Case ID for this patient.',
+                ], 422);
+            }
+
+            $patientId = $caseRecord->patient_id;
+
+            $existingPatient = AhcsPatient::findOrFail($patientId);
+            $existingPatientArray = $existingPatient->toArray();
+
+            Log::channel('patient')->info('Updating patient email', [
+                'user_id'    => $userDetails->id,
+                'patient_id' => $patientId,
+                'case_id'    => $caseId,
+                'old_email'  => $existingPatient->email,
+                'new_email'  => $email,
+            ]);
+
+            AhcsPatient::where('id', $patientId)->update(['email' => $email]);
+            User::where('id', $userDetails->id)->update(['email' => $email]);
+
+            try {
+                $amdSyncService = app(PatientFormAmdSyncService::class);
+                $amdSyncResult = $amdSyncService->syncDemographics(
+                    (int) $patientId,
+                    (int) $caseId,
+                    ['email' => $email],
+                    $existingPatientArray
+                );
+
+                Log::channel('patient')->info('AMD sync attempted after patient email update', [
+                    'patient_id' => $patientId,
+                    'case_id'    => $caseId,
+                    'result'     => $amdSyncResult,
+                ]);
+            } catch (\Throwable $amdError) {
+                $amdSyncResult = [
+                    'status'  => 'failed',
+                    'message' => 'Something went wrong',
+                ];
+
+                Log::channel('patient')->error('AMD sync failed after patient email update', [
+                    'patient_id' => $patientId,
+                    'case_id'    => $caseId,
+                    'error'      => $amdError->getMessage(),
+                ]);
+            }
+
+            Log::channel('patient')->info('Patient email updated successfully', [
+                'user_id'    => $userDetails->id,
+                'patient_id' => $patientId,
+                'case_id'    => $caseId,
+            ]);
+
+            return response()->json([
+                'success'  => true,
+                'message'  => 'Email updated successfully.',
+                'data'     => ['email' => $email],
+                'amd_sync' => $amdSyncResult,
+            ], 200);
+
+        } catch (ModelNotFoundException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Patient not found',
+            ], 404);
+
+        } catch (\Throwable $e) {
+            Log::channel('patient')->error('Error updating patient email: ' . $e->getMessage());
+
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+            ], 500);
         }
     }
 
