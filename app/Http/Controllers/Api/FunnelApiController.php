@@ -940,16 +940,12 @@ class FunnelApiController extends Controller
                     User::where('id', $userId)->update($userUpdateData);
                 }
 
-                $hasData = collect($formData)
-                    ->filter(fn ($v) => $v !== null && $v !== '' && $v !== [])
-                    ->isNotEmpty();
-
                 Log::channel('patient_form')->info('Creating form submission', [
                     'user_id'   => $userId,
                     'form_id'   => $formId,
                     'funnel_id' => $request->input('funnel_id'),
                     'data'      => $formData,
-                    'status'    => $hasData ? 'completed' : 'draft',
+                    'status'    => 'completed',
                 ]);
 
                 $submission = FormSubmission::create([
@@ -960,7 +956,7 @@ class FunnelApiController extends Controller
                     'data'       => $formData,
                     'ip_address' => $request->ip(),
                     'user_agent' => $request->userAgent(),
-                    'status'     => $hasData ? 'completed' : 'draft',
+                    'status'     => 'completed',
                 ]);
 
                 DB::commit();
