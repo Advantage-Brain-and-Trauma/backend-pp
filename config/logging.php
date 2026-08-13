@@ -243,7 +243,7 @@ return [
             'driver' => 'daily',
             'path' => storage_path('logs/auth/password_reset.log'),
             'level' => env('LOG_LEVEL', 'debug'),
-            'days' => 30,
+            'days' => 365,
             'replace_placeholders' => true,
         ],
 
@@ -251,7 +251,7 @@ return [
             'driver' => 'daily',
             'path' => storage_path('logs/auth/direct_login.log'),
             'level' => env('LOG_LEVEL', 'debug'),
-            'days' => 30,
+            'days' => 365,
             'replace_placeholders' => true,
         ],
 
@@ -259,7 +259,7 @@ return [
             'driver' => 'daily',
             'path' => storage_path('logs/auth/sso_login.log'),
             'level' => env('LOG_LEVEL', 'debug'),
-            'days' => 30,
+            'days' => 365,
             'replace_placeholders' => true,
         ],
 
