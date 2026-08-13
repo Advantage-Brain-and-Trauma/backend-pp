@@ -69,7 +69,7 @@ return [
             'driver' => 'daily',
             'path' => storage_path('logs/laravel.log'),
             'level' => env('LOG_LEVEL', 'debug'),
-            'days' => 14,
+            'days' => 365,
             'replace_placeholders' => true,
         ],
 
@@ -131,7 +131,7 @@ return [
             'driver' => 'daily',
             'path' => storage_path('logs/auth/auth.log'),
             'level' => env('LOG_LEVEL', 'debug'),
-            'days' => 14,
+            'days' => 365,
             'replace_placeholders' => true,
         ],
 
@@ -139,7 +139,7 @@ return [
             'driver' => 'daily',
             'path' => storage_path('logs/patient/patient_details.log'),
             'level' => env('LOG_LEVEL', 'debug'),
-            'days' => 14,
+            'days' => 365,
             'replace_placeholders' => true,
         ],
 
@@ -147,7 +147,7 @@ return [
             'driver' => 'daily',
             'path' => storage_path('logs/appointment/appointment.log'),
             'level' => env('LOG_LEVEL', 'debug'),
-            'days' => 14,
+            'days' => 365,
             'replace_placeholders' => true,
         ],
 
@@ -155,7 +155,7 @@ return [
             'driver' => 'daily',
             'path' => storage_path('logs/patient_funnel/patient_funnel.log'),
             'level' => env('LOG_LEVEL', 'debug'),
-            'days' => 14,
+            'days' => 365,
             'replace_placeholders' => true,
         ],
 
@@ -163,7 +163,7 @@ return [
             'driver' => 'daily',
             'path' => storage_path('logs/patient_form/patient_form_submission.log'),
             'level' => env('LOG_LEVEL', 'debug'),
-            'days' => 14,
+            'days' => 365,
             'replace_placeholders' => true,
         ],
 
@@ -171,7 +171,7 @@ return [
             'driver' => 'daily',
             'path' => storage_path('logs/admin/dashboard.log'),
             'level' => env('LOG_LEVEL', 'debug'),
-            'days' => 14,
+            'days' => 365,
             'replace_placeholders' => true,
         ],
 
@@ -179,7 +179,7 @@ return [
             'driver' => 'daily',
             'path' => storage_path('logs/admin/analytics.log'),
             'level' => env('LOG_LEVEL', 'debug'),
-            'days' => 14,
+            'days' => 365,
             'replace_placeholders' => true,
         ],
 
@@ -187,7 +187,7 @@ return [
             'driver' => 'daily',
             'path' => storage_path('logs/admin/billing.log'),
             'level' => env('LOG_LEVEL', 'debug'),
-            'days' => 14,
+            'days' => 365,
             'replace_placeholders' => true,
         ],
 
@@ -195,7 +195,7 @@ return [
             'driver' => 'daily',
             'path' => storage_path('logs/admin/appointments.log'),
             'level' => env('LOG_LEVEL', 'debug'),
-            'days' => 14,
+            'days' => 365,
             'replace_placeholders' => true,
         ],
 
@@ -203,7 +203,7 @@ return [
             'driver' => 'daily',
             'path' => storage_path('logs/admin/forms.log'),
             'level' => env('LOG_LEVEL', 'debug'),
-            'days' => 14,
+            'days' => 365,
             'replace_placeholders' => true,
         ],
 
@@ -211,7 +211,7 @@ return [
             'driver' => 'daily',
             'path' => storage_path('logs/admin/funnels.log'),
             'level' => env('LOG_LEVEL', 'debug'),
-            'days' => 14,
+            'days' => 365,
             'replace_placeholders' => true,
         ],
 
@@ -219,7 +219,7 @@ return [
             'driver' => 'daily',
             'path' => storage_path('logs/admin/messages.log'),
             'level' => env('LOG_LEVEL', 'debug'),
-            'days' => 14,
+            'days' => 365,
             'replace_placeholders' => true,
         ],
 
@@ -227,7 +227,7 @@ return [
             'driver' => 'daily',
             'path' => storage_path('logs/admin/users.log'),
             'level' => env('LOG_LEVEL', 'debug'),
-            'days' => 14,
+            'days' => 365,
             'replace_placeholders' => true,
         ],
 
@@ -235,7 +235,7 @@ return [
             'driver' => 'daily',
             'path' => storage_path('logs/admin/old_forms.log'),
             'level' => env('LOG_LEVEL', 'debug'),
-            'days' => 14,
+            'days' => 365,
             'replace_placeholders' => true,
         ],
 
@@ -267,7 +267,7 @@ return [
             'driver' => 'daily',
             'path' => storage_path('logs/proxy/proxy_access.log'),
             'level' => env('LOG_LEVEL', 'debug'),
-            'days' => 14,
+            'days' => 365,
             'replace_placeholders' => true,
         ],
 
