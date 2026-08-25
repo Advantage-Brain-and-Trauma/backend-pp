@@ -16,6 +16,7 @@ use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Http;
+use App\Exceptions\SmsDeliveryException;
 use App\Mail\AssignFunnelMail;
 use App\Models\AhcsPatient;
 use App\Models\AhcsCase;
@@ -1461,7 +1462,9 @@ class FunnelApiController extends Controller
      *
      * Response:
      * - 200: { status: true, message: string }
-     * - 422: { status: false, message: string, errors: string }
+     * - 422: { status: false, message: string, errors: string } (validation failed)
+     * - 422: { status: false, message: string, error_code: int|null } (Twilio rejected
+     *        the send; message is Twilio's own wording, e.g. "Invalid 'To' Phone Number: …")
      * - 500: { status: false, message: string }
      */
     public function assignFunnelSms(Request $request)
@@ -1622,7 +1625,28 @@ class FunnelApiController extends Controller
                     'email'           => $request->email ?: null,
                     'phone_no'        => $normalizedPhone,
                 ]);
+            } else {
+                // Re-sending an existing assignment over SMS: the row may have been
+                // created by an email assignment, leaving phone_no NULL. The link we
+                // are about to send declares source=sms, and registration then filters
+                // on phone_no — so the row must carry the number or the patient gets
+                // "User funnel assignment not found" and can never create an account.
+                $existingActiveAssignment->forceFill([
+                    'phone_no'     => $normalizedPhone,
+                    'assigned_via' => 'sms',
+                    'email'        => $existingActiveAssignment->email ?: ($request->email ?: null),
+                ])->save();
             }
+
+            // Prefer any email we already hold for this patient so the registration
+            // form can prefill it. assignFunnelSms is often called before a user
+            // account exists, in which case the assignment row is the only source.
+            $linkEmail = (string) (
+                $user?->email
+                ?: $existingActiveAssignment?->email
+                ?: $request->email
+                ?: ''
+            );
 
             $funnelUrl = (new AssignFunnelMail(
                 (string) $request->patient_id,
@@ -1630,7 +1654,7 @@ class FunnelApiController extends Controller
                 (string) $request->funnel_id,
                 (string) $request->funnel_name,
                 (string) $patientName,
-                (string) ($user?->email ?? ''),
+                $linkEmail,
                 (string) $normalizedPhone,
                 (string) $flag,
                 'sms',
@@ -1661,7 +1685,7 @@ class FunnelApiController extends Controller
                 ]);
 
             if ($smsResponse->failed()) {
-                throw new RuntimeException('Twilio API error: ' . $smsResponse->body());
+                throw SmsDeliveryException::fromTwilioResponse($smsResponse);
             }
 
             DB::commit();
@@ -1679,6 +1703,26 @@ class FunnelApiController extends Controller
                 'message' => 'Funnel assigned and SMS sent successfully.',
                 'url'     => $funnelUrl,
             ], 200);
+
+        } catch (SmsDeliveryException $e) {
+            // Twilio rejected the request itself (bad number, unreachable carrier, …).
+            // That is correctable by whoever is sending the form, so return Twilio's
+            // own wording rather than a generic failure.
+            DB::rollBack();
+
+            Log::channel('patient_funnel')->error('SMS delivery rejected while assigning funnel', [
+                'patient_id'      => $request->patient_id ?? null,
+                'case_id'         => $request->case_id ?? null,
+                'funnel_id'       => $request->funnel_id ?? null,
+                'twilio_code'     => $e->twilioCode,
+                'twilio_response' => $e->rawBody,
+            ]);
+
+            return response()->json([
+                'status'     => false,
+                'message'    => $e->getMessage(),
+                'error_code' => $e->twilioCode,
+            ], 422);
 
         } catch (\Throwable $e) {
             DB::rollBack();
@@ -1988,7 +2032,9 @@ class FunnelApiController extends Controller
      *
      * Response:
      * - 200: { status: true, message: string, results: [{ funnel_id, funnel_name, status, message, url? }] }
-     * - 422: { status: false, message: string, errors: string }
+     * - 422: { status: false, message: string, errors: string } (validation failed)
+     * - 422: { status: false, message: string, error_code: int|null } (Twilio rejected
+     *        the send; message is Twilio's own wording, e.g. "Invalid 'To' Phone Number: …")
      * - 500: { status: false, message: string }
      */
     public function multipleAssignFunnelSms(Request $request)
@@ -2165,7 +2211,25 @@ class FunnelApiController extends Controller
                         'email'           => $request->email ?: null,
                         'phone_no'        => $normalizedPhone,
                     ]);
+                } else {
+                    // Re-sending an existing assignment over SMS: see assignFunnelSms().
+                    // A row created by an email assignment has phone_no NULL, which makes
+                    // the source=sms registration lookup miss it.
+                    $existingActiveAssignment->forceFill([
+                        'phone_no'     => $normalizedPhone,
+                        'assigned_via' => 'sms',
+                        'email'        => $existingActiveAssignment->email ?: ($request->email ?: null),
+                    ])->save();
                 }
+
+                // Prefer any email we already hold for this patient so the registration
+                // form can prefill it.
+                $linkEmail = (string) (
+                    $user?->email
+                    ?: $existingActiveAssignment?->email
+                    ?: $request->email
+                    ?: ''
+                );
 
                 $funnelUrl = (new AssignFunnelMail(
                     (string) $request->patient_id,
@@ -2173,7 +2237,7 @@ class FunnelApiController extends Controller
                     (string) $funnelId,
                     (string) $funnelName,
                     (string) $patientName,
-                    (string) ($user?->email ?? ''),
+                    $linkEmail,
                     (string) $normalizedPhone,
                     (string) $flag,
                     'sms',
@@ -2213,7 +2277,7 @@ class FunnelApiController extends Controller
                     ]);
 
                 if ($smsResponse->failed()) {
-                    throw new RuntimeException('Twilio API error: ' . $smsResponse->body());
+                    throw SmsDeliveryException::fromTwilioResponse($smsResponse);
                 }
             }
 
@@ -2232,6 +2296,23 @@ class FunnelApiController extends Controller
                 'message' => 'Funnels processed successfully.',
                 'results' => $results,
             ], 200);
+
+        } catch (SmsDeliveryException $e) {
+            // See assignFunnelSms(): surface Twilio's own rejection reason.
+            DB::rollBack();
+
+            Log::channel('patient_funnel')->error('SMS delivery rejected while assigning multiple funnels', [
+                'patient_id'      => $request->patient_id ?? null,
+                'case_id'         => $request->case_id ?? null,
+                'twilio_code'     => $e->twilioCode,
+                'twilio_response' => $e->rawBody,
+            ]);
+
+            return response()->json([
+                'status'     => false,
+                'message'    => $e->getMessage(),
+                'error_code' => $e->twilioCode,
+            ], 422);
 
         } catch (\Throwable $e) {
             DB::rollBack();
@@ -2362,13 +2443,26 @@ class FunnelApiController extends Controller
                 ->where('funnel_id', $request->funnel_id);
 
             if ($source === 'sms') {
-                // For SMS: match by patient_id + phone_no stored during assignFunnelSms
-                $assignmentQuery->where('phone_no', $normalizedPhone);
+                // For SMS: match by patient_id + phone_no stored during assignFunnelSms.
+                // Rows created by an email assignment and later re-sent over SMS may
+                // still have phone_no NULL, so accept those too rather than 404-ing a
+                // patient who is holding a perfectly valid link.
+                $assignmentQuery->where(function ($q) use ($normalizedPhone) {
+                    $q->where('phone_no', $normalizedPhone)
+                      ->orWhereNull('phone_no');
+                });
             }
 
-            $userFunnel = $assignmentQuery->first();
+            // Existence gate only. Registration below creates the account and links
+            // EVERY assignment row for this patient (matched on patient_id + email or
+            // phone_no), so no single row is singled out here and picking one would be
+            // misleading. Deliberately not narrowed to patient_case_id either: an
+            // account is patient-level rather than case-level, and patient_case_id is
+            // nullable on legacy rows, so filtering on it would only reintroduce the
+            // spurious 404 this change exists to remove.
+            $hasAssignment = $assignmentQuery->exists();
 
-            if (!$userFunnel) {
+            if (!$hasAssignment) {
                 Log::channel('patient_funnel')->warning('Add patient to funnel failed: assignment not found', [
                     'patient_id' => $request->patient_id,
                     'funnel_id'  => $request->funnel_id,
