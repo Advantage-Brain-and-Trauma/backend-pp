@@ -44,7 +44,12 @@ return [
         'api' => [
             'driver' => 'jwt',
             'provider' => 'users',
-        ]
+        ],
+
+        'chat' => [
+            'driver' => 'chat-token',
+            'provider' => 'chat_users',
+        ],
     ],
 
     /*
@@ -74,6 +79,11 @@ return [
         //     'driver' => 'database',
         //     'table' => 'users',
         // ],
+
+        'chat_users' => [
+            'driver' => 'eloquent',
+            'model' => App\Models\ChatUser::class,
+        ],
     ],
 
     /*

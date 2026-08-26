@@ -14,6 +14,9 @@ use App\Http\Controllers\Api\RecentActivityController;
 use App\Http\Controllers\Api\ProxyAccessController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Api\DirectEmailLoginController;
+use App\Http\Controllers\Api\ChatAuthController;
+use App\Http\Controllers\Api\ChatConversationController;
+use App\Http\Controllers\Api\ChatMessageController;
 
 /*
 |--------------------------------------------------------------------------
@@ -131,5 +134,22 @@ Route::middleware(['auth:api', 'role.api:User', 'patient.active'])->group(functi
     Route::post('multiple-assign-funnel-sms', [FunnelApiController::class, 'multipleAssignFunnelSms']);
     Route::post('add-patient-to-funnel', [FunnelApiController::class, 'addPatientToFunnel']);
     Route::post('direct-login', [LoginController::class, 'directLogin']);
-    // Get direct patient funnels without auth 
-    Route::get('/check-funnel-form-completion',[FunnelApiController::class,'checkFunnelFormCompletion']); 
+    // Get direct patient funnels without auth
+    Route::get('/check-funnel-form-completion',[FunnelApiController::class,'checkFunnelFormCompletion']);
+
+// ── Chat ─────────────────────────────────────────────────────────────────
+// Identify: exchange a source-system identity for an opaque chat identity
+// (uuid) + short-lived chat_token. Patient side reuses the existing JWT
+// guard; any other system (doctor / Medhiwa-23) authenticates server-to-
+// server with the X-CHAT-SECRET shared secret instead.
+Route::prefix('chat')->group(function () {
+    Route::middleware('auth:api')->post('identify/patient', [ChatAuthController::class, 'patient']);
+    Route::middleware('chat.secret')->post('identify/external', [ChatAuthController::class, 'external']);
+
+    Route::middleware('auth:chat')->group(function () {
+        Route::get('conversations', [ChatConversationController::class, 'index']);
+        Route::post('conversations', [ChatConversationController::class, 'store']);
+        Route::get('conversations/{conversation}/messages', [ChatMessageController::class, 'index']);
+        Route::post('conversations/{conversation}/messages', [ChatMessageController::class, 'store']);
+    });
+});

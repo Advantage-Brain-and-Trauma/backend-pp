@@ -143,6 +143,14 @@ return [
             'replace_placeholders' => true,
         ],
 
+        'chat' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/chat/chat.log'),
+            'level' => env('LOG_LEVEL', 'debug'),
+            'days' => 365,
+            'replace_placeholders' => true,
+        ],
+
         'appointment' => [
             'driver' => 'daily',
             'path' => storage_path('logs/appointment/appointment.log'),

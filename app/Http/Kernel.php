@@ -71,5 +71,6 @@ class Kernel extends HttpKernel
         'patient.active' => \App\Http\Middleware\CheckPatientActive::class,
         'proxy.log'      => \App\Http\Middleware\LogProxyAccessMiddleware::class,
         'internal.api.key' => \App\Http\Middleware\VerifyInternalApiKey::class,
+        'chat.secret' => \App\Http\Middleware\VerifyChatSharedSecret::class,
     ];
 }
