@@ -130,7 +130,11 @@ class FunnelApiController extends Controller
             'emerg_state' => 'State',
             'emerg_zip' => 'Zip',
             'emerg_phone' => 'Phone',
-            'emerg_cell' => 'Mobile',
+            // The Spanish forms label the emergency contact's mobile "celular"
+            // rather than reusing the translation of "Mobile", so it is listed
+            // here directly — a translation entry cannot express two Spanish
+            // labels for one English one.
+            'emerg_cell' => ['Mobile', 'celular'],
             'emerg_relation' => 'Relationship',
             'allergy' => 'Allergies',
         ];
@@ -272,6 +276,27 @@ class FunnelApiController extends Controller
         return in_array($type, [
             'header', 'paragraph', 'divider', 'html', 'image', 'button', 'spacer',
         ], true);
+    }
+
+    /**
+     * Columns a blank answer must never clear.
+     *
+     * SSN is optional on the intake and consent forms, so patients can and do
+     * submit it empty. Writing that through would wipe a number we already hold
+     * — and because the AMD payload drops an empty @ssn rather than sending it,
+     * AdvancedMD would keep the old value while Medhiwa lost it, leaving the two
+     * silently out of step.
+     *
+     * Deliberately limited to ssn. Every other column still accepts a blank, so
+     * a patient correcting a form can clear a field they filled in by mistake.
+     */
+    private function isBlankProtectedPatientColumn(string $column, $value): bool
+    {
+        if ($column !== 'ssn') {
+            return false;
+        }
+
+        return trim((string) (is_scalar($value) ? $value : '')) === '';
     }
 
     private function resolvePatientColumn(string $label, array $index, array &$claimed): ?string
@@ -925,9 +950,17 @@ class FunnelApiController extends Controller
 
                     $column = $this->resolvePatientColumn($label, $labelIndex, $claimedColumns);
 
-                    if ($column !== null) {
-                        $patientUpdateData[$column] = $field['value'] ?? null;
+                    if ($column === null) {
+                        continue;
                     }
+
+                    $value = $field['value'] ?? null;
+
+                    if ($this->isBlankProtectedPatientColumn($column, $value)) {
+                        continue;
+                    }
+
+                    $patientUpdateData[$column] = $value;
                 }
                 $existingPatient = AhcsPatient::find($patientId);
                 $existingPatientArray = $existingPatient ? $existingPatient->toArray() : [];
