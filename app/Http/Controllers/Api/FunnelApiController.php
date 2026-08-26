@@ -98,10 +98,14 @@ class FunnelApiController extends Controller
             'state' => 'State:',
             'zip' => 'Zip Code:',
             'mailing_address' => 'Mailing Address (if different from physical address):',
-            'mailing_address2' => 'Apt/Suite # (Mailing)',
-            'city2' => 'City (Mailing)',
-            'state2' => 'State (Mailing)',
-            'zip2' => 'Zip (Mailing)',
+            // The mailing block on most forms repeats the physical block's labels
+            // rather than using the "(Mailing)" variants, so both are accepted.
+            // These columns are declared AFTER their physical counterparts, so the
+            // first "City:" on a form claims city and the second claims city2.
+            'mailing_address2' => ['Apt/Suite # (Mailing)', 'Apartment/Suite Number:'],
+            'city2' => ['City (Mailing)', 'City:'],
+            'state2' => ['State (Mailing)', 'State:'],
+            'zip2' => ['Zip (Mailing)', 'Zip Code:'],
             // "Phone Number:" is the number patients actually reach us on, so it
             // feeds cell_no (AMD @otherphone); "Mobile" feeds home_ph. Declaration
             // order matters: the first "Mobile" on a form claims home_ph, the second
@@ -217,11 +221,18 @@ class FunnelApiController extends Controller
         $normalized   = [];
         $translations = $this->patientLabelTranslations();
 
-        foreach ($this->patientFieldMapping() as $column => $englishLabel) {
-            $labels = [$englishLabel];
+        foreach ($this->patientFieldMapping() as $column => $englishLabels) {
+            $labels = [];
 
-            if (isset($translations[$englishLabel])) {
-                $labels[] = $translations[$englishLabel];
+            // A column may declare several labels: the mailing-address block on
+            // most forms repeats the physical block's labels verbatim, so those
+            // are listed as aliases and separated by claim order instead.
+            foreach ((array) $englishLabels as $englishLabel) {
+                $labels[] = $englishLabel;
+
+                if (isset($translations[$englishLabel])) {
+                    $labels[] = $translations[$englishLabel];
+                }
             }
 
             foreach ($labels as $label) {
@@ -245,6 +256,24 @@ class FunnelApiController extends Controller
      * $claimed is passed by reference and carries claimed columns across one
      * form, so it must be reset per form.
      */
+    /**
+     * Field types that render text rather than collect an answer.
+     *
+     * These carry a `label` like any other field, and a section header very often
+     * repeats the label of the input beneath it — a "Physical Address" header
+     * above a "Physical Address:" input. Left unfiltered, the header claims
+     * address1 first and the real input resolves to nothing, so the field stops
+     * prefilling. Decorative fields must never claim a patient column.
+     */
+    private function isDecorativeFormField(array $field): bool
+    {
+        $type = mb_strtolower(trim((string) ($field['type'] ?? '')));
+
+        return in_array($type, [
+            'header', 'paragraph', 'divider', 'html', 'image', 'button', 'spacer',
+        ], true);
+    }
+
     private function resolvePatientColumn(string $label, array $index, array &$claimed): ?string
     {
         $candidates = $index['exact'][$this->exactPatientLabel($label)]
@@ -660,7 +689,7 @@ class FunnelApiController extends Controller
                                 return collect($col['fields'] ?? [])->map(function ($field) use ($patient, $labelIndex, &$claimedColumns) {
 
                                     $label  = trim($field['label'] ?? '');
-                                    $column = $label === ''
+                                    $column = ($label === '' || $this->isDecorativeFormField($field))
                                         ? null
                                         : $this->resolvePatientColumn($label, $labelIndex, $claimedColumns);
                                     $value  = $column !== null ? ($patient->{$column} ?? null) : null;
@@ -890,7 +919,7 @@ class FunnelApiController extends Controller
 
                     $label = (string) ($field['label'] ?? $field['lable'] ?? '');
 
-                    if (trim($label) === '') {
+                    if (trim($label) === '' || $this->isDecorativeFormField($field)) {
                         continue;
                     }
 
