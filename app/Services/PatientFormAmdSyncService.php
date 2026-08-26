@@ -249,8 +249,17 @@ class PatientFormAmdSyncService
             $payload['@dob'] = $newDob;
         }
 
-        $normalizedSsn = $this->normalizeSsn((string) ($data['ssn'] ?? ''));
-        if ($normalizedSsn !== '') {
+        // Only send the SSN when it actually changed, exactly as @dob above.
+        //
+        // $data is the patient record merged with the submitted answers, so a form
+        // that left SSN blank still carries the stored value here. Re-sending it
+        // makes AMD run DuplicatePatientCheck against a number it already holds,
+        // and if any other chart shares it the whole updatepatient call is
+        // rejected ("Duplicate SSN found.") — losing the name, address and phone
+        // updates in the same request, not just the SSN.
+        $normalizedSsn    = $this->normalizeSsn((string) ($data['ssn'] ?? ''));
+        $normalizedOldSsn = $this->normalizeSsn((string) ($oldData['ssn'] ?? ''));
+        if ($normalizedSsn !== '' && $normalizedSsn !== $normalizedOldSsn) {
             $payload['@ssn'] = $normalizedSsn;
         }
 
