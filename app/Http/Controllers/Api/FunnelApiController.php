@@ -74,6 +74,195 @@ class FunnelApiController extends Controller
     }
 
     /**
+     * Canonical form-label => ahcs_patients column map for the patient
+     * demographic forms (Patient Intro Form and friends).
+     *
+     * Used in BOTH directions - prefilling a form from the patient record and
+     * writing submitted answers back to it - so the two can never drift apart.
+     */
+    private function patientFieldMapping(): array
+    {
+        return [
+            'first_name' => 'First Name:',
+            'last_name' => 'Last Name:',
+            'middle_name' => 'Middle Name:',
+            'suffix' => 'Suffix',
+            'dob' => 'Date of Birth:',
+            'ssn' => 'SSN:',
+            'driver_license' => 'Driver’s License Number:',
+            'dl_state' => 'DL State',
+            'sex' => 'Sex:',
+            'address1' => 'Physical Address:',
+            'address2' => 'Apartment/Suite Number:',
+            'city' => 'City:',
+            'state' => 'State:',
+            'zip' => 'Zip Code:',
+            'mailing_address' => 'Mailing Address (if different from physical address):',
+            'mailing_address2' => 'Apt/Suite # (Mailing)',
+            'city2' => 'City (Mailing)',
+            'state2' => 'State (Mailing)',
+            'zip2' => 'Zip (Mailing)',
+            // "Phone Number:" is the number patients actually reach us on, so it
+            // feeds cell_no (AMD @otherphone); "Mobile" feeds home_ph. Declaration
+            // order matters: the first "Mobile" on a form claims home_ph, the second
+            // (emergency contact) falls through to emerg_cell below.
+            'cell_no' => 'Phone Number:',
+            'work_ph' => 'Work Phone:',
+            'work_ext' => 'Work Extension:',
+            'home_ph' => 'Mobile',
+            'wireless_carrier' => 'Wireless Carrier',
+            'textmsg_consent' => 'Text Messages?',
+            'fax_no' => 'Fax Number:',
+            'email' => 'Email:',
+            'marital_status' => 'Marital Status:',
+            'children' => 'Number of Children:',
+            'ethnicity' => 'Ethnicity:',
+            'language' => 'Primary Language:',
+            'education' => 'Education:',
+            'hand_dom' => 'Hand Dominance',
+            'emerg_contact' => 'Name',
+            'emerg_address' => 'Address',
+            'emerg_city' => 'City',
+            'emerg_state' => 'State',
+            'emerg_zip' => 'Zip',
+            'emerg_phone' => 'Phone',
+            'emerg_cell' => 'Mobile',
+            'emerg_relation' => 'Relationship',
+            'allergy' => 'Allergies',
+        ];
+    }
+
+    /**
+     * Spanish equivalents of the labels above, for the bilingual form variants.
+     */
+    private function patientLabelTranslations(): array
+    {
+        return [
+            'First Name:' => 'El Nombre de Pila:',
+            'Middle Name:' => 'El Segundo Nombre:',
+            'Last Name:' => 'El Apellido:',
+            'Date of Birth:' => 'La Fecha de Nacimiento:',
+            'SSN:' => 'El Numero de Seguridad Social:',
+            'Sex:' => 'Sex:',
+            'Physical Address:' => 'Le Direccion Fisica:',
+            'Apartment/Suite Number:' => 'El Apartamento/Numero de Suite:',
+            'City:' => 'La Ciudad:',
+            'State:' => 'El Estado:',
+            'Zip Code:' => 'El Codigo Postal:',
+            'Mailing Address (if different from physical address):' => 'Dirección postal (si es diferente de la dirección física):',
+            'Phone Number:' => 'numero de telefono:',
+            'Work Phone:' => 'telefono del trabajo',
+            'Work Extension:' => 'Extensión de trabajo:',
+            'Mobile' => 'Número de teléfono móvil:',
+            'Fax Number:' => 'El numero de fax:',
+            'Email:' => 'El correo electronico:',
+            'Driver’s License Number:' => 'Número de licencia de conducir:',
+            'Marital Status:' => 'El estado civil:',
+            'Number of Children:' => 'Número de niños:',
+            'Ethnicity:' => 'la etnia:',
+            'Education:' => 'educacion:',
+            'Hand Dominance' => 'Dominación de la mano',
+            'Primary Language:' => 'Idioma principal:',
+            'Name' => 'Nombre',
+            'Address' => 'La Direccion',
+            'City' => 'Ciudad',
+            'Phone' => 'Telephono',
+            'Relationship' => 'relacion',
+            'Allergies' => 'Alergias',
+        ];
+    }
+
+    /**
+     * Fully normalised label key: smart quotes flattened, whitespace collapsed,
+     * trailing colon stripped, lowercased. Used as a fallback so a form writing
+     * "Mobile:" still matches a mapping entry declared as "Mobile".
+     */
+    private function normalizePatientLabel(?string $label): string
+    {
+        $label = (string) $label;
+        $label = str_replace(["\xE2\x80\x99", "\xE2\x80\x98", "\x60"], "'", $label);
+        $label = preg_replace('/\s+/', ' ', trim($label));
+        $label = rtrim($label, ':');
+
+        return mb_strtolower($label);
+    }
+
+    /**
+     * Colon-preserving label key. This is what keeps the patient's own "City:"
+     * distinct from the emergency contact's "City" - the two collapse into one
+     * key as soon as the trailing colon is stripped.
+     */
+    private function exactPatientLabel(?string $label): string
+    {
+        $label = (string) $label;
+        $label = str_replace(["\xE2\x80\x99", "\xE2\x80\x98", "\x60"], "'", $label);
+
+        return mb_strtolower(preg_replace('/\s+/', ' ', trim($label)));
+    }
+
+    /**
+     * Build label => [columns...] indexes, keeping EVERY column a label can
+     * resolve to, in declaration order, instead of only the first.
+     *
+     * Several labels are genuinely ambiguous: the patient and their emergency
+     * contact are both asked for "Mobile", and "City:"/"City" plus
+     * "State:"/"State" collapse together under normalisation. The previous
+     * first-wins index made emerg_city, emerg_state and emerg_cell impossible
+     * to write, and let the emergency contact's answers overwrite the
+     * patient's own city, state and cell_no.
+     */
+    private function buildPatientLabelIndex(): array
+    {
+        $exact        = [];
+        $normalized   = [];
+        $translations = $this->patientLabelTranslations();
+
+        foreach ($this->patientFieldMapping() as $column => $englishLabel) {
+            $labels = [$englishLabel];
+
+            if (isset($translations[$englishLabel])) {
+                $labels[] = $translations[$englishLabel];
+            }
+
+            foreach ($labels as $label) {
+                $exact[$this->exactPatientLabel($label)][]          = $column;
+                $normalized[$this->normalizePatientLabel($label)][] = $column;
+            }
+        }
+
+        return ['exact' => $exact, 'normalized' => $normalized];
+    }
+
+    /**
+     * Resolve one form label to the patient column it should read or write.
+     *
+     * Exact (colon-preserving) candidates are tried first, so "City:" and
+     * "City" separate cleanly no matter what order the form asks for them.
+     * Where a label is truly duplicated - "Mobile" appears twice - the first
+     * not-yet-claimed column wins, which fills the patient's own column before
+     * the emergency contact's, matching the order these forms are laid out in.
+     *
+     * $claimed is passed by reference and carries claimed columns across one
+     * form, so it must be reset per form.
+     */
+    private function resolvePatientColumn(string $label, array $index, array &$claimed): ?string
+    {
+        $candidates = $index['exact'][$this->exactPatientLabel($label)]
+            ?? $index['normalized'][$this->normalizePatientLabel($label)]
+            ?? [];
+
+        foreach ($candidates as $column) {
+            if (!isset($claimed[$column])) {
+                $claimed[$column] = true;
+
+                return $column;
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * GET /api/get-patient-funnels
      *
      * Returns funnels assigned to the authenticated user.
@@ -376,85 +565,7 @@ class FunnelApiController extends Controller
 
             $patientId = $caseRecord->patient_id;
 
-            $fieldMapping = [
-                "first_name" => "First Name:",
-                "last_name" => "Last Name:",
-                "middle_name" => "Middle Name:",
-                "suffix" => "Suffix",
-                "dob" => "Date of Birth:",
-                "ssn" => "SSN:",
-                "driver_license" => "Driver’s License Number:",
-                "dl_state" => "DL State",
-                "sex" => "Sex:",
-                "address1" => "Physical Address:",
-                "address2" => "Apartment/Suite Number:",
-                "city" => "City:",
-                "state" => "State:",
-                "zip" => "Zip Code:",
-                "mailing_address" => "Mailing Address (if different from physical address):",
-                "mailing_address2" => "Apt/Suite # (Mailing)",
-                "city2" => "City (Mailing)",
-                "state2" => "State (Mailing)",
-                "zip2" => "Zip (Mailing)",
-                "home_ph" => "Phone Number:",
-                "work_ph" => "Work Phone:",
-                "work_ext" => "Work Extension:",
-                "cell_no" => "Mobile",
-                "wireless_carrier" => "Wireless Carrier",
-                "textmsg_consent" => "Text Messages?",
-                "fax_no" => "Fax Number:",
-                "email" => "Email:",
-                "marital_status" => "Marital Status:",
-                "children" => "Number of Children:",
-                "ethnicity" => "Ethnicity:",
-                "language" => "Primary Language:",
-                "education" => "Education:",
-                "hand_dom" => "Hand Dominance",
-                "emerg_contact" => "Name",
-                "emerg_address" => "Address",
-                "emerg_city" => "City",
-                "emerg_state" => "State",
-                "emerg_zip" => "Zip",
-                "emerg_phone" => "Phone",
-                "emerg_cell" => "Mobile",
-                "emerg_relation" => "Relationship",
-                "allergy" => "Allergies"
-            ];
-
-            $translationMap = [
-                "First Name:" => "El Nombre de Pila:",
-                "Middle Name:" => "El Segundo Nombre:",
-                "Last Name:" => "El Apellido:",
-                "Date of Birth:" => "La Fecha de Nacimiento:",
-                "SSN:" => "El Numero de Seguridad Social:",
-                "Sex:" => "Sex:",
-                "Physical Address:" => "Le Direccion Fisica:",
-                "Apartment/Suite Number:" => "El Apartamento/Numero de Suite:",
-                "City:" => "La Ciudad:",
-                "State:" => "El Estado:",
-                "Zip Code:" => "El Codigo Postal:",
-                "Mailing Address (if different from physical address):" => "Dirección postal (si es diferente de la dirección física):",
-                "Phone Number:" => "numero de telefono:",
-                "Work Phone:" => "telefono del trabajo",
-                "Work Extension:" => "Extensión de trabajo:",
-                "Mobile" => "Número de teléfono móvil:",
-                "Fax Number:" => "El numero de fax:",
-                "Email:" => "El correo electronico:",
-                "Driver’s License Number:" => "Número de licencia de conducir:",
-                "Marital Status:" => "El estado civil:",
-                "Number of Children:" => "Número de niños:",
-                "Ethnicity:" => "la etnia:",
-                "Education:" => "educacion:",
-                "Hand Dominance" => "Dominación de la mano",
-                "Primary Language:" => "Idioma principal:",
-                "Name" => "Nombre",
-                "Address" => "La Direccion",
-                "City" => "Ciudad",
-                "Phone" => "Telephono",
-                "Relationship" => "relacion",
-                "Allergies" => "Alergias"
-            ];
-
+            $labelIndex = $this->buildPatientLabelIndex();
             $patient = AhcsPatient::where('id', $patientId)->first();
 
             if (!$patient) {
@@ -464,15 +575,6 @@ class FunnelApiController extends Controller
                 ], 404);
             }
 
-            $patientValues = [];
-
-            foreach ($fieldMapping as $patientColumn => $englishLabel) {
-                $patientValues[trim($englishLabel)] = $patient->{$patientColumn} ?? null;
-
-                if (isset($translationMap[$englishLabel])) {
-                    $patientValues[trim($translationMap[$englishLabel])] = $patient->{$patientColumn} ?? null;
-                }
-            }
 
             Log::channel('patient_form')->info('Fetching patient funnel submission details', [
                 'user_id'    => $userId,
@@ -539,21 +641,29 @@ class FunnelApiController extends Controller
                 ->where('user_funnel_id', $userFunnel->id)
                 ->get(['form_id', 'status']);
 
-            $forms = $formDetails->map(function ($form) use ($submissions, $patientValues) {
+            $forms = $formDetails->map(function ($form) use ($submissions, $patient, $labelIndex) {
                 $submission = $submissions->where('form_id', $form->id)->first();
 
                 $fields = is_array($form->fields)
                     ? $form->fields
                     : json_decode($form->fields ?? '[]', true);
 
-                $onlyFields = collect($fields['rows'] ?? [])
-                    ->flatMap(function ($row) use ($patientValues) {
-                        return collect($row['cols'] ?? [])
-                            ->flatMap(function ($col) use ($patientValues) {
-                                return collect($col['fields'] ?? [])->map(function ($field) use ($patientValues) {
+                // Claimed columns are tracked across the whole form, in field order, so a
+                // second field labelled "Mobile" resolves to emerg_cell rather than
+                // repeating the patient's own cell_no.
+                $claimedColumns = [];
 
-                                    $label = trim($field['label'] ?? '');
-                                    $value = $patientValues[$label] ?? null;
+                $onlyFields = collect($fields['rows'] ?? [])
+                    ->flatMap(function ($row) use ($patient, $labelIndex, &$claimedColumns) {
+                        return collect($row['cols'] ?? [])
+                            ->flatMap(function ($col) use ($patient, $labelIndex, &$claimedColumns) {
+                                return collect($col['fields'] ?? [])->map(function ($field) use ($patient, $labelIndex, &$claimedColumns) {
+
+                                    $label  = trim($field['label'] ?? '');
+                                    $column = $label === ''
+                                        ? null
+                                        : $this->resolvePatientColumn($label, $labelIndex, $claimedColumns);
+                                    $value  = $column !== null ? ($patient->{$column} ?? null) : null;
 
                                     $newField = [];
 
@@ -770,120 +880,24 @@ class FunnelApiController extends Controller
                     }
                 }
 
-                $fieldMapping = [
-                    "first_name" => "First Name:",
-                    "last_name" => "Last Name:",
-                    "middle_name" => "Middle Name:",
-                    "suffix" => "Suffix",
-                    "dob" => "Date of Birth:",
-                    "ssn" => "SSN:",
-                    "driver_license" => "Driver’s License Number:",
-                    "dl_state" => "DL State",
-                    "sex" => "Sex:",
-                    "address1" => "Physical Address:",
-                    "address2" => "Apartment/Suite Number:",
-                    "city" => "City:",
-                    "state" => "State:",
-                    "zip" => "Zip Code:",
-                    "mailing_address" => "Mailing Address (if different from physical address):",
-                    "mailing_address2" => "Apt/Suite # (Mailing)",
-                    "city2" => "City (Mailing)",
-                    "state2" => "State (Mailing)",
-                    "zip2" => "Zip (Mailing)",
-                    "home_ph" => "Phone Number:",
-                    "work_ph" => "Work Phone:",
-                    "work_ext" => "Work Extension:",
-                    "cell_no" => "Mobile",
-                    "wireless_carrier" => "Wireless Carrier",
-                    "textmsg_consent" => "Text Messages?",
-                    "fax_no" => "Fax Number:",
-                    "email" => "Email:",
-                    "marital_status" => "Marital Status:",
-                    "children" => "Number of Children:",
-                    "ethnicity" => "Ethnicity:",
-                    "language" => "Primary Language:",
-                    "education" => "Education:",
-                    "hand_dom" => "Hand Dominance",
-                    "emerg_contact" => "Name",
-                    "emerg_address" => "Address",
-                    "emerg_city" => "City",
-                    "emerg_state" => "State",
-                    "emerg_zip" => "Zip",
-                    "emerg_phone" => "Phone",
-                    "emerg_cell" => "Mobile",
-                    "emerg_relation" => "Relationship",
-                    "allergy" => "Allergies",
-                ];
-
-                $translationMap = [
-                    "First Name:" => "El Nombre de Pila:",
-                    "Middle Name:" => "El Segundo Nombre:",
-                    "Last Name:" => "El Apellido:",
-                    "Date of Birth:" => "La Fecha de Nacimiento:",
-                    "SSN:" => "El Numero de Seguridad Social:",
-                    "Sex:" => "Sex:",
-                    "Physical Address:" => "Le Direccion Fisica:",
-                    "Apartment/Suite Number:" => "El Apartamento/Numero de Suite:",
-                    "City:" => "La Ciudad:",
-                    "State:" => "El Estado:",
-                    "Zip Code:" => "El Codigo Postal:",
-                    "Mailing Address (if different from physical address):" => "Dirección postal (si es diferente de la dirección física):",
-                    "Phone Number:" => "numero de telefono:",
-                    "Work Phone:" => "telefono del trabajo",
-                    "Work Extension:" => "Extensión de trabajo:",
-                    "Mobile" => "Número de teléfono móvil:",
-                    "Fax Number:" => "El numero de fax:",
-                    "Email:" => "El correo electronico:",
-                    "Driver’s License Number:" => "Número de licencia de conducir:",
-                    "Marital Status:" => "El estado civil:",
-                    "Number of Children:" => "Número de niños:",
-                    "Ethnicity:" => "la etnia:",
-                    "Education:" => "educacion:",
-                    "Hand Dominance" => "Dominación de la mano",
-                    "Primary Language:" => "Idioma principal:",
-                    "Name" => "Nombre",
-                    "Address" => "La Direccion",
-                    "City" => "Ciudad",
-                    "Phone" => "Telephono",
-                    "Relationship" => "relacion",
-                    "Allergies" => "Alergias",
-                ];
-
-                $normalizeLabel = static function (?string $label): string {
-                    $label = (string) $label;
-                    $label = str_replace(["\xE2\x80\x99", "\xE2\x80\x98", "\x60"], "'", $label);
-                    $label = preg_replace('/\s+/', ' ', trim($label));
-                    $label = rtrim($label, ':');
-
-                    return mb_strtolower($label);
-                };
-
-                $labelToColumn = [];
-
-                foreach ($fieldMapping as $column => $englishLabel) {
-                    $normalizedEnglishLabel = $normalizeLabel($englishLabel);
-                    if (!isset($labelToColumn[$normalizedEnglishLabel])) {
-                        $labelToColumn[$normalizedEnglishLabel] = $column;
-                    }
-
-                    if (isset($translationMap[$englishLabel])) {
-                        $normalizedTranslatedLabel = $normalizeLabel($translationMap[$englishLabel]);
-                        if (!isset($labelToColumn[$normalizedTranslatedLabel])) {
-                            $labelToColumn[$normalizedTranslatedLabel] = $column;
-                        }
-                    }
-                }
+                $labelIndex     = $this->buildPatientLabelIndex();
+                $claimedColumns = [];
 
                 foreach ($fieldsInput as $field) {
                     if (!is_array($field)) {
                         continue;
                     }
 
-                    $label = $normalizeLabel($field['label'] ?? $field['lable'] ?? '');
-                    $value = $field['value'] ?? null;
+                    $label = (string) ($field['label'] ?? $field['lable'] ?? '');
 
-                    if ($label && array_key_exists($label, $labelToColumn)) {
-                        $patientUpdateData[$labelToColumn[$label]] = $value;
+                    if (trim($label) === '') {
+                        continue;
+                    }
+
+                    $column = $this->resolvePatientColumn($label, $labelIndex, $claimedColumns);
+
+                    if ($column !== null) {
+                        $patientUpdateData[$column] = $field['value'] ?? null;
                     }
                 }
                 $existingPatient = AhcsPatient::find($patientId);
