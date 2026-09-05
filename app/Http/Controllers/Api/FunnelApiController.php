@@ -338,6 +338,12 @@ class FunnelApiController extends Controller
             $patientIds = $request->user()->getActivePatientIds();
 
             if (empty($caseId)) {
+                Log::channel('patient_funnel')->warning('Fetching patient funnels failed: case_id missing', [
+                    'user_id'     => $request->user()->id,
+                    'patient_ids' => $patientIds,
+                    'ip_address'  => $request->ip(),
+                ]);
+
                 return response()->json([
                     'status' => false,
                     'message' => 'Case Id is required.',
@@ -349,6 +355,13 @@ class FunnelApiController extends Controller
                 ->exists();
 
             if (!$isValidCaseForPatient) {
+                Log::channel('patient_funnel')->warning('Fetching patient funnels failed: case does not belong to patient', [
+                    'user_id'     => $request->user()->id,
+                    'patient_ids' => $patientIds,
+                    'case_id'     => $caseId,
+                    'ip_address'  => $request->ip(),
+                ]);
+
                 return response()->json([
                     'status' => false,
                     'message' => 'Invalid Case Id for this patient.',
@@ -462,6 +475,11 @@ class FunnelApiController extends Controller
             $caseId    = $request->input('case_id');
 
             if (empty($patientId)) {
+                Log::channel('patient_funnel')->warning('Check funnel form completion failed: patient_id missing', [
+                    'case_id'    => $caseId,
+                    'ip_address' => $request->ip(),
+                ]);
+
                 return response()->json([
                     'status'  => false,
                     'message' => 'Patient Id is required.',
@@ -469,6 +487,11 @@ class FunnelApiController extends Controller
             }
 
             if (empty($caseId)) {
+                Log::channel('patient_funnel')->warning('Check funnel form completion failed: case_id missing', [
+                    'patient_id' => $patientId,
+                    'ip_address' => $request->ip(),
+                ]);
+
                 return response()->json([
                     'status'  => false,
                     'message' => 'Case Id is required.',
@@ -481,6 +504,12 @@ class FunnelApiController extends Controller
                 ->exists();
 
             if (!$isValidCase) {
+                Log::channel('patient_funnel')->warning('Check funnel form completion failed: case does not belong to patient', [
+                    'patient_id' => $patientId,
+                    'case_id'    => $caseId,
+                    'ip_address' => $request->ip(),
+                ]);
+
                 return response()->json([
                     'status'  => false,
                     'message' => 'Invalid Case Id for this patient.',
@@ -491,6 +520,11 @@ class FunnelApiController extends Controller
             $user = User::where('patient_id', 'LIKE', '%'.$patientId.'%')->first();
 
             if (!$user) {
+                Log::channel('patient_funnel')->warning('Check funnel form completion failed: no portal user for patient', [
+                    'patient_id' => $patientId,
+                    'case_id'    => $caseId,
+                ]);
+
                 return response()->json([
                     'status'  => true,
                     'data'    => [],
@@ -598,6 +632,12 @@ class FunnelApiController extends Controller
             $patientIds = auth()->user()->getActivePatientIds();
 
             if (empty($caseId)) {
+                Log::channel('patient_form')->warning('Funnel submission details failed: case_id missing', [
+                    'user_id'   => $userId,
+                    'funnel_id' => $funnelId,
+                    'ip_address'=> $request->ip(),
+                ]);
+
                 return response()->json([
                     'status' => false,
                     'message' => 'Case Id is required.',
@@ -611,6 +651,13 @@ class FunnelApiController extends Controller
                 ->first(['patient_id']);
 
             if (!$caseRecord) {
+                Log::channel('patient_form')->warning('Funnel submission details failed: case does not belong to patient', [
+                    'user_id'     => $userId,
+                    'funnel_id'   => $funnelId,
+                    'case_id'     => $caseId,
+                    'patient_ids' => $patientIds,
+                ]);
+
                 return response()->json([
                     'status' => false,
                     'message' => 'Invalid Case Id for this patient.',
@@ -623,6 +670,13 @@ class FunnelApiController extends Controller
             $patient = AhcsPatient::where('id', $patientId)->first();
 
             if (!$patient) {
+                Log::channel('patient_form')->warning('Funnel submission details failed: patient not found', [
+                    'user_id'    => $userId,
+                    'funnel_id'  => $funnelId,
+                    'case_id'    => $caseId,
+                    'patient_id' => $patientId,
+                ]);
+
                 return response()->json([
                     'status'  => false,
                     'message' => 'Patient not found',
@@ -650,6 +704,13 @@ class FunnelApiController extends Controller
             $userFunnel = $userFunnelQuery->first();
 
             if (!$userFunnel) {
+                Log::channel('patient_form')->warning('Funnel submission details failed: funnel not assigned to this patient case', [
+                    'user_id'    => $userId,
+                    'funnel_id'  => $funnelId,
+                    'case_id'    => $caseId,
+                    'patient_id' => $patientId,
+                ]);
+
                 return response()->json([
                     'status'  => false,
                     'message' => 'Funnel not found for this patient case',
@@ -661,6 +722,13 @@ class FunnelApiController extends Controller
                 ->first(['id', 'name', 'form_ids']);
 
             if (!$funnelDetails) {
+                Log::channel('patient_form')->warning('Funnel submission details failed: funnel missing or not active', [
+                    'user_id'    => $userId,
+                    'funnel_id'  => $funnelId,
+                    'case_id'    => $caseId,
+                    'patient_id' => $patientId,
+                ]);
+
                 return response()->json([
                     'status'  => false,
                     'message' => 'Funnel not found',
@@ -798,6 +866,13 @@ class FunnelApiController extends Controller
             $caseId     = $request->input('case_id');
 
             if (empty($caseId)) {
+                Log::channel('patient_form')->warning('Patient form submission failed: case_id missing', [
+                    'user_id'     => $userId,
+                    'form_id'     => $formId,
+                    'patient_ids' => $patientIds,
+                    'ip_address'  => $request->ip(),
+                ]);
+
                 return response()->json([
                     'status'  => false,
                     'message' => 'Case Id is required.',
@@ -862,6 +937,14 @@ class FunnelApiController extends Controller
                 ->first();
 
             if (!$userFunnel) {
+                Log::channel('patient_form')->warning('Patient form submission failed: funnel not assigned for this patient case', [
+                    'user_id'    => $userId,
+                    'form_id'    => $formId,
+                    'funnel_id'  => $request->funnel_id,
+                    'case_id'    => $caseId,
+                    'patient_id' => $patientId,
+                ]);
+
                 return response()->json([
                     'status'  => false,
                     'message' => 'Funnel not assigned for this patient case.',
@@ -890,6 +973,14 @@ class FunnelApiController extends Controller
             $form = Form::find($formId);
 
             if (!$form) {
+                Log::channel('patient_form')->warning('Patient form submission failed: form not found', [
+                    'user_id'    => $userId,
+                    'form_id'    => $formId,
+                    'funnel_id'  => $request->funnel_id,
+                    'case_id'    => $caseId,
+                    'patient_id' => $patientId,
+                ]);
+
                 return response()->json([
                     'status'  => false,
                     'message' => 'Form not found.',
@@ -1142,9 +1233,19 @@ class FunnelApiController extends Controller
      * - 500: { status: false, message: string, error: string }
      */
     public function getAllOldForms(){
+        $startedAt = microtime(true);
+
         try{
 
+            Log::channel('patient_form')->info('Fetching all old forms - Start');
+
             $allForms = DB::connection('patient_portal')->table('forms')->whereNull('deleted_at')->get();
+
+            Log::channel('patient_form')->info('Fetching all old forms - Success', [
+                'total_forms'    => $allForms->count(),
+                'payload_bytes'  => strlen(json_encode($allForms)),
+                'duration_ms'    => (int) round((microtime(true) - $startedAt) * 1000),
+            ]);
 
             return response()->json([
                 'status'  => true,
@@ -1154,8 +1255,10 @@ class FunnelApiController extends Controller
 
         }catch(\Throwable $e){
             Log::channel('patient_form')->error('Error fetching all forms', [
-                'error'   => $e->getMessage(),
-                'line'    => $e->getLine()
+                'error'       => $e->getMessage(),
+                'file'        => $e->getFile(),
+                'line'        => $e->getLine(),
+                'duration_ms' => (int) round((microtime(true) - $startedAt) * 1000),
             ]);
 
             return response()->json([
@@ -1386,8 +1489,10 @@ class FunnelApiController extends Controller
 
     public function checkAssignFunnel(Request $request)
     {
+        $startedAt = microtime(true);
+
         try {
-            Log::channel('patient_funnel')->info('Assign funnel request received', [
+            Log::channel('patient_funnel')->info('Check assign funnel request received', [
                 'patient_id' => $request->patient_id,
                 'case_id'    => $request->case_id,
             ]);
@@ -1398,6 +1503,12 @@ class FunnelApiController extends Controller
             ]);
 
             if ($validator->fails()) {
+                Log::channel('patient_funnel')->warning('Check assign funnel - validation failed', [
+                    'patient_id' => $request->patient_id,
+                    'case_id'    => $request->case_id,
+                    'errors'     => $validator->errors()->toArray(),
+                ]);
+
                 return response()->json([
                     'status'  => false,
                     'message' => 'Validation failed.',
@@ -1405,11 +1516,19 @@ class FunnelApiController extends Controller
                 ], 422);
             }
 
-            // Create patient case if not exists
-            $patientCase = PatientCase::firstOrCreate([
+            // Create patient case if not exists.
+            // withTrashed() first: patient_cases carries a hard unique index on
+            // (patient_id, case_id) that ignores deleted_at, so a plain
+            // firstOrCreate() raises a duplicate-key error whenever a
+            // soft-deleted row already exists for this pair.
+            $patientCase = PatientCase::withTrashed()->firstOrCreate([
                 'patient_id' => $request->patient_id,
                 'case_id'    => $request->case_id,
             ]);
+
+            if ($patientCase->trashed()) {
+                $patientCase->restore();
+            }
 
             $existingActiveAssignment = UserFunnel::where('patient_id', $request->patient_id)
                 ->where('patient_case_id', $patientCase->id)
@@ -1434,7 +1553,16 @@ class FunnelApiController extends Controller
                 'status'  => true,
                 'assign_funnel' => false,
             ]);
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
+
+            Log::channel('patient_funnel')->error('Check assign funnel - failed', [
+                'patient_id'  => $request->patient_id,
+                'case_id'     => $request->case_id,
+                'error'       => $e->getMessage(),
+                'file'        => $e->getFile(),
+                'line'        => $e->getLine(),
+                'duration_ms' => (int) round((microtime(true) - $startedAt) * 1000),
+            ]);
 
             return response()->json([
                 'status'  => false,
@@ -1444,7 +1572,7 @@ class FunnelApiController extends Controller
     }
 
     /**
-     * POST /api/check-multiple-assign-funnel
+     * GET /api/check-multiple-assign-funnel
      *
      * Same as checkAssignFunnel(), but returns every funnel currently assigned
      * to the patient/case instead of only the first one.
@@ -1461,6 +1589,8 @@ class FunnelApiController extends Controller
      */
     public function checkMultipleAssignFunnel(Request $request)
     {
+        $startedAt = microtime(true);
+
         try {
             Log::channel('patient_funnel')->info('Check multiple assign funnel request received', [
                 'patient_id' => $request->patient_id,
@@ -1473,6 +1603,12 @@ class FunnelApiController extends Controller
             ]);
 
             if ($validator->fails()) {
+                Log::channel('patient_funnel')->warning('Check multiple assign funnel - validation failed', [
+                    'patient_id' => $request->patient_id,
+                    'case_id'    => $request->case_id,
+                    'errors'     => $validator->errors()->toArray(),
+                ]);
+
                 return response()->json([
                     'status'  => false,
                     'message' => 'Validation failed.',
@@ -1480,17 +1616,32 @@ class FunnelApiController extends Controller
                 ], 422);
             }
 
-            // Create patient case if not exists
-            $patientCase = PatientCase::firstOrCreate([
+            // Create patient case if not exists.
+            // withTrashed() first: patient_cases carries a hard unique index on
+            // (patient_id, case_id) that ignores deleted_at, so a plain
+            // firstOrCreate() raises a duplicate-key error whenever a
+            // soft-deleted row already exists for this pair.
+            $patientCase = PatientCase::withTrashed()->firstOrCreate([
                 'patient_id' => $request->patient_id,
                 'case_id'    => $request->case_id,
             ]);
+
+            if ($patientCase->trashed()) {
+                $patientCase->restore();
+            }
 
             $existingActiveAssignments = UserFunnel::where('patient_id', $request->patient_id)
                 ->where('patient_case_id', $patientCase->id)
                 ->get();
 
             if ($existingActiveAssignments->isEmpty()) {
+                Log::channel('patient_funnel')->info('Check multiple assign funnel - no assignments found', [
+                    'patient_id'      => $request->patient_id,
+                    'case_id'         => $request->case_id,
+                    'patient_case_id' => $patientCase->id,
+                    'duration_ms'     => (int) round((microtime(true) - $startedAt) * 1000),
+                ]);
+
                 return response()->json([
                     'status'  => true,
                     'assign_funnel' => false,
@@ -1509,12 +1660,29 @@ class FunnelApiController extends Controller
                 ];
             })->values();
 
+            Log::channel('patient_funnel')->info('Check multiple assign funnel - success', [
+                'patient_id'       => $request->patient_id,
+                'case_id'          => $request->case_id,
+                'patient_case_id'  => $patientCase->id,
+                'assignment_count' => $funnels->count(),
+                'duration_ms'      => (int) round((microtime(true) - $startedAt) * 1000),
+            ]);
+
             return response()->json([
                 'status'  => true,
                 'assign_funnel' => true,
                 'funnels' => $funnels,
             ]);
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
+
+            Log::channel('patient_funnel')->error('Check multiple assign funnel - failed', [
+                'patient_id'  => $request->patient_id,
+                'case_id'     => $request->case_id,
+                'error'       => $e->getMessage(),
+                'file'        => $e->getFile(),
+                'line'        => $e->getLine(),
+                'duration_ms' => (int) round((microtime(true) - $startedAt) * 1000),
+            ]);
 
             return response()->json([
                 'status'  => false,
@@ -1580,6 +1748,14 @@ class FunnelApiController extends Controller
             $normalizedPhone = $this->normalizePhoneForSms((string) $request->phone);
             $normalizedDigits = preg_replace('/\D+/', '', $normalizedPhone);
             if (strlen($normalizedDigits) < 11) {
+                DB::rollBack();
+
+                Log::channel('patient_funnel')->warning('Funnel SMS assignment failed: phone number too short after normalization', [
+                    'patient_id'     => $request->patient_id,
+                    'case_id'        => $request->case_id,
+                    'digit_count'    => strlen($normalizedDigits),
+                ]);
+
                 return response()->json([
                     'status'  => false,
                     'message' => 'Validation failed.',
@@ -2150,6 +2326,14 @@ class FunnelApiController extends Controller
             $normalizedPhone = $this->normalizePhoneForSms((string) $request->phone);
             $normalizedDigits = preg_replace('/\D+/', '', $normalizedPhone);
             if (strlen($normalizedDigits) < 11) {
+                DB::rollBack();
+
+                Log::channel('patient_funnel')->warning('Funnel SMS assignment failed: phone number too short after normalization', [
+                    'patient_id'     => $request->patient_id,
+                    'case_id'        => $request->case_id,
+                    'digit_count'    => strlen($normalizedDigits),
+                ]);
+
                 return response()->json([
                     'status'  => false,
                     'message' => 'Validation failed.',
@@ -2491,6 +2675,14 @@ class FunnelApiController extends Controller
                 $normalizedPhone  = $this->normalizePhoneForSms((string) $request->phone);
                 $normalizedDigits = preg_replace('/\D+/', '', $normalizedPhone);
                 if (strlen($normalizedDigits) < 11) {
+                    Log::channel('patient_funnel')->warning('Add patient to funnel failed: phone number too short after normalization', [
+                        'patient_id'       => $request->patient_id,
+                        'case_id'          => $request->case_id,
+                        'funnel_id'        => $request->funnel_id,
+                        'source'           => $source,
+                        'digit_count'      => strlen($normalizedDigits),
+                    ]);
+
                     return response()->json([
                         'status'  => false,
                         'message' => 'Please provide a valid phone number.',
@@ -2501,16 +2693,37 @@ class FunnelApiController extends Controller
             // ── Check patient ────────────────────────────────────────────────────
             $patient = AhcsPatient::find($request->patient_id);
             if (!$patient) {
+                Log::channel('patient_funnel')->warning('Add patient to funnel failed: patient not found', [
+                    'patient_id' => $request->patient_id,
+                    'case_id'    => $request->case_id,
+                    'funnel_id'  => $request->funnel_id,
+                    'source'     => $source,
+                ]);
+
                 return response()->json(['status' => false, 'message' => 'Patient not found.'], 404);
             }
 
             // ── Check case ───────────────────────────────────────────────────────
             if (!AhcsCase::find($request->case_id)) {
+                Log::channel('patient_funnel')->warning('Add patient to funnel failed: case not found', [
+                    'patient_id' => $request->patient_id,
+                    'case_id'    => $request->case_id,
+                    'funnel_id'  => $request->funnel_id,
+                    'source'     => $source,
+                ]);
+
                 return response()->json(['status' => false, 'message' => 'Case not found.'], 404);
             }
 
             // ── Check funnel ─────────────────────────────────────────────────────
             if (!Funnel::find($request->funnel_id)) {
+                Log::channel('patient_funnel')->warning('Add patient to funnel failed: funnel not found', [
+                    'patient_id' => $request->patient_id,
+                    'case_id'    => $request->case_id,
+                    'funnel_id'  => $request->funnel_id,
+                    'source'     => $source,
+                ]);
+
                 return response()->json(['status' => false, 'message' => 'Funnel not found.'], 404);
             }
 
@@ -2784,6 +2997,8 @@ class FunnelApiController extends Controller
      */
     public function getAllFunnelList()
     {
+        $startedAt = microtime(true);
+
         try {
             Log::channel('patient_funnel')->info('Fetching all active funnels - Start');
 
@@ -2825,6 +3040,7 @@ class FunnelApiController extends Controller
                 'consent_count' => count($groupedFunnels['Consent']),
                 'test_count'    => count($groupedFunnels['Test']),
                 'other_count'   => count($groupedFunnels['Other']),
+                'duration_ms'   => (int) round((microtime(true) - $startedAt) * 1000),
             ]);
 
             return response()->json([
@@ -2836,12 +3052,15 @@ class FunnelApiController extends Controller
         } catch (\Throwable $e) {
 
             Log::channel('patient_funnel')->error('Error fetching all funnels', [
-                'error' => $e->getMessage(),
-                'line'  => $e->getLine()
+                'error'       => $e->getMessage(),
+                'file'        => $e->getFile(),
+                'line'        => $e->getLine(),
+                'duration_ms' => (int) round((microtime(true) - $startedAt) * 1000),
             ]);
 
             return response()->json([
                 'status'  => false,
+                'error'   => $e->getMessage(),
                 'message' => 'Something went wrong while fetching funnels.',
             ], 500);
         }
