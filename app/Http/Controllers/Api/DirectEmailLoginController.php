@@ -45,6 +45,21 @@ class DirectEmailLoginController extends Controller
                 ], 401);
             }
 
+            // ── Deactivated account check ─────────────────────────────────────
+            // Checked before a token is issued: an account an admin has switched off
+            // (users.is_active = 0) must not be able to sign in this way either.
+            if (!$user->is_active) {
+                Log::channel('auth')->warning('Direct email login blocked: account deactivated', [
+                    'user_id' => $user->id,
+                    'email'   => $user->email,
+                ]);
+
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Your account is no longer active. Please contact support.',
+                ], 403);
+            }
+
             $token = Auth::guard('api')->login($user);
 
             // ── Proxy account revoked check ───────────────────────────────────

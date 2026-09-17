@@ -13,9 +13,10 @@ use Tymon\JWTAuth\Facades\JWTAuth;
 class CheckPatientActive
 {
     /**
-     * Reject the request and invalidate the session if all of the
-     * authenticated user's linked patients have been soft-deleted
-     * (deleted_at IS NOT NULL) in the ahcs_patients table.
+     * Reject the request and invalidate the session if the authenticated
+     * user's account has been switched off (users.is_active = 0), or if all
+     * of their linked patients have been soft-deleted (deleted_at IS NOT NULL)
+     * in the ahcs_patients table.
      */
     public function handle(Request $request, Closure $next)
     {
@@ -23,6 +24,34 @@ class CheckPatientActive
 
         if (!$user) {
             return $next($request);
+        }
+
+        // ── Deactivated account ───────────────────────────────────────────────
+        // Checked first, and before the "no linked patients" early return, so an
+        // account without patient ids is still stopped.
+        if (!$user->is_active) {
+            UserSession::where('user_id', $user->id)
+                ->where('is_active', 1)
+                ->update([
+                    'is_active'  => 0,
+                    'updated_at' => now(),
+                ]);
+
+            Log::channel('auth')->warning('Session invalidated: account deactivated', [
+                'user_id' => $user->id,
+                'email'   => $user->email,
+            ]);
+
+            try {
+                Auth::guard('api')->logout();
+            } catch (\Throwable) {
+                // Ignore if token is already expired.
+            }
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Your account is no longer active. Please contact support.',
+            ], 403);
         }
 
         $patientIds = $user->getAllPatientIds();

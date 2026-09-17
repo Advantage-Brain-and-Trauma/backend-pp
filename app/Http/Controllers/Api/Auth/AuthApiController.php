@@ -55,6 +55,24 @@ class AuthApiController extends Controller
             // ✅ Get logged-in user
             $user = Auth::guard('api')->user();
 
+            // ── Deactivated account check ─────────────────────────────────────
+            // Block login when an admin has switched the account off (users.is_active = 0).
+            // Deactivating already ends existing sessions; without this check the user
+            // could simply sign in again.
+            if (!$user->is_active) {
+                Auth::guard('api')->logout();
+
+                Log::channel('auth')->warning('Login blocked: account deactivated', [
+                    'user_id' => $user->id,
+                    'email'   => $user->email,
+                ]);
+
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Your account is no longer active. Please contact support.',
+                ], 403);
+            }
+
             // ── Proxy account revoked check ───────────────────────────────────
             // Block login if the user is a proxy account with no active proxy access.
             if ($user->is_proxy_account) {
@@ -263,6 +281,27 @@ class AuthApiController extends Controller
                     'success' => false,
                     'message' => 'User not found'
                 ], 401);
+            }
+
+            // ── Deactivated account check ─────────────────────────────────────
+            // A token issued before the account was switched off must not be refreshed
+            // into a new one.
+            if (!$freshUser->is_active) {
+                try {
+                    Auth::guard('api')->logout();
+                } catch (\Throwable) {
+                    // Token may already be invalid — safe to ignore.
+                }
+
+                Log::channel('auth')->warning('Token refresh blocked: account deactivated', [
+                    'user_id' => $freshUser->id,
+                    'email'   => $freshUser->email,
+                ]);
+
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Your account is no longer active. Please contact support.',
+                ], 403);
             }
 
             // Resolve case_id: prefer the request param, fall back to the old token claim.

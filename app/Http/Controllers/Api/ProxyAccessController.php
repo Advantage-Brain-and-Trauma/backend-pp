@@ -512,6 +512,18 @@ class ProxyAccessController extends Controller
             $proxyUser     = auth()->user();
             $patientUserId = (int) $request->patient_user_id;
 
+            // A deactivated proxy account (users.is_active = 0) must not get a new token.
+            if (!$proxyUser->is_active) {
+                Log::channel('proxy')->warning('Proxy switch-patient denied — account deactivated', [
+                    'proxy_user_id'   => $proxyUser->id,
+                    'patient_user_id' => $patientUserId,
+                ]);
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Your account is no longer active. Please contact support.',
+                ], 403);
+            }
+
             // Verify active proxy access exists
             $proxyAccess = ProxyAccess::where('proxy_user_id', $proxyUser->id)
                 ->where('patient_user_id', $patientUserId)
