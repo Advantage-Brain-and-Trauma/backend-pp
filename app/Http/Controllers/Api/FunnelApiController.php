@@ -10,6 +10,8 @@ use App\Models\User;
 use App\Models\UserFunnel;
 use App\Services\FormSubmissionPdfService;
 use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
@@ -1007,21 +1009,29 @@ class FunnelApiController extends Controller
                     }
                 }
 
-                if ($request->hasFile('fields')) {
-                    foreach ($request->file('fields') as $fieldId => $file) {
-                        if ($file && $file->isValid()) {
-                            $originalName = pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME);
-                            $extension    = $file->getClientOriginalExtension();
-                            $filename     = $originalName . '_' . time() . '.' . $extension;
+                // Uploaded files reach this endpoint in one of three shapes, depending on the client:
+                //   fields[<id>]            a plain file input (the Blade public form and funnel pages)
+                //   fields[<id>][value]     the patient app, which posts {label, value} per field
+                //   fields[<id>][value][]   the same, from a multi-select file input
+                // $request->hasFile('fields') only reports the first of those - a nested array is not
+                // an SplFileInfo, so it answers false - and the patient app's uploads were therefore
+                // dropped in silence: nothing stored on disk, and the answer saved as null. Walk the
+                // file bag itself instead of asking hasFile().
+                $uploadedFields = $request->allFiles()['fields'] ?? [];
 
-                            $path = $file->storeAs(
-                                'form-uploads/' . $formId,
-                                $filename,
-                                'public'
-                            );
+                Log::channel('patient_form')->info('Patient form upload shape', [
+                    'user_id' => $userId,
+                    'form_id' => $formId,
+                    'files'   => empty($uploadedFields) ? 'none' : $this->describeUploadShape($uploadedFields),
+                ]);
 
-                            $formData[$fieldId] = $path;
-                        }
+                foreach ($uploadedFields as $fieldId => $uploaded) {
+                    $paths = $this->storeSubmissionUploads($uploaded, $formId);
+
+                    // Only a real upload replaces the posted value: a field that carried no file must
+                    // keep whatever the patient typed rather than being blanked here.
+                    if ($paths !== []) {
+                        $formData[$fieldId] = count($paths) === 1 ? $paths[0] : $paths;
                     }
                 }
 
@@ -1218,6 +1228,101 @@ class FunnelApiController extends Controller
                 'message' => 'Something went wrong while submitting the form.',
             ], 500);
         }
+    }
+
+    /**
+     * Stores every file that arrived under one submitted field, whatever shape the client used to
+     * post it, and returns the stored paths.
+     *
+     * Shapes handled: a bare upload (fields[<id>]), the patient app's {label, value} wrapper
+     * (fields[<id>][value]) and a list of uploads inside either of those. Anything that is not a
+     * valid upload is skipped rather than thrown on: one broken part must not cost the patient the
+     * rest of an otherwise good submission.
+     *
+     * PHI: the names and contents of these files are patient data - never log them.
+     *
+     * @return array<int, string> stored paths, relative to the public disk
+     */
+    private function storeSubmissionUploads($uploaded, int $formId): array
+    {
+        if ($uploaded instanceof UploadedFile) {
+            if (!$uploaded->isValid()) {
+                return [];
+            }
+
+            $path = $uploaded->storeAs(
+                'form-uploads/' . $formId,
+                $this->submissionUploadFilename($uploaded, $formId),
+                'public'
+            );
+
+            return $path ? [$path] : [];
+        }
+
+        if (!is_array($uploaded)) {
+            return [];
+        }
+
+        $paths = [];
+
+        foreach ($uploaded as $item) {
+            foreach ($this->storeSubmissionUploads($item, $formId) as $path) {
+                $paths[] = $path;
+            }
+        }
+
+        return $paths;
+    }
+
+    /**
+     * Keeps the existing "<original name>_<timestamp>.<ext>" naming, with the name reduced to safe
+     * characters, and adds a counter when that name is already taken - two files attached in the
+     * same second would otherwise overwrite each other.
+     */
+    private function submissionUploadFilename(UploadedFile $file, int $formId): string
+    {
+        $name = preg_replace('/[^A-Za-z0-9._-]+/', '_', pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME));
+        $name = trim((string) $name, '._-');
+
+        if ($name === '') {
+            $name = 'upload';
+        }
+
+        $extension = $file->getClientOriginalExtension();
+        $suffix    = $extension !== '' ? '.' . $extension : '';
+        $base      = $name . '_' . time();
+        $filename  = $base . $suffix;
+
+        for ($i = 2; Storage::disk('public')->exists('form-uploads/' . $formId . '/' . $filename); $i++) {
+            $filename = $base . '_' . $i . $suffix;
+        }
+
+        return $filename;
+    }
+
+    /**
+     * A PHI-safe sketch of what arrived in the file bag: field ids and nesting only, never a file
+     * name, size or byte. It answers one question in the log - did the client attach a file at all,
+     * and under which key - so an upload the server dropped can be told apart from one the client
+     * never sent.
+     */
+    private function describeUploadShape($uploaded): string
+    {
+        if ($uploaded instanceof UploadedFile) {
+            return 'file';
+        }
+
+        if (!is_array($uploaded)) {
+            return 'other';
+        }
+
+        $parts = [];
+
+        foreach ($uploaded as $key => $item) {
+            $parts[] = $key . ':' . $this->describeUploadShape($item);
+        }
+
+        return '{' . implode(',', $parts) . '}';
     }
 
     /**
