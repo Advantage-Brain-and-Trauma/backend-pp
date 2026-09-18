@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Str;
 
@@ -12,6 +13,8 @@ class Conversation extends Model
         'uuid',
         'conversation_key',
         'type',
+        'assigned_chat_user_id',
+        'department_chat_user_id',
         'last_message_at',
     ];
 
@@ -39,6 +42,25 @@ class Conversation extends Model
         return $this->hasMany(
             ChatMessage::class
         );
+    }
+
+    /**
+     * The department queue this conversation belongs to, when the patient's peer is a
+     * department identity rather than a person. Nullable: a plain person-to-person
+     * conversation has none.
+     */
+    public function department(): BelongsTo
+    {
+        return $this->belongsTo(ChatUser::class, 'department_chat_user_id');
+    }
+
+    /**
+     * The staff member who has claimed this conversation, if any. A claim is advisory —
+     * it does not stop anyone else in the queue replying (decision R3).
+     */
+    public function assignee(): BelongsTo
+    {
+        return $this->belongsTo(ChatUser::class, 'assigned_chat_user_id');
     }
 
     /**

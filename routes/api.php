@@ -17,6 +17,7 @@ use App\Http\Controllers\Api\DirectEmailLoginController;
 use App\Http\Controllers\Api\ChatAuthController;
 use App\Http\Controllers\Api\ChatConversationController;
 use App\Http\Controllers\Api\ChatMessageController;
+use App\Http\Controllers\Api\ChatStaffController;
 
 /*
 |--------------------------------------------------------------------------
@@ -146,10 +147,31 @@ Route::prefix('chat')->group(function () {
     Route::middleware('auth:api')->post('identify/patient', [ChatAuthController::class, 'patient']);
     Route::middleware('chat.secret')->post('identify/external', [ChatAuthController::class, 'external']);
 
-    Route::middleware('auth:chat')->group(function () {
+    // PATIENT side. `throttle` added with the queue-chat work — these routes previously had
+    // no rate limit of any kind. Named limiter, keyed on the chat identity rather than the
+    // IP, so patients sharing one connection do not share one bucket (RouteServiceProvider).
+    Route::middleware(['auth:chat', 'throttle:chat-patient'])->group(function () {
+        Route::get('departments', [ChatConversationController::class, 'departments']);
         Route::get('conversations', [ChatConversationController::class, 'index']);
         Route::post('conversations', [ChatConversationController::class, 'store']);
         Route::get('conversations/{conversation}/messages', [ChatMessageController::class, 'index']);
         Route::post('conversations/{conversation}/messages', [ChatMessageController::class, 'store']);
+    });
+
+    // ── Staff side (Medhiwa) ─────────────────────────────────────────────
+    // Server-to-server only: Medhiwa presents X-CHAT-SECRET and names the staff member plus
+    // the departments that staff member may see; this app enforces that the conversation
+    // belongs to one of them. A staff browser never reaches these routes.
+    //
+    // All POST because each call carries its authorisation context in the body — a GET with a
+    // body would be dropped by proxies and would put department names in access logs.
+    // Keyed per staff member, NOT per IP — all of Medhiwa polls through one server address.
+    Route::prefix('staff')->middleware(['chat.secret', 'throttle:chat-staff'])->group(function () {
+        Route::post('conversations', [ChatStaffController::class, 'conversations']);
+        Route::post('conversations/start', [ChatStaffController::class, 'start']);
+        Route::post('conversations/{conversation}/messages', [ChatStaffController::class, 'messages']);
+        Route::post('conversations/{conversation}/send', [ChatStaffController::class, 'send']);
+        Route::post('conversations/{conversation}/assign', [ChatStaffController::class, 'assign']);
+        Route::post('conversations/{conversation}/read', [ChatStaffController::class, 'read']);
     });
 });

@@ -12,6 +12,7 @@ class ChatMessage extends Model
         'uuid',
         'conversation_id',
         'sender_chat_user_id',
+        'sent_by_chat_user_id',
         'message',
         'message_type',
         'attachment',
@@ -38,5 +39,18 @@ class ChatMessage extends Model
     public function sender(): BelongsTo
     {
         return $this->belongsTo(ChatUser::class, 'sender_chat_user_id');
+    }
+
+    /**
+     * The real staff member behind a department-queue reply.
+     *
+     * `sender` on such a message is the DEPARTMENT identity — that is what the patient sees
+     * and what the broadcast payload carries. This is who actually typed it, kept for the
+     * staff UI and the audit trail, and deliberately never exposed on a patient-facing
+     * endpoint. Null on patient messages and on person-to-person conversations.
+     */
+    public function sentBy(): BelongsTo
+    {
+        return $this->belongsTo(ChatUser::class, 'sent_by_chat_user_id');
     }
 }

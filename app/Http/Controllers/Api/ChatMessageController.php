@@ -59,8 +59,11 @@ class ChatMessageController extends Controller
      */
     public function store(Request $request, Conversation $conversation): JsonResponse
     {
+        // max on `message` added with the queue-chat work: there was previously no length
+        // limit at all, so a single request could store an unbounded TEXT body and broadcast
+        // it to every subscriber on the channel.
         $validator = Validator::make($request->all(), [
-            'message' => 'required_without:attachment|nullable|string',
+            'message' => 'required_without:attachment|nullable|string|max:' . (int) config('chat.message_max_length', 5000),
             'message_type' => 'nullable|string|in:text,image,file',
             'attachment' => 'nullable|string|max:2048',
         ]);
