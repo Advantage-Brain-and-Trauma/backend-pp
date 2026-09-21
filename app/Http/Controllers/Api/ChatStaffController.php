@@ -787,7 +787,11 @@ class ChatStaffController extends Controller
             ->pluck('id')
             ->all();
 
+        // sentBy is read by presentQueueConversation to name the author of the list preview.
+        // Eager-loaded because the Queue tab polls: lazily this is one query per
+        // conversation per poll.
         return ChatMessage::whereIn('id', $latestIds)
+            ->with('sentBy')
             ->get()
             ->keyBy('conversation_id')
             ->all();
@@ -839,6 +843,10 @@ class ChatStaffController extends Controller
                 // A short preview only — the full body is fetched when a thread is opened.
                 'preview' => mb_substr((string) $last->message, 0, 140),
                 'from' => (int) $last->sender_chat_user_id === $departmentId ? 'staff' : 'patient',
+                // WHICH staff member wrote it. `from` is 'staff' for every reply on a queue
+                // thread, so without this the UI cannot tell the caller's own last message
+                // from a colleague's and labels both "You:". Null on patient messages.
+                'sent_by' => $this->presentStaff($last->sentBy),
                 'created_at' => $last->created_at?->toIso8601String(),
             ] : null,
         ];
