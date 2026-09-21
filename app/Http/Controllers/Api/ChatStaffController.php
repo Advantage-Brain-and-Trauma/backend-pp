@@ -340,6 +340,20 @@ class ChatStaffController extends Controller
                 return $refusal;
             }
 
+            // Medhiwa states which KINDS of conversation this user may take part in; only this
+            // side knows which kind the conversation actually is, so the check lands here.
+            // Absent flags are treated as permitted so an older caller keeps working.
+            $kindAllowed = $conversation->isStaffConversation()
+                ? $request->boolean('may_staff_chat', true)
+                : $request->boolean('may_patient_chat', true);
+
+            if (!$kindAllowed) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'You do not have permission to reply in this conversation.',
+                ], 403);
+            }
+
             $staff = $this->staffIdentity($request);
 
             $refusal = $this->claimForReply($request, $conversation, $staff);
@@ -501,6 +515,9 @@ class ChatStaffController extends Controller
             'all_departments' => 'nullable|boolean',
             'departments' => 'required_without:all_departments|nullable|array',
             'departments.*' => 'string|max:255',
+            // Capability flags Medhiwa vouches for; enforced against the conversation's kind.
+            'may_patient_chat' => 'nullable|boolean',
+            'may_staff_chat' => 'nullable|boolean',
         ], $extra));
 
         if ($validator->fails()) {
