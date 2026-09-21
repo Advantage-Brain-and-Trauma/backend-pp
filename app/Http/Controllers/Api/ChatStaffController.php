@@ -70,6 +70,13 @@ class ChatStaffController extends Controller
         }
 
         try {
+            // Two different lists behind one endpoint. `staff` returns this user's own
+            // person-to-person threads (no department, no lock); the default returns the
+            // department queue.
+            if ($request->input('scope') === 'staff') {
+                return $this->staffConversations($request);
+            }
+
             $allowed = $this->allowedDepartments($request);
 
             if ($allowed === []) {
@@ -93,15 +100,97 @@ class ChatStaffController extends Controller
             $ids = $conversations->pluck('id')->all();
             $unread = $this->unreadCounts($ids);
             $latest = $this->latestMessages($ids);
+            $staffId = (int) $this->staffIdentity($request)->id;
 
             return response()->json([
                 'success' => true,
                 'conversations' => $conversations
-                    ->map(fn (Conversation $c) => $this->presentQueueConversation($c, $allowed, $unread, $latest))
+                    ->map(fn (Conversation $c) => $this->presentQueueConversation($c, $allowed, $unread, $latest, $staffId))
                     ->values(),
             ]);
         } catch (\Throwable $e) {
             return $this->failure('Chat staff conversation list error', $e, 'Unable to fetch conversations.');
+        }
+    }
+
+    /**
+     * The caller's own staff <-> staff threads. Membership is the only filter — these are
+     * private two-person conversations and have nothing to do with the department queue.
+     */
+    private function staffConversations(Request $request): JsonResponse
+    {
+        $me = $this->staffIdentity($request);
+
+        $conversations = Conversation::query()
+            ->whereNull('department_chat_user_id')
+            ->whereHas('participants', fn ($q) => $q->where('chat_user_id', $me->id))
+            ->with(['participants.chatUser'])
+            ->orderByDesc('last_message_at')
+            ->orderByDesc('id')
+            ->limit(min(max((int) $request->input('limit', 200), 1), 500))
+            ->get();
+
+        $ids = $conversations->pluck('id')->all();
+        $unread = $this->staffUnreadCounts($ids, (int) $me->id);
+        $latest = $this->latestMessages($ids);
+
+        return response()->json([
+            'success' => true,
+            'conversations' => $conversations
+                ->map(fn (Conversation $c) => $this->presentStaffConversation($c, $me, $unread, $latest))
+                ->values(),
+        ]);
+    }
+
+    /**
+     * POST /api/chat/staff/conversations/start-staff
+     *
+     * Open (or return) the private thread between the caller and another staff member.
+     * Deliberately separate from start(): that one builds a patient queue conversation and
+     * every rule around it — department, case check, lock — is wrong here.
+     */
+    public function startStaff(Request $request): JsonResponse
+    {
+        $failed = $this->validateContext($request, [
+            'peer_staff_external_id' => 'required|integer|min:1',
+            'peer_staff_name' => 'nullable|string|max:255',
+        ]);
+
+        if ($failed) {
+            return $failed;
+        }
+
+        try {
+            $me = $this->staffIdentity($request);
+            $peer = $this->departments->staffChatUser(
+                (int) $request->input('peer_staff_external_id'),
+                $request->input('peer_staff_name')
+            );
+
+            if ((int) $peer->id === (int) $me->id) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'You cannot start a conversation with yourself.',
+                ], 422);
+            }
+
+            $conversation = $this->chatIdentityService->findOrCreateDirectConversation($me, $peer);
+
+            // department_chat_user_id stays NULL — that is what marks this a staff thread and
+            // keeps it out of every department queue.
+            $conversation->load('participants.chatUser');
+
+            return response()->json([
+                'success' => true,
+                'conversation' => $this->presentStaffConversation(
+                    $conversation,
+                    $me,
+                    $this->staffUnreadCounts([$conversation->id], (int) $me->id),
+                    $this->latestMessages([$conversation->id])
+                ),
+            ]);
+        } catch (\Throwable $e) {
+            return $this->failure('Chat staff peer start error', $e, 'Unable to start conversation.');
         }
     }
 
@@ -180,7 +269,8 @@ class ChatStaffController extends Controller
                     $conversation,
                     $allowed,
                     $this->unreadCounts([$conversation->id]),
-                    $this->latestMessages([$conversation->id])
+                    $this->latestMessages([$conversation->id]),
+                    (int) $this->staffIdentity($request)->id
                 ),
             ]);
         } catch (\Throwable $e) {
@@ -214,11 +304,13 @@ class ChatStaffController extends Controller
                 ->orderBy('id')
                 ->paginate(min(max((int) $request->input('per_page', 50), 1), 200));
 
-            $this->markQueueRead($conversation);
+            $this->markRead($conversation, $this->staffIdentity($request));
 
             return response()->json([
                 'success' => true,
-                'messages' => $messages->through(fn (ChatMessage $m) => $this->presentMessage($m, $conversation)),
+                'messages' => $messages->through(
+                    fn (ChatMessage $m) => $this->presentMessage($m, $conversation, (int) $this->staffIdentity($request)->id)
+                ),
             ]);
         } catch (\Throwable $e) {
             return $this->failure('Chat staff message list error', $e, 'Unable to fetch messages.', $conversation);
@@ -234,6 +326,7 @@ class ChatStaffController extends Controller
     {
         $failed = $this->validateContext($request, [
             'message' => 'required|string|max:' . (int) config('chat.message_max_length', 5000),
+            'override' => 'nullable|boolean',
         ]);
 
         if ($failed) {
@@ -249,17 +342,29 @@ class ChatStaffController extends Controller
 
             $staff = $this->staffIdentity($request);
 
+            $refusal = $this->claimForReply($request, $conversation, $staff);
+
+            if ($refusal) {
+                return $refusal;
+            }
+
+            // Patient thread: the DEPARTMENT is the sender, so the patient sees a team and not
+            // a person, with the real author in sent_by. Staff thread: there is no department
+            // (the column is null, and it is NOT NULL on chat_messages), so the staff member
+            // sends as themselves and sent_by would be redundant.
             $message = $conversation->messages()->create([
-                'sender_chat_user_id' => $conversation->department_chat_user_id,
-                'sent_by_chat_user_id' => $staff->id,
+                'sender_chat_user_id' => $conversation->isStaffConversation()
+                    ? $staff->id
+                    : $conversation->department_chat_user_id,
+                'sent_by_chat_user_id' => $conversation->isStaffConversation() ? null : $staff->id,
                 'message' => $request->input('message'),
                 'message_type' => 'text',
             ]);
 
             $conversation->update(['last_message_at' => $message->created_at]);
 
-            // Replying is engaging with the thread, so it stops being unread for the queue.
-            $this->markQueueRead($conversation);
+            // Replying is engaging with the thread, so it stops being unread for the sender.
+            $this->markRead($conversation, $staff);
 
             $message->load(['sender', 'sentBy', 'conversation']);
 
@@ -295,6 +400,7 @@ class ChatStaffController extends Controller
         $failed = $this->validateContext($request, [
             'assign_to_staff_external_id' => 'nullable|integer|min:1',
             'assign_to_staff_name' => 'nullable|string|max:255',
+            'override' => 'nullable|boolean',
         ]);
 
         if ($failed) {
@@ -308,11 +414,38 @@ class ChatStaffController extends Controller
                 return $refusal;
             }
 
+            // A staff <-> staff thread has no assignment concept. The UI hides the control,
+            // but the endpoint refuses it too — otherwise a crafted call could stamp an owner
+            // on a private two-person thread and make it look like queue traffic.
+            if ($conversation->isStaffConversation()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Staff conversations are not assigned.',
+                ], 422);
+            }
+
             $assigneeId = $request->input('assign_to_staff_external_id');
 
             $assignee = $assigneeId !== null
                 ? $this->departments->staffChatUser((int) $assigneeId, $request->input('assign_to_staff_name'))
                 : null;
+
+            // Manual assignment obeys the same lock as replying, or it would be a way around
+            // it: claiming a live conversation someone else owns, or releasing theirs, would
+            // hand the next reply to whoever did it. `override` is the supervisor path.
+            $caller = $this->staffIdentity($request);
+
+            if (!$conversation->isReplyableBy((int) $caller->id) && !$request->boolean('override')) {
+                $conversation->loadMissing('assignee');
+
+                return response()->json([
+                    'success' => false,
+                    'message' => 'This conversation is being handled by '
+                        . ($conversation->assignee->name ?: 'another staff member') . '.',
+                    'locked' => true,
+                    'assigned_to' => $this->presentStaff($conversation->assignee),
+                ], 409);
+            }
 
             $conversation->update(['assigned_chat_user_id' => $assignee?->id]);
             $conversation->load('assignee');
@@ -346,7 +479,7 @@ class ChatStaffController extends Controller
                 return $refusal;
             }
 
-            $this->markQueueRead($conversation);
+            $this->markRead($conversation, $this->staffIdentity($request));
 
             return response()->json(['success' => true]);
         } catch (\Throwable $e) {
@@ -401,6 +534,78 @@ class ChatStaffController extends Controller
     }
 
     /**
+     * Take ownership of a conversation for this reply, or refuse because someone else holds it.
+     *
+     * THE RULE: a patient's message is offered to the whole department, but the FIRST staff
+     * member to reply owns it and everyone else drops to read-only. Ownership lapses after
+     * `chat.lock_minutes` of silence.
+     *
+     * THE CLAIM IS A SINGLE CONDITIONAL UPDATE, and that is the whole point. Reading
+     * assigned_chat_user_id and then writing it would let two staff members who click Send at
+     * the same moment both pass the check and both reply — which is exactly the behaviour this
+     * is fixing. Here the database decides: whoever's UPDATE matches a row wins, the other
+     * matches zero rows and is refused.
+     *
+     * `override` is a supervisor taking a stuck conversation from someone who has gone offline.
+     * Medhiwa only sends it for staff holding the assign permission, and the portal trusts that
+     * the same way it trusts the department list.
+     */
+    private function claimForReply(Request $request, Conversation $conversation, ChatUser $staff): ?JsonResponse
+    {
+        // Staff <-> staff is a two-person thread; there is no queue to arbitrate and both
+        // participants must always be able to reply. Locking it would deadlock the pair.
+        if ($conversation->isStaffConversation()) {
+            return null;
+        }
+
+        $threshold = now()->subMinutes((int) config('chat.lock_minutes', 60));
+
+        $claimed = Conversation::query()
+            ->where('id', $conversation->id)
+            ->where(function ($query) use ($threshold) {
+                $query->whereNull('assigned_chat_user_id')
+                    ->orWhereNull('last_message_at')
+                    ->orWhere('last_message_at', '<=', $threshold);
+            })
+            ->update(['assigned_chat_user_id' => $staff->id]);
+
+        if ($claimed > 0) {
+            $conversation->refresh();
+
+            return null;
+        }
+
+        // Zero rows matched: the conversation is live AND assigned. Fine if it is ours.
+        $conversation->refresh();
+
+        if ((int) $conversation->assigned_chat_user_id === (int) $staff->id) {
+            return null;
+        }
+
+        if ($request->boolean('override')) {
+            $conversation->update(['assigned_chat_user_id' => $staff->id]);
+
+            Log::channel('chat')->info('Chat conversation taken over', [
+                'conversation_uuid' => $conversation->uuid,
+                'from_chat_user_id' => $conversation->getOriginal('assigned_chat_user_id'),
+                'to_staff_external_id' => (int) $staff->external_id,
+            ]);
+
+            return null;
+        }
+
+        $conversation->loadMissing('assignee');
+
+        return response()->json([
+            'success' => false,
+            'message' => 'This conversation is being handled by '
+                . ($conversation->assignee->name ?: 'another staff member') . '.',
+            'locked' => true,
+            'assigned_to' => $this->presentStaff($conversation->assignee),
+        ], 409);
+    }
+
+    /**
      * Whether the caller may act in a department, compared by CITY rather than by chat identity.
      *
      * Needed wherever the department identity may not exist yet — see start(). Uses the
@@ -438,11 +643,19 @@ class ChatStaffController extends Controller
     {
         $departmentId = $conversation->department_chat_user_id;
 
+        // Staff <-> staff thread: no department to check, so membership IS the authorisation.
+        // Only the two participants may read or write, whatever departments they cover.
         if ($departmentId === null) {
-            return response()->json([
-                'success' => false,
-                'message' => 'This conversation is not part of a department queue.',
-            ], 403);
+            $caller = $this->staffIdentity($request);
+
+            if (!$conversation->hasParticipant((int) $caller->id)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'You do not have access to this conversation.',
+                ], 403);
+            }
+
+            return null;
         }
 
         if (!array_key_exists((int) $departmentId, $this->allowedDepartments($request))) {
@@ -465,11 +678,25 @@ class ChatStaffController extends Controller
 
     // -- read state ---------------------------------------------------------
 
-    /** Marks the conversation read for the whole department queue. */
-    private function markQueueRead(Conversation $conversation): void
+    /**
+     * Marks a conversation read.
+     *
+     * Patient thread: read state lives on the DEPARTMENT's participant row, so it is shared —
+     * once anyone opens it, it is read for the whole queue. Staff thread: read state is the
+     * caller's own, as in any two-person chat.
+     */
+    private function markRead(Conversation $conversation, ?ChatUser $staff = null): void
     {
+        $participantId = $conversation->isStaffConversation()
+            ? ($staff?->id)
+            : $conversation->department_chat_user_id;
+
+        if ($participantId === null) {
+            return;
+        }
+
         ConversationParticipant::where('conversation_id', $conversation->id)
-            ->where('chat_user_id', $conversation->department_chat_user_id)
+            ->where('chat_user_id', $participantId)
             ->update(['last_read_at' => now()]);
     }
 
@@ -543,7 +770,8 @@ class ChatStaffController extends Controller
         Conversation $conversation,
         array $allowed,
         array $unread,
-        array $latest
+        array $latest,
+        ?int $staffChatUserId = null
     ): array {
         $departmentId = (int) $conversation->department_chat_user_id;
 
@@ -564,6 +792,13 @@ class ChatStaffController extends Controller
                 'patient_id' => (int) $patientParticipant->chatUser->external_id,
             ] : null,
             'assigned_to' => $this->presentStaff($conversation->assignee),
+            // Derived, never stored: a conversation is "active" while a message has passed
+            // within chat.lock_minutes. Its lock lapses with it.
+            'is_active' => $conversation->isWithinLockWindow(),
+            // Whether THIS caller may reply. The staff UI reads only this — it must never
+            // re-derive the rule, or the two sides can disagree about who owns a thread.
+            'can_reply' => $staffChatUserId === null
+                || $conversation->isReplyableBy($staffChatUserId),
             'unread_count' => (int) ($unread[$conversation->id] ?? 0),
             'last_message_at' => $conversation->last_message_at?->toIso8601String(),
             'last_message' => $last ? [
@@ -575,13 +810,95 @@ class ChatStaffController extends Controller
         ];
     }
 
-    private function presentMessage(ChatMessage $message, Conversation $conversation): array
+    /**
+     * A staff <-> staff thread. No department, no patient, no assignment — `can_reply` is
+     * always true for a participant, which is the whole difference from the patient queue.
+     *
+     * @param  array<int, int>  $unread
+     * @param  array<int, ChatMessage>  $latest
+     */
+    private function presentStaffConversation(
+        Conversation $conversation,
+        ChatUser $me,
+        array $unread,
+        array $latest
+    ): array {
+        $peer = $conversation->participants
+            ->first(fn (ConversationParticipant $p) => (int) $p->chat_user_id !== (int) $me->id);
+
+        $last = $latest[$conversation->id] ?? null;
+
+        return [
+            'uuid' => $conversation->uuid,
+            'is_staff_chat' => true,
+            'department' => null,
+            'patient' => null,
+            'assigned_to' => null,
+            'is_active' => $conversation->isWithinLockWindow(),
+            'can_reply' => true,
+            'peer' => $peer && $peer->chatUser ? [
+                'uuid' => $peer->chatUser->uuid,
+                'name' => $peer->chatUser->name,
+                'staff_id' => (int) $peer->chatUser->external_id,
+            ] : null,
+            'unread_count' => (int) ($unread[$conversation->id] ?? 0),
+            'last_message_at' => $conversation->last_message_at?->toIso8601String(),
+            'last_message' => $last ? [
+                'preview' => mb_substr((string) $last->message, 0, 140),
+                'from' => (int) $last->sender_chat_user_id === (int) $me->id ? 'me' : 'them',
+                'created_at' => $last->created_at?->toIso8601String(),
+            ] : null,
+        ];
+    }
+
+    /**
+     * Unread counts for staff threads: messages someone ELSE sent since my own last_read_at.
+     * Separate from unreadCounts(), which keys off the department participant and would return
+     * nothing here.
+     *
+     * @param  int[]  $conversationIds
+     * @return array<int, int>
+     */
+    private function staffUnreadCounts(array $conversationIds, int $staffChatUserId): array
     {
-        $isStaff = (int) $message->sender_chat_user_id === (int) $conversation->department_chat_user_id;
+        if ($conversationIds === []) {
+            return [];
+        }
+
+        $rows = DB::table('chat_messages as m')
+            ->join('conversation_participants as p', function ($join) use ($staffChatUserId) {
+                $join->on('p.conversation_id', '=', 'm.conversation_id')
+                    ->where('p.chat_user_id', '=', $staffChatUserId);
+            })
+            ->whereIn('m.conversation_id', $conversationIds)
+            ->where('m.sender_chat_user_id', '!=', $staffChatUserId)
+            ->where(function ($query) {
+                $query->whereNull('p.last_read_at')
+                    ->orWhereColumn('m.created_at', '>', 'p.last_read_at');
+            })
+            ->groupBy('m.conversation_id')
+            ->selectRaw('m.conversation_id as conversation_id, COUNT(*) as unread')
+            ->pluck('unread', 'conversation_id')
+            ->all();
+
+        return array_map('intval', $rows);
+    }
+
+    private function presentMessage(ChatMessage $message, Conversation $conversation, ?int $meChatUserId = null): array
+    {
+        if ($conversation->isStaffConversation()) {
+            // Two people, so "who sent it" is relative to the caller, not to a department.
+            $from = (int) $message->sender_chat_user_id === (int) $meChatUserId ? 'me' : 'them';
+        } else {
+            $from = (int) $message->sender_chat_user_id === (int) $conversation->department_chat_user_id
+                ? 'staff'
+                : 'patient';
+        }
 
         return [
             'id' => $message->uuid,
-            'from' => $isStaff ? 'staff' : 'patient',
+            'from' => $from,
+            'sender_name' => $message->sender?->name,
             'message' => $message->message,
             'message_type' => $message->message_type,
             'attachment' => $message->attachment,

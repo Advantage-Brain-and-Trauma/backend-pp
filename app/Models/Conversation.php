@@ -75,6 +75,48 @@ class Conversation extends Model
         return implode('-', $ids);
     }
 
+    /**
+     * A staff <-> staff conversation: an ordinary direct thread between two `staff` identities,
+     * with NO department. Everything department-shaped — queue listing, the first-responder
+     * lock, read state shared across a department — applies only to patient conversations and
+     * must be skipped for these. Both participants can always reply.
+     */
+    public function isStaffConversation(): bool
+    {
+        return $this->department_chat_user_id === null;
+    }
+
+    /**
+     * Whether this conversation is still "live" — i.e. a message has passed within the lock
+     * window. DERIVED from last_message_at, never stored, so it lapses on its own with no
+     * scheduled job and no status column to drift.
+     */
+    public function isWithinLockWindow(): bool
+    {
+        if ($this->last_message_at === null) {
+            return false;
+        }
+
+        return $this->last_message_at->gt(
+            now()->subMinutes((int) config('chat.lock_minutes', 60))
+        );
+    }
+
+    /**
+     * Whether a given staff chat identity may REPLY right now.
+     *
+     * Unassigned or lapsed => anyone in the department may take it. Otherwise only the holder.
+     * Read access is unaffected: other staff keep seeing the thread, read-only.
+     */
+    public function isReplyableBy(int $staffChatUserId): bool
+    {
+        if ($this->assigned_chat_user_id === null || !$this->isWithinLockWindow()) {
+            return true;
+        }
+
+        return (int) $this->assigned_chat_user_id === $staffChatUserId;
+    }
+
     public function hasParticipant(int $chatUserId): bool
     {
         return $this->participants()

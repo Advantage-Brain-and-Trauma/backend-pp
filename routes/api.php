@@ -169,6 +169,9 @@ Route::prefix('chat')->group(function () {
     Route::prefix('staff')->middleware(['chat.secret', 'throttle:chat-staff'])->group(function () {
         Route::post('conversations', [ChatStaffController::class, 'conversations']);
         Route::post('conversations/start', [ChatStaffController::class, 'start']);
+        // Staff <-> staff: a private two-person thread with NO department and NO assignment.
+        // Nothing to do with a patient or a queue; it only shares the transport.
+        Route::post('conversations/start-staff', [ChatStaffController::class, 'startStaff']);
         Route::post('conversations/{conversation}/messages', [ChatStaffController::class, 'messages']);
         Route::post('conversations/{conversation}/send', [ChatStaffController::class, 'send']);
         Route::post('conversations/{conversation}/assign', [ChatStaffController::class, 'assign']);

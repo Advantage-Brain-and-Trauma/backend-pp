@@ -92,4 +92,24 @@ return [
 
     'message_max_length' => (int) env('CHAT_MESSAGE_MAX_LENGTH', 5000),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Conversation lock window
+    |--------------------------------------------------------------------------
+    |
+    | Minutes of silence after which a conversation goes INACTIVE and its lock lapses.
+    |
+    | The rule: a patient's message is offered to the whole department, but the FIRST staff
+    | member to reply takes ownership and everyone else becomes read-only. Ownership holds
+    | until this many minutes pass with no message from either side; after that the next
+    | patient message releases it and the department competes for it again.
+    |
+    | There is no scheduled job and no status column behind this — "inactive" is DERIVED from
+    | conversations.last_message_at every time it is evaluated, so the lock expires on its own
+    | even if nothing is running.
+    |
+    */
+
+    'lock_minutes' => (int) env('CHAT_LOCK_MINUTES', 60),
+
 ];

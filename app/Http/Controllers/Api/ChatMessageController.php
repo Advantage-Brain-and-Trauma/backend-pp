@@ -85,6 +85,16 @@ class ChatMessageController extends Controller
                 ], 403);
             }
 
+            // A patient writing into a conversation that has gone INACTIVE reopens it for the
+            // whole department: the previous owner's lock is released here, so the next staff
+            // member to reply takes it. Evaluated BEFORE last_message_at is touched — updating
+            // that first would make a long-dormant conversation look live again and leave the
+            // old assignment in place, locking out everyone but a staff member who may well
+            // have finished with it hours ago.
+            if ($conversation->assigned_chat_user_id !== null && !$conversation->isWithinLockWindow()) {
+                $conversation->update(['assigned_chat_user_id' => null]);
+            }
+
             $message = $conversation->messages()->create([
                 'sender_chat_user_id' => $chatUser->id,
                 'message' => $request->input('message'),
