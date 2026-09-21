@@ -298,6 +298,22 @@ class ChatStaffController extends Controller
                 return $refusal;
             }
 
+            // Reading a transcript somebody else currently holds is its own permission —
+            // knowing a thread exists is a lesser disclosure than reading what the patient
+            // wrote in it. Only this side knows who holds it, so Medhiwa states the capability
+            // and the check lands here. Absent flag = permitted, so an older caller still works.
+            //
+            // isReplyableBy() rather than a bare assignment test: once the lock lapses the
+            // thread is free again, and a stale assignment must not hide it forever.
+            if (!$conversation->isStaffConversation()
+                && !$conversation->isReplyableBy((int) $this->staffIdentity($request)->id)
+                && !$request->boolean('may_view_others_assigned', true)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'This conversation is being handled by another staff member.',
+                ], 403);
+            }
+
             $messages = $conversation->messages()
                 ->with(['sender', 'sentBy'])
                 ->orderBy('created_at')
@@ -518,6 +534,7 @@ class ChatStaffController extends Controller
             // Capability flags Medhiwa vouches for; enforced against the conversation's kind.
             'may_patient_chat' => 'nullable|boolean',
             'may_staff_chat' => 'nullable|boolean',
+            'may_view_others_assigned' => 'nullable|boolean',
         ], $extra));
 
         if ($validator->fails()) {
