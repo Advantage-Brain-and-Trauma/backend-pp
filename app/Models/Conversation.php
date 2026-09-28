@@ -174,6 +174,12 @@ class Conversation extends Model
         return (int) $this->assigned_chat_user_id === $staffChatUserId;
     }
 
+    /** Who ended it. Null while open, and on rows closed before the column existed. */
+    public function closedBy(): BelongsTo
+    {
+        return $this->belongsTo(ChatUser::class, 'closed_by_chat_user_id');
+    }
+
     public function hasParticipant(int $chatUserId): bool
     {
         return $this->participants()

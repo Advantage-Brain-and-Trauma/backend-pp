@@ -199,6 +199,73 @@ class ChatStaffController extends Controller
     }
 
     /**
+     * POST /api/chat/staff/conversations/closed
+     *
+     * One patient's ENDED conversations, newest first — the archive behind the staff panel.
+     *
+     * Nothing else can list these. The queue filters closed threads out by design (it is a
+     * worklist), so without this endpoint an ended conversation is reachable only by already
+     * knowing its uuid.
+     *
+     * Scoped to the departments the caller may see, exactly like the queue: ending a
+     * conversation must not turn it into a way around department scoping.
+     *
+     * The patient identity is matched through participants rather than resolved with
+     * patientChatUser(), which CREATES a chat identity when none exists — a read must never
+     * write a row for a patient who has never chatted.
+     */
+    public function closedConversations(Request $request): JsonResponse
+    {
+        $failed = $this->validateContext($request, [
+            'patient_id' => 'required|integer|min:1',
+        ]);
+
+        if ($failed) {
+            return $failed;
+        }
+
+        try {
+            $allowed = $this->allowedDepartments($request);
+
+            if ($allowed === []) {
+                return response()->json(['success' => true, 'conversations' => []]);
+            }
+
+            $patientId = (int) $request->input('patient_id');
+            $patientType = (string) config('chat.types.patient', 'patient');
+
+            $conversations = Conversation::query()
+                ->whereNotNull('closed_at')
+                ->whereIn('department_chat_user_id', array_keys($allowed))
+                ->whereHas('participants.chatUser', function ($query) use ($patientId, $patientType) {
+                    $query->where('external_type', $patientType)
+                        ->where('external_id', $patientId);
+                })
+                ->with(['participants.chatUser', 'assignee', 'department', 'closedBy'])
+                ->orderByDesc('closed_at')
+                ->limit(100)
+                ->get();
+
+            $ids = $conversations->pluck('id')->all();
+
+            return response()->json([
+                'success' => true,
+                'conversations' => $conversations
+                    ->map(fn (Conversation $c) => $this->presentQueueConversation(
+                        $c,
+                        $allowed,
+                        $this->unreadCounts($ids),
+                        $this->latestMessages($ids),
+                        (int) $this->staffIdentity($request)->id
+                    ))
+                    ->values(),
+            ]);
+        } catch (\Throwable $e) {
+            return $this->failure('Chat staff closed list error', $e, 'Unable to fetch ended conversations.');
+        }
+    }
+
+    /**
      * POST /api/chat/staff/conversations/start
      *
      * Staff-initiated conversation with a patient (decision R7). Returns the existing thread
@@ -927,6 +994,7 @@ class ChatStaffController extends Controller
             // Non-null means ENDED. The queue filters these out, so it is only ever set on a
             // conversation fetched directly by uuid.
             'closed_at' => $conversation->closed_at?->toIso8601String(),
+            'closed_by' => $this->presentStaff($conversation->closedBy),
             'patient' => $patientParticipant && $patientParticipant->chatUser ? [
                 'uuid' => $patientParticipant->chatUser->uuid,
                 'name' => $patientParticipant->chatUser->name,
