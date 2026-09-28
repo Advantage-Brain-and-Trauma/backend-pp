@@ -16,11 +16,15 @@ class Conversation extends Model
         'assigned_chat_user_id',
         'department_chat_user_id',
         'case_id',
+        'session',
+        'closed_at',
+        'closed_by_chat_user_id',
         'last_message_at',
     ];
 
     protected $casts = [
         'last_message_at' => 'datetime',
+        'closed_at' => 'datetime',
     ];
 
     protected static function booted(): void
@@ -84,14 +88,48 @@ class Conversation extends Model
      * The case is part of the KEY, so a thread's case can never be reassigned — pick a
      * different case and you get a different thread, which is the whole point.
      */
-    public static function directKeyFor(int $chatUserIdA, int $chatUserIdB, ?int $caseId = null): string
-    {
+    public static function directKeyFor(
+        int $chatUserIdA,
+        int $chatUserIdB,
+        ?int $caseId = null,
+        int $session = 1
+    ): string {
         $ids = [$chatUserIdA, $chatUserIdB];
         sort($ids);
 
         $key = implode('-', $ids);
 
-        return $caseId === null ? $key : $key . '-c' . $caseId;
+        if ($caseId === null) {
+            return $key;
+        }
+
+        $key .= '-c' . $caseId;
+
+        /*
+         * Session 1 carries NO suffix. That is what keeps every row written before sessions
+         * existed — and everything chat:backfill-case-ids wrote — a valid session-1 key,
+         * with no second migration of the key format. Only a RE-OPENED conversation gains
+         * "-s2", "-s3", and so on.
+         */
+        return $session > 1 ? $key . '-s' . $session : $key;
+    }
+
+    /**
+     * A conversation the patient has ended, or staff have. Closed is FINAL for that thread:
+     * neither side may write to it again (decision 2026-09-28), and re-opening the subject
+     * creates the NEXT SESSION rather than resurrecting this one. That is what makes a
+     * closed thread a complete, immutable episode rather than a pause.
+     */
+    public function isClosed(): bool
+    {
+        return $this->closed_at !== null;
+    }
+
+    /** Conversations nobody has ended. "Open" is the ONLY sense in which a thread is live here — */
+    /** do not confuse it with is_active in the payload, which means "inside the lock window". */
+    public function scopeOpen($query)
+    {
+        return $query->whereNull('closed_at');
     }
 
     /**

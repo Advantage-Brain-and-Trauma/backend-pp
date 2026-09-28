@@ -159,6 +159,9 @@ Route::prefix('chat')->group(function () {
         Route::post('conversations', [ChatConversationController::class, 'store']);
         Route::get('conversations/{conversation}/messages', [ChatMessageController::class, 'index']);
         Route::post('conversations/{conversation}/messages', [ChatMessageController::class, 'store']);
+        // End the conversation. FINAL: writing about the same case afterwards opens the
+        // next session, never this thread again.
+        Route::post('conversations/{conversation}/close', [ChatConversationController::class, 'close']);
     });
 
     // ── Staff side (Medhiwa) ─────────────────────────────────────────────
@@ -179,5 +182,7 @@ Route::prefix('chat')->group(function () {
         Route::post('conversations/{conversation}/send', [ChatStaffController::class, 'send']);
         Route::post('conversations/{conversation}/assign', [ChatStaffController::class, 'assign']);
         Route::post('conversations/{conversation}/read', [ChatStaffController::class, 'read']);
+        // Staff end a conversation once the query is resolved. Refused on a staff thread.
+        Route::post('conversations/{conversation}/close', [ChatStaffController::class, 'close']);
     });
 });

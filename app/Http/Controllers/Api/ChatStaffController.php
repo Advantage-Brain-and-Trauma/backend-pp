@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Events\ChatMessageSent;
+use App\Exceptions\PatientHasOpenConversation;
 use App\Http\Controllers\Controller;
 use App\Models\ChatMessage;
 use App\Models\ChatUser;
@@ -90,6 +91,9 @@ class ChatStaffController extends Controller
 
             $conversations = Conversation::query()
                 ->whereIn('department_chat_user_id', array_keys($allowed))
+                // The queue is a WORKLIST: an ended conversation is not work. Its history is
+                // still readable by uuid, it just stops occupying the list.
+                ->whereNull('closed_at')
                 ->with(['participants.chatUser', 'assignee', 'department'])
                 ->orderByDesc('last_message_at')
                 ->orderByDesc('id')
@@ -270,11 +274,29 @@ class ChatStaffController extends Controller
                 $request->input('patient_name')
             );
 
-            $conversation = $this->chatIdentityService->findOrCreateDirectConversation(
-                $patient,
-                $department,
-                $case['case_id']
-            );
+            /*
+             * Same one-open-per-patient rule the patient side enforces, and deliberately so:
+             * the limit belongs to the PATIENT, not to whoever opened the thread. Staff
+             * starting a second conversation would otherwise route around it.
+             */
+            try {
+                $conversation = $this->chatIdentityService->openCaseConversation(
+                    $patient,
+                    $department,
+                    $case['case_id']
+                );
+            } catch (PatientHasOpenConversation $e) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'This patient already has an open conversation. It must be ended before another can start.',
+                    'open_conversation' => [
+                        'uuid' => $e->openConversation->uuid,
+                        'case_id' => $e->openConversation->case_id !== null
+                            ? (int) $e->openConversation->case_id
+                            : null,
+                    ],
+                ], 409);
+            }
 
             if ($conversation->department_chat_user_id === null) {
                 $conversation->update(['department_chat_user_id' => $department->id]);
@@ -373,6 +395,15 @@ class ChatStaffController extends Controller
 
             if ($refusal) {
                 return $refusal;
+            }
+
+            // Closed is final for staff too - they can read the episode, never extend it.
+            if ($conversation->isClosed()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'This conversation has ended and can no longer be replied to.',
+                    'closed' => true,
+                ], 409);
             }
 
             // Medhiwa states which KINDS of conversation this user may take part in; only this
@@ -507,6 +538,51 @@ class ChatStaffController extends Controller
             return $this->failure('Chat staff assign error', $e, 'Unable to update assignment.', $conversation);
         }
     }
+
+    /**
+     * POST /api/chat/staff/conversations/{conversation}/close
+     *
+     * Staff end a conversation, typically once the query is resolved. Final: neither side may
+     * write to it afterwards, and the patient asking about the same case again opens the next
+     * session rather than reviving this one.
+     *
+     * Idempotent. Refused on a staff <-> staff thread: the whole close/session model belongs
+     * to the patient queue, and a staff thread has no case, so there would be no "next
+     * session" to open and the thread would simply vanish from the Staff tab for good.
+     */
+    public function close(Request $request, Conversation $conversation): JsonResponse
+    {
+        $failed = $this->validateContext($request);
+
+        if ($failed) {
+            return $failed;
+        }
+
+        try {
+            if ($conversation->isStaffConversation()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Staff conversations are not ended.',
+                ], 422);
+            }
+
+            $refusal = $this->refuseUnlessInQueue($request, $conversation);
+
+            if ($refusal) {
+                return $refusal;
+            }
+
+            $this->chatIdentityService->closeConversation(
+                $conversation,
+                $this->staffIdentity($request)
+            );
+
+            return response()->json(['success' => true]);
+        } catch (\Throwable $e) {
+            return $this->failure('Chat staff close error', $e, 'Unable to end this conversation.', $conversation);
+        }
+    }
+
 
     /**
      * POST /api/chat/staff/conversations/{conversation}/read
@@ -846,6 +922,11 @@ class ChatStaffController extends Controller
             // conversation_key, so a thread cannot drift onto another case. Null only on rows
             // created before threads were case-scoped.
             'case_id' => $conversation->case_id !== null ? (int) $conversation->case_id : null,
+            // Which attempt at this case this is: 1 until one is ended, then 2, 3, ...
+            'session' => (int) ($conversation->session ?? 1),
+            // Non-null means ENDED. The queue filters these out, so it is only ever set on a
+            // conversation fetched directly by uuid.
+            'closed_at' => $conversation->closed_at?->toIso8601String(),
             'patient' => $patientParticipant && $patientParticipant->chatUser ? [
                 'uuid' => $patientParticipant->chatUser->uuid,
                 'name' => $patientParticipant->chatUser->name,
@@ -898,6 +979,8 @@ class ChatStaffController extends Controller
             'is_staff_chat' => true,
             'department' => null,
             'case_id' => null,
+            'session' => 1,
+            'closed_at' => null,
             'patient' => null,
             'assigned_to' => null,
             'is_active' => $conversation->isWithinLockWindow(),

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Exceptions\PatientHasOpenConversation;
 use App\Http\Controllers\Controller;
 use App\Models\ChatUser;
 use App\Models\Conversation;
@@ -230,11 +231,30 @@ class ChatConversationController extends Controller
                 ], 403);
             }
 
-            $conversation = $this->chatIdentityService->findOrCreateDirectConversation(
-                $chatUser,
-                $peer,
-                $case['case_id']
-            );
+            /*
+             * ONE OPEN CONVERSATION PER PATIENT, globally. Resuming their own open thread for
+             * this case is fine; anything else is refused with 409 and the uuid of the thread
+             * in the way, so the app can offer to end it rather than leaving the patient to
+             * hunt for it.
+             */
+            try {
+                $conversation = $this->chatIdentityService->openCaseConversation(
+                    $chatUser,
+                    $peer,
+                    $case['case_id']
+                );
+            } catch (PatientHasOpenConversation $e) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'You already have an open conversation. End it before starting another.',
+                    'open_conversation' => [
+                        'uuid' => $e->openConversation->uuid,
+                        'case_id' => $e->openConversation->case_id !== null
+                            ? (int) $e->openConversation->case_id
+                            : null,
+                    ],
+                ], 409);
+            }
 
             // Stamp the queue so the staff side can list a department's conversations without
             // walking participants. Set once, on the conversation's first resolution.
@@ -256,6 +276,42 @@ class ChatConversationController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Unable to start conversation.',
+            ], 500);
+        }
+    }
+
+    /**
+     * POST /api/chat/conversations/{conversation}/close
+     *
+     * The patient ends their conversation. Final: neither side may write to it afterwards, and
+     * asking about the same case again opens the NEXT SESSION rather than reviving this one.
+     *
+     * Idempotent, so a double tap on a slow connection is not an error.
+     */
+    public function close(Request $request, Conversation $conversation): JsonResponse
+    {
+        try {
+            $chatUser = auth('chat')->user();
+
+            if (!$conversation->hasParticipant($chatUser->id)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'You are not a participant in this conversation.',
+                ], 403);
+            }
+
+            $this->chatIdentityService->closeConversation($conversation, $chatUser);
+
+            return response()->json(['success' => true]);
+        } catch (\Throwable $e) {
+            Log::channel('chat')->error('Chat conversation close error', [
+                'conversation_uuid' => $conversation->uuid ?? null,
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Unable to end this conversation.',
             ], 500);
         }
     }
@@ -288,6 +344,11 @@ class ChatConversationController extends Controller
             // the whole point of per-case threads is invisible. Null on rows created before
             // threads were case-scoped.
             'case_id' => $conversation->case_id !== null ? (int) $conversation->case_id : null,
+            // Which attempt at this case this is. 1 for every thread that has never been
+            // ended; 2+ after a previous one was closed.
+            'session' => (int) ($conversation->session ?? 1),
+            // Non-null means ENDED: readable, never writable again.
+            'closed_at' => $conversation->closed_at?->toIso8601String(),
             'last_message_at' => $conversation->last_message_at?->toIso8601String(),
             'peer' => $peerParticipant ? [
                 'uuid' => $peerParticipant->chatUser->uuid,

@@ -85,6 +85,20 @@ class ChatMessageController extends Controller
                 ], 403);
             }
 
+            /*
+             * Closed is FINAL (decision 2026-09-28). Not the same thing as the INACTIVE state
+             * handled just below: inactive means the lock lapsed and the department competes
+             * again, closed means the episode is over and the next message belongs to a new
+             * session. 409 rather than 403 - nothing is wrong with the caller's rights.
+             */
+            if ($conversation->isClosed()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'This conversation has ended. Start a new one to continue.',
+                    'closed' => true,
+                ], 409);
+            }
+
             // A patient writing into a conversation that has gone INACTIVE reopens it for the
             // whole department: the previous owner's lock is released here, so the next staff
             // member to reply takes it. Evaluated BEFORE last_message_at is touched — updating
