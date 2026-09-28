@@ -500,6 +500,15 @@ class ChatStaffController extends Controller
             return $failed;
         }
 
+        // Only a file our own upload endpoint stored - never a URL or an arbitrary path.
+        if ($request->filled('attachment')
+            && !app(ChatAttachmentService::class)->isStoredReference((string) $request->input('attachment'))) {
+            return response()->json([
+                'success' => false,
+                'message' => 'That attachment could not be found. Please attach the file again.',
+            ], 422);
+        }
+
         try {
             $refusal = $this->refuseUnlessInQueue($request, $conversation);
 
@@ -548,7 +557,11 @@ class ChatStaffController extends Controller
                     : $conversation->department_chat_user_id,
                 'sent_by_chat_user_id' => $conversation->isStaffConversation() ? null : $staff->id,
                 'message' => $request->input('message'),
-                'message_type' => 'text',
+                // The upload reference from /api/chat/staff/attachments. It was validated above but
+                // never written here, so every staff attachment was silently dropped: the message
+                // saved as plain text and the uploaded file was stored but linked to nothing.
+                'message_type' => $request->filled('attachment') ? 'file' : 'text',
+                'attachment' => $request->filled('attachment') ? $request->input('attachment') : null,
             ]);
 
             $conversation->update(['last_message_at' => $message->created_at]);
@@ -1056,7 +1069,7 @@ class ChatStaffController extends Controller
             'last_message_at' => $conversation->last_message_at?->toIso8601String(),
             'last_message' => $last ? [
                 // A short preview only — the full body is fetched when a thread is opened.
-                'preview' => mb_substr((string) $last->message, 0, 140),
+                'preview' => app(ChatAttachmentService::class)->preview($last->message, $last->attachment),
                 'from' => (int) $last->sender_chat_user_id === $departmentId ? 'staff' : 'patient',
                 // WHICH staff member wrote it. `from` is 'staff' for every reply on a queue
                 // thread, so without this the UI cannot tell the caller's own last message
@@ -1104,7 +1117,7 @@ class ChatStaffController extends Controller
             'unread_count' => (int) ($unread[$conversation->id] ?? 0),
             'last_message_at' => $conversation->last_message_at?->toIso8601String(),
             'last_message' => $last ? [
-                'preview' => mb_substr((string) $last->message, 0, 140),
+                'preview' => app(ChatAttachmentService::class)->preview($last->message, $last->attachment),
                 'from' => (int) $last->sender_chat_user_id === (int) $me->id ? 'me' : 'them',
                 'created_at' => $last->created_at?->toIso8601String(),
             ] : null,

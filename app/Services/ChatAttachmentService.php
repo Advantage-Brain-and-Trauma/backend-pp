@@ -121,6 +121,53 @@ class ChatAttachmentService
     }
 
     /**
+     * Whether $path is a file that store() put there - the ONLY thing a send may attach.
+     *
+     * Both send endpoints used to accept `attachment` as any string up to 2048 characters and
+     * store it verbatim. url() passes an absolute URL straight through, so a sender could post
+     * "https://anywhere/..." and it rendered on the other side as a paperclip "attachment" - a
+     * phishing link wearing the clinic's UI. It also let a message point at a file that was
+     * never uploaded, which renders as a link to a 404.
+     *
+     * Accepted: a relative path directly inside the chat folder, no traversal, and the file
+     * exists on the chat disk. Nothing else - not a URL, not another folder.
+     */
+    public function isStoredReference(?string $path): bool
+    {
+        $path = trim((string) $path);
+
+        if ($path === '' || str_contains($path, '..') || str_contains($path, '\\')) {
+            return false;
+        }
+
+        $folder = trim((string) config('chat.attachments.path', 'chat-attachments'), '/');
+
+        // Exactly one level inside the folder: "<folder>/<file>", as store() writes it.
+        if (dirname($path) !== $folder || basename($path) === '') {
+            return false;
+        }
+
+        return Storage::disk((string) config('chat.attachments.disk', 'public'))->exists($path);
+    }
+
+    /**
+     * The one-line list preview for a message. A file sent on its own has no text, and an
+     * empty preview in the queue reads as a blank or broken message.
+     */
+    public function preview(?string $message, ?string $attachment): string
+    {
+        $text = trim((string) $message);
+
+        if ($text !== '') {
+            return mb_substr($text, 0, 140);
+        }
+
+        return trim((string) $attachment) !== ''
+            ? mb_substr('Attachment: ' . $this->displayName((string) $attachment), 0, 140)
+            : '';
+    }
+
+    /**
      * The original filename, reduced to something safe to put in a path.
      *
      * Directory separators and dots are stripped rather than escaped: this becomes part of a

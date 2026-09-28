@@ -123,6 +123,16 @@ class ChatMessageController extends Controller
             ], 422);
         }
 
+        // Only a file our own upload endpoint stored - never a URL or an arbitrary path. Before
+        // this a patient could send any link and it rendered on the staff screen as an attachment.
+        if ($request->filled('attachment')
+            && !app(ChatAttachmentService::class)->isStoredReference((string) $request->input('attachment'))) {
+            return response()->json([
+                'success' => false,
+                'message' => 'That attachment could not be found. Please attach the file again.',
+            ], 422);
+        }
+
         try {
             $chatUser = auth('chat')->user();
 
@@ -160,8 +170,12 @@ class ChatMessageController extends Controller
             $message = $conversation->messages()->create([
                 'sender_chat_user_id' => $chatUser->id,
                 'message' => $request->input('message'),
-                'message_type' => $request->input('message_type', 'text'),
-                'attachment' => $request->input('attachment'),
+                // A file with the default type would be stored as 'text'; the client's own
+                // image/file choice is kept when it made one.
+                'message_type' => $request->filled('attachment')
+                    ? (in_array($request->input('message_type'), ['image', 'file'], true) ? $request->input('message_type') : 'file')
+                    : 'text',
+                'attachment' => $request->filled('attachment') ? $request->input('attachment') : null,
             ]);
 
             $conversation->update(['last_message_at' => $message->created_at]);
