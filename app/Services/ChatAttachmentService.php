@@ -43,7 +43,7 @@ class ChatAttachmentService
      *
      * Image, PDF, Word, Excel. `mimes:` checks the type guessed from the file CONTENTS, not the name the
      * client sent, so a renamed executable is refused - and so is a real file PHP cannot identify (heic is
-     * the likely one on older mime maps). Keep in step with the `accept` list on Medhiwa's chat file input.
+     * the likely one on older mime maps). Keep in step with Medhiwa's PortalChatClient::ALLOWED_ATTACHMENT_EXTENSIONS and its chat file input's `accept` list.
      */
     public const ALLOWED_EXTENSIONS = [
         // image
