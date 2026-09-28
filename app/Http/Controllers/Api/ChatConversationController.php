@@ -60,6 +60,40 @@ class ChatConversationController extends Controller
     }
 
     /**
+     * GET /api/chat/cases
+     *
+     * The cases this patient may open a thread about — the picker behind POST /conversations.
+     *
+     * Unlike GET /chat/departments, which collapses several cases in one city into a single
+     * row, this returns ONE ENTRY PER CASE, because since 2026-09-28 a thread is scoped to a
+     * case rather than to a department.
+     *
+     * Each entry carries the department (derived, so the client never has to choose one) and
+     * the date of injury, which is the only field a patient would recognise when telling two
+     * cases in the same city apart — ahcs_cases has no title or reference column.
+     */
+    public function cases(Request $request): JsonResponse
+    {
+        try {
+            $chatUser = auth('chat')->user();
+
+            return response()->json([
+                'success' => true,
+                'cases' => $this->departments->casesForPatientIds($this->patientIdsFor($chatUser)),
+            ]);
+        } catch (\Throwable $e) {
+            Log::channel('chat')->error('Chat case list error', [
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Unable to fetch cases.',
+            ], 500);
+        }
+    }
+
+    /**
      * GET /api/chat/conversations
      */
     public function index(Request $request): JsonResponse
@@ -108,10 +142,17 @@ class ChatConversationController extends Controller
      *   - the identity is resolved from a real speciality_location row rather than created
      *     from whatever the request asked for.
      *
-     * Request shape — either:
-     *     department: "Houston"                 (preferred; matches GET /chat/departments)
-     * or the original pair, still accepted so an existing caller keeps working:
-     *     peer_external_type: "department", peer_external_id: <canonical location id>
+     * Request shape (changed 2026-09-28 — a thread is now scoped to a CASE):
+     *     case_id: 12345                        (required; from GET /chat/cases)
+     *     department: "Houston"                 (optional, cross-checked against the case)
+     *
+     * ONE THREAD PER CASE. A patient with three cases in Houston now has three threads,
+     * not one. The department is DERIVED from the case and never taken from the request,
+     * since a case belongs to exactly one department.
+     *
+     * The old peer_external_type + peer_external_id pair is GONE: it can name a department
+     * but not a case, so it can no longer identify a thread. Nothing consumed it — there is
+     * no patient app yet.
      *
      * PROXY ACCOUNTS: the chat identity carries the portal user's PRIMARY patient id only
      * (ChatAuthController::patient uses getPrimaryPatientId), so a proxy managing several
@@ -121,9 +162,8 @@ class ChatConversationController extends Controller
     public function store(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
-            'department' => 'required_without:peer_external_id|nullable|string|max:255',
-            'peer_external_type' => 'nullable|string|max:50',
-            'peer_external_id' => 'required_without:department|nullable|integer|min:1',
+            'case_id' => 'required|integer|min:1',
+            'department' => 'nullable|string|max:255',
         ]);
 
         if ($validator->fails()) {
@@ -143,26 +183,58 @@ class ChatConversationController extends Controller
                 ], 403);
             }
 
-            $peer = $this->resolveRequestedDepartment($request);
+            /*
+             * The CASE decides everything: whether this patient may write at all, and which
+             * department the thread belongs to. One query answers both, and the department
+             * is never read from the request.
+             *
+             * The refusal below is deliberately the same message whether the case does not
+             * exist, belongs to another patient, or sits in a city with no location row —
+             * a patient must not be able to probe which cases or departments exist.
+             */
+            $case = $this->departments->caseForPatientIds(
+                $this->patientIdsFor($chatUser),
+                (int) $request->input('case_id')
+            );
+
+            if (!$case) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'That department is not available for this account.',
+                ], 403);
+            }
+
+            // `department` is optional and CROSS-CHECKED, never trusted: a mismatch means the
+            // client thinks it is opening a different case than the one it named, and opening
+            // the wrong thread silently is worse than refusing.
+            $requestedCity = trim((string) $request->input('department', ''));
+
+            if ($requestedCity !== '') {
+                $requestedLocationId = $this->departments->canonicalLocationId($requestedCity);
+                $caseLocationId = $this->departments->canonicalLocationId($case['department']);
+
+                if ($requestedLocationId === null || $requestedLocationId !== $caseLocationId) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'That department is not available for this account.',
+                    ], 403);
+                }
+            }
+
+            $peer = $this->departments->departmentChatUser($case['department']);
 
             if (!$peer) {
-                // Deliberately the same message whether the department does not exist or the
-                // patient simply has no case there — a patient must not be able to probe
-                // which departments the practice runs.
                 return response()->json([
                     'success' => false,
                     'message' => 'That department is not available for this account.',
                 ], 403);
             }
 
-            if (!$this->departments->patientMayUseDepartment($this->patientIdsFor($chatUser), $peer)) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'That department is not available for this account.',
-                ], 403);
-            }
-
-            $conversation = $this->chatIdentityService->findOrCreateDirectConversation($chatUser, $peer);
+            $conversation = $this->chatIdentityService->findOrCreateDirectConversation(
+                $chatUser,
+                $peer,
+                $case['case_id']
+            );
 
             // Stamp the queue so the staff side can list a department's conversations without
             // walking participants. Set once, on the conversation's first resolution.
@@ -189,30 +261,6 @@ class ChatConversationController extends Controller
     }
 
     /**
-     * The department identity the request is asking for, or null when it names none that
-     * exists. Accepts the city name or the canonical location id.
-     */
-    private function resolveRequestedDepartment(Request $request): ?ChatUser
-    {
-        $city = trim((string) $request->input('department', ''));
-
-        if ($city !== '') {
-            return $this->departments->departmentChatUser($city);
-        }
-
-        $type = trim((string) $request->input('peer_external_type', ''));
-
-        if ($type !== '' && $type !== (string) config('chat.types.department', 'department')) {
-            return null;
-        }
-
-        $locationId = (int) $request->input('peer_external_id');
-        $resolved = $locationId > 0 ? $this->departments->displayCity($locationId) : null;
-
-        return $resolved !== null ? $this->departments->departmentChatUser($resolved) : null;
-    }
-
-    /**
      * The AHCS patient ids behind a patient chat identity. One id today — see the proxy note
      * on store().
      *
@@ -235,6 +283,11 @@ class ChatConversationController extends Controller
         return [
             'uuid' => $conversation->uuid,
             'type' => $conversation->type,
+            // WHICH CASE this thread is about. Without it the patient app cannot tell two
+            // threads in the same department apart — both render as "<City> Care Team" and
+            // the whole point of per-case threads is invisible. Null on rows created before
+            // threads were case-scoped.
+            'case_id' => $conversation->case_id !== null ? (int) $conversation->case_id : null,
             'last_message_at' => $conversation->last_message_at?->toIso8601String(),
             'peer' => $peerParticipant ? [
                 'uuid' => $peerParticipant->chatUser->uuid,

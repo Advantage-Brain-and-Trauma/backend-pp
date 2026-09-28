@@ -15,6 +15,7 @@ class Conversation extends Model
         'type',
         'assigned_chat_user_id',
         'department_chat_user_id',
+        'case_id',
         'last_message_at',
     ];
 
@@ -67,12 +68,30 @@ class Conversation extends Model
      * Deterministic dedup key for a direct conversation between two
      * chat users, independent of argument order.
      */
-    public static function directKeyFor(int $chatUserIdA, int $chatUserIdB): string
+    /**
+     * The dedup key for a direct conversation.
+     *
+     * WITHOUT a case this is the sorted identity pair, e.g. "3-9" — one thread per pair,
+     * which is what a staff <-> staff thread wants and what every row created before
+     * 2026-09-28 has.
+     *
+     * WITH a case it gains a "-c<id>" suffix, e.g. "3-9-c12345", giving a patient ONE
+     * THREAD PER CASE in the same department. This needs no schema change beyond the
+     * case_id column: `conversation_key` is already a unique string, and "3-9" and
+     * "3-9-c12345" are simply two distinct values of it. The unique index does the
+     * enforcing either way.
+     *
+     * The case is part of the KEY, so a thread's case can never be reassigned — pick a
+     * different case and you get a different thread, which is the whole point.
+     */
+    public static function directKeyFor(int $chatUserIdA, int $chatUserIdB, ?int $caseId = null): string
     {
         $ids = [$chatUserIdA, $chatUserIdB];
         sort($ids);
 
-        return implode('-', $ids);
+        $key = implode('-', $ids);
+
+        return $caseId === null ? $key : $key . '-c' . $caseId;
     }
 
     /**

@@ -49,16 +49,25 @@ class ChatIdentityService
 
     /**
      * Find-or-create a direct conversation between two chat users.
+     *
+     * $caseId scopes the thread to ONE AHCS case: a patient with three cases in the same
+     * department gets three threads, because the case is part of the conversation key.
+     * Pass null for a conversation that has no case — a staff <-> staff thread — and the
+     * behaviour is byte-for-byte what it was before cases existed.
+     *
+     * case_id is written only on CREATE, and needs no update path: the key contains the
+     * case, so an existing row found by that key already carries the right one.
      */
-    public function findOrCreateDirectConversation(ChatUser $a, ChatUser $b): \App\Models\Conversation
+    public function findOrCreateDirectConversation(ChatUser $a, ChatUser $b, ?int $caseId = null): \App\Models\Conversation
     {
-        $key = \App\Models\Conversation::directKeyFor($a->id, $b->id);
+        $key = \App\Models\Conversation::directKeyFor($a->id, $b->id, $caseId);
 
-        return DB::transaction(function () use ($key, $a, $b) {
+        return DB::transaction(function () use ($key, $a, $b, $caseId) {
             $conversation = \App\Models\Conversation::firstOrCreate([
                 'conversation_key' => $key,
             ], [
                 'type' => 'direct',
+                'case_id' => $caseId,
             ]);
 
             foreach ([$a, $b] as $participant) {

@@ -205,6 +205,7 @@ class ChatStaffController extends Controller
         $failed = $this->validateContext($request, [
             'patient_id' => 'required|integer|min:1',
             'department' => 'required|string|max:255',
+            'case_id' => 'required|integer|min:1',
             'patient_name' => 'nullable|string|max:255',
         ]);
 
@@ -240,10 +241,24 @@ class ChatStaffController extends Controller
 
             $patientId = (int) $request->input('patient_id');
 
-            // The same rule the patient side enforces: a conversation only exists where the
-            // patient actually has a case. Without this, staff could open a thread in a
-            // department that has no relationship to the patient.
-            if (!$this->departments->patientMayUseDepartment([$patientId], $department)) {
+            /*
+             * The named CASE must belong to this patient and sit in the department being
+             * opened. This replaces the older "does the patient have any case here" test and
+             * is strictly stronger: it also rejects a case from another of this patient's own
+             * departments, which would otherwise file the thread under the wrong city.
+             *
+             * Staff name the case here for the same reason the patient does — the thread is
+             * scoped to it. Without one there is no way to say WHICH thread to open, and the
+             * chart link would be back to guessing the patient's newest case.
+             */
+            $case = $this->departments->caseForPatientIds(
+                [$patientId],
+                (int) $request->input('case_id')
+            );
+
+            $caseCity = $case ? $this->departments->canonicalLocationId($case['department']) : null;
+
+            if (!$case || $caseCity === null || $caseCity !== $this->departments->canonicalLocationId($city)) {
                 return response()->json([
                     'success' => false,
                     'message' => 'This patient has no case in that department.',
@@ -255,7 +270,11 @@ class ChatStaffController extends Controller
                 $request->input('patient_name')
             );
 
-            $conversation = $this->chatIdentityService->findOrCreateDirectConversation($patient, $department);
+            $conversation = $this->chatIdentityService->findOrCreateDirectConversation(
+                $patient,
+                $department,
+                $case['case_id']
+            );
 
             if ($conversation->department_chat_user_id === null) {
                 $conversation->update(['department_chat_user_id' => $department->id]);
@@ -823,6 +842,10 @@ class ChatStaffController extends Controller
             'department' => $allowed[$departmentId] ?? $this->departments->displayCity(
                 (int) ($conversation->department?->external_id ?? 0)
             ),
+            // The AHCS case this thread is about. STATED, never guessed: the case is part of
+            // conversation_key, so a thread cannot drift onto another case. Null only on rows
+            // created before threads were case-scoped.
+            'case_id' => $conversation->case_id !== null ? (int) $conversation->case_id : null,
             'patient' => $patientParticipant && $patientParticipant->chatUser ? [
                 'uuid' => $patientParticipant->chatUser->uuid,
                 'name' => $patientParticipant->chatUser->name,
@@ -874,6 +897,7 @@ class ChatStaffController extends Controller
             'uuid' => $conversation->uuid,
             'is_staff_chat' => true,
             'department' => null,
+            'case_id' => null,
             'patient' => null,
             'assigned_to' => null,
             'is_active' => $conversation->isWithinLockWindow(),

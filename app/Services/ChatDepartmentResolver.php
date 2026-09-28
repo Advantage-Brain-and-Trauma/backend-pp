@@ -184,7 +184,102 @@ class ChatDepartmentResolver
     }
 
     /**
+     * The patient's cases that chat can actually be held about, newest first.
+     *
+     * One entry PER CASE, deliberately unlike departmentsForPatientIds() which collapses
+     * several cases in one city down to a single row: since 2026-09-28 a thread is scoped to a
+     * case, so the picker has to show the cases themselves.
+     *
+     * A case whose free-text `department` does not resolve to a known speciality_location is
+     * skipped — there would be no department identity to open a thread against.
+     *
+     * `date_of_injury` is here because ahcs_cases has no title or reference field; department
+     * plus DOI is the only pairing a patient would recognise when choosing between two cases
+     * in the same city.
+     *
+     * @param  int[]  $patientIds
+     * @return array<int, array{case_id:int, department:string, date_of_injury:?string}>
+     */
+    public function casesForPatientIds(array $patientIds): array
+    {
+        $patientIds = array_values(array_filter(array_map('intval', $patientIds)));
+
+        if ($patientIds === []) {
+            return [];
+        }
+
+        $rows = AhcsCase::whereIn('patient_id', $patientIds)
+            ->orderByDesc('id')
+            ->get(['id', 'department', 'doi']);
+
+        $cases = [];
+
+        foreach ($rows as $row) {
+            $locationId = $this->canonicalLocationId((string) $row->department);
+
+            if ($locationId === null) {
+                continue;
+            }
+
+            $cases[] = [
+                'case_id' => (int) $row->id,
+                'department' => $this->displayCity($locationId),
+                'date_of_injury' => $row->doi !== null && (string) $row->doi !== '' ? (string) $row->doi : null,
+            ];
+        }
+
+        return $cases;
+    }
+
+    /**
+     * One case, but ONLY if it belongs to one of these patients and its department resolves.
+     *
+     * This is the authorisation check behind every thread that names a case: it answers "may
+     * this patient chat about this case, and which department does that put it in" in a single
+     * query, so the department is never taken from the request. A caller that also sends a
+     * department is cross-checked against this answer rather than trusted.
+     *
+     * Returns null for a case that does not exist, belongs to someone else, or sits in a city
+     * with no speciality_location — all three deliberately indistinguishable to the caller.
+     *
+     * @param  int[]  $patientIds
+     * @return array{case_id:int, department:string}|null
+     */
+    public function caseForPatientIds(array $patientIds, int $caseId): ?array
+    {
+        $patientIds = array_values(array_filter(array_map('intval', $patientIds)));
+
+        if ($patientIds === [] || $caseId < 1) {
+            return null;
+        }
+
+        $row = AhcsCase::whereIn('patient_id', $patientIds)
+            ->where('id', $caseId)
+            ->first(['id', 'department']);
+
+        if (!$row) {
+            return null;
+        }
+
+        $locationId = $this->canonicalLocationId((string) $row->department);
+
+        if ($locationId === null) {
+            return null;
+        }
+
+        $city = $this->displayCity($locationId);
+
+        return $city === null ? null : ['case_id' => (int) $row->id, 'department' => $city];
+    }
+
+    /**
      * Whether a patient is allowed to talk to a department identity.
+     *
+     * NO LONGER CALLED as of 2026-09-28, and deliberately not the authorisation path any
+     * more: threads are scoped to a case, so "has a case somewhere in this department" is
+     * too weak — it would let a Houston case open a Canton thread. Use caseForPatientIds(),
+     * which answers ownership and department together. Kept because it is a correct,
+     * self-contained check that a future caller may want.
      *
      * @param  int[]  $patientIds
      */

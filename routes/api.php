@@ -152,6 +152,9 @@ Route::prefix('chat')->group(function () {
     // IP, so patients sharing one connection do not share one bucket (RouteServiceProvider).
     Route::middleware(['auth:chat', 'throttle:chat-patient'])->group(function () {
         Route::get('departments', [ChatConversationController::class, 'departments']);
+        // One row per CASE, unlike `departments` which collapses a city's cases into one.
+        // This is the picker behind POST conversations now that a thread is case-scoped.
+        Route::get('cases', [ChatConversationController::class, 'cases']);
         Route::get('conversations', [ChatConversationController::class, 'index']);
         Route::post('conversations', [ChatConversationController::class, 'store']);
         Route::get('conversations/{conversation}/messages', [ChatMessageController::class, 'index']);
