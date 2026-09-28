@@ -213,7 +213,7 @@ class ChatStaffController extends Controller
     public function storeAttachment(Request $request, ChatAttachmentService $attachments): JsonResponse
     {
         $failed = $this->validateContext($request, [
-            'file' => 'required|file|mimes:' . config('chat.attachments.mimes')
+            'file' => 'required|file|mimes:' . implode(',', ChatAttachmentService::ALLOWED_EXTENSIONS)
                 . '|max:' . (int) config('chat.attachments.max_kb', 102400),
         ]);
 

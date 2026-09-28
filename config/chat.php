@@ -95,28 +95,9 @@ return [
         'disk' => env('CHAT_ATTACHMENT_DISK', 'public'),
         'path' => 'chat-attachments',
         'max_kb' => (int) env('CHAT_ATTACHMENT_MAX_KB', 102400),
-        /*
-         * The four kinds asked for - image, PDF, Word, Excel - each with the extensions
-         * that are the same kind of document. A patient photographing a letter on a
-         * phone produces png or heic as often as jpg, and rejecting those would read as
-         * "attachments are broken".
-         *
-         * `mimes:` checks the type GUESSED FROM THE FILE CONTENTS, not the name the
-         * client sent, so renaming malware.exe to report.pdf does not get past it. The
-         * same strictness cuts the other way: a legitimate file whose type PHP cannot
-         * detect is refused, and heic is the likely one since older mime maps do not
-         * carry it. That failure is at least loud and on upload, not silent.
-         */
-        'mimes' => implode(',', [
-            // image
-            'jpg', 'jpeg', 'png', 'gif', 'webp', 'heic', 'heif',
-            // pdf
-            'pdf',
-            // word
-            'doc', 'docx',
-            // excel
-            'xls', 'xlsx', 'csv',
-        ]),
+        // The allowed file types are NOT here: they are hardcoded in
+        // ChatAttachmentService::ALLOWED_EXTENSIONS, because a stale config cache without
+        // this key once refused every upload ("must be a file of type: .").
     ],
     'types' => [
         'patient'    => 'patient',

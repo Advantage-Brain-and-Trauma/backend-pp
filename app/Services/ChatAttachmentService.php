@@ -34,6 +34,29 @@ class ChatAttachmentService
     private const SEPARATOR = '__';
 
     /**
+     * The file types a chat attachment may be, for the `mimes:` rule on BOTH upload endpoints.
+     *
+     * HARDCODED on purpose, not read from config/chat.php. It used to be config('chat.attachments.mimes'),
+     * and a server whose config cache predated that key validated against an EMPTY list - every file,
+     * PDF included, was refused with "The file field must be a file of type: ." A constant cannot go
+     * stale that way. Changing the list is now a code change and a deploy.
+     *
+     * Image, PDF, Word, Excel. `mimes:` checks the type guessed from the file CONTENTS, not the name the
+     * client sent, so a renamed executable is refused - and so is a real file PHP cannot identify (heic is
+     * the likely one on older mime maps). Keep in step with the `accept` list on Medhiwa's chat file input.
+     */
+    public const ALLOWED_EXTENSIONS = [
+        // image
+        'jpg', 'jpeg', 'png', 'gif', 'webp', 'heic', 'heif',
+        // pdf
+        'pdf',
+        // word
+        'doc', 'docx',
+        // excel
+        'xls', 'xlsx', 'csv',
+    ];
+
+    /**
      * Store an uploaded file and describe it for the client.
      *
      * @return array{attachment:string, url:string, name:string, size:int, extension:string}

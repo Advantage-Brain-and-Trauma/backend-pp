@@ -32,7 +32,7 @@ class ChatMessageController extends Controller
     public function storeAttachment(Request $request, ChatAttachmentService $attachments): JsonResponse
     {
         $validator = Validator::make($request->all(), [
-            'file' => 'required|file|mimes:' . config('chat.attachments.mimes')
+            'file' => 'required|file|mimes:' . implode(',', ChatAttachmentService::ALLOWED_EXTENSIONS)
                 . '|max:' . (int) config('chat.attachments.max_kb', 102400),
         ]);
 
