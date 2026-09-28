@@ -162,6 +162,9 @@ Route::prefix('chat')->group(function () {
         // End the conversation. FINAL: writing about the same case afterwards opens the
         // next session, never this thread again.
         Route::post('conversations/{conversation}/close', [ChatConversationController::class, 'close']);
+        // Upload first, then send the returned reference as `attachment`. Separate so a
+        // large upload that fails does not also lose the message.
+        Route::post('attachments', [ChatMessageController::class, 'storeAttachment']);
     });
 
     // ── Staff side (Medhiwa) ─────────────────────────────────────────────
@@ -178,6 +181,7 @@ Route::prefix('chat')->group(function () {
         // One patient's ENDED conversations. Nothing else lists them - the queue filters
         // closed threads out by design.
         Route::post('conversations/closed', [ChatStaffController::class, 'closedConversations']);
+        Route::post('attachments', [ChatStaffController::class, 'storeAttachment']);
         // Staff <-> staff: a private two-person thread with NO department and NO assignment.
         // Nothing to do with a patient or a queue; it only shares the transport.
         Route::post('conversations/start-staff', [ChatStaffController::class, 'startStaff']);

@@ -70,6 +70,54 @@ return [
     |
     */
 
+    /*
+    |--------------------------------------------------------------------------
+    | Attachments
+    |--------------------------------------------------------------------------
+    |
+    | Both sides upload through /api/chat/attachments (patient) and
+    | /api/chat/staff/attachments (staff). Stored on the PUBLIC disk, matching what
+    | FunnelApiController already does for form uploads - a deliberate decision on
+    | 2026-09-28, not an oversight. It means a stored file is reachable by anyone
+    | holding its URL, with no authentication and no expiry; the random filename is
+    | the only thing standing between a link and the document. Do not "harden" this
+    | by moving the disk without checking, because the URL returned to clients is
+    | built from it.
+    |
+    | max_kb is what Laravel validates. It is NOT the real ceiling on its own:
+    | nginx client_max_body_size (default 1M) rejects a larger body with a 413
+    | before PHP runs, and PHP's own upload_max_filesize / post_max_size cap it
+    | again. All three have to agree or the limit is whichever is smallest, and the
+    | failure looks like a broken form rather than a size problem.
+    |
+    */
+    'attachments' => [
+        'disk' => env('CHAT_ATTACHMENT_DISK', 'public'),
+        'path' => 'chat-attachments',
+        'max_kb' => (int) env('CHAT_ATTACHMENT_MAX_KB', 102400),
+        /*
+         * The four kinds asked for - image, PDF, Word, Excel - each with the extensions
+         * that are the same kind of document. A patient photographing a letter on a
+         * phone produces png or heic as often as jpg, and rejecting those would read as
+         * "attachments are broken".
+         *
+         * `mimes:` checks the type GUESSED FROM THE FILE CONTENTS, not the name the
+         * client sent, so renaming malware.exe to report.pdf does not get past it. The
+         * same strictness cuts the other way: a legitimate file whose type PHP cannot
+         * detect is refused, and heic is the likely one since older mime maps do not
+         * carry it. That failure is at least loud and on upload, not silent.
+         */
+        'mimes' => implode(',', [
+            // image
+            'jpg', 'jpeg', 'png', 'gif', 'webp', 'heic', 'heif',
+            // pdf
+            'pdf',
+            // word
+            'doc', 'docx',
+            // excel
+            'xls', 'xlsx', 'csv',
+        ]),
+    ],
     'types' => [
         'patient'    => 'patient',
         'department' => 'department',

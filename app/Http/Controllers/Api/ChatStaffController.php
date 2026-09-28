@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Events\ChatMessageSent;
 use App\Exceptions\PatientHasOpenConversation;
+use App\Services\ChatAttachmentService;
 use App\Http\Controllers\Controller;
 use App\Models\ChatMessage;
 use App\Models\ChatUser;
@@ -199,6 +200,38 @@ class ChatStaffController extends Controller
     }
 
     /**
+     * POST /api/chat/staff/attachments
+     *
+     * The staff half of the upload. Same service, same rules, same storage as the patient side -
+     * one place decides what is allowed, so the two cannot drift into accepting different files.
+     *
+     * Context is validated for consistency with every other staff route, but nothing here is
+     * conversation-scoped: an upload is not yet attached to anything. It becomes part of a
+     * conversation only when the returned reference is sent with a message, and THAT call is
+     * where department scoping and the closed/locked rules are enforced.
+     */
+    public function storeAttachment(Request $request, ChatAttachmentService $attachments): JsonResponse
+    {
+        $failed = $this->validateContext($request, [
+            'file' => 'required|file|mimes:' . config('chat.attachments.mimes')
+                . '|max:' . (int) config('chat.attachments.max_kb', 102400),
+        ]);
+
+        if ($failed) {
+            return $failed;
+        }
+
+        try {
+            return response()->json([
+                'success' => true,
+                'attachment' => $attachments->store($request->file('file')),
+            ]);
+        } catch (\Throwable $e) {
+            return $this->failure('Chat staff attachment upload error', $e, 'Unable to upload that file.');
+        }
+    }
+
+    /**
      * POST /api/chat/staff/conversations/closed
      *
      * One patient's ENDED conversations, newest first — the archive behind the staff panel.
@@ -248,15 +281,22 @@ class ChatStaffController extends Controller
 
             $ids = $conversations->pluck('id')->all();
 
+            // Resolved ONCE for the page, not per row - the same shape the queue uses. Called
+            // inside the map they would run per conversation, so a patient with 100 archived
+            // threads cost 200 extra queries to render a panel.
+            $unread = $this->unreadCounts($ids);
+            $latest = $this->latestMessages($ids);
+            $staffId = (int) $this->staffIdentity($request)->id;
+
             return response()->json([
                 'success' => true,
                 'conversations' => $conversations
                     ->map(fn (Conversation $c) => $this->presentQueueConversation(
                         $c,
                         $allowed,
-                        $this->unreadCounts($ids),
-                        $this->latestMessages($ids),
-                        (int) $this->staffIdentity($request)->id
+                        $unread,
+                        $latest,
+                        $staffId
                     ))
                     ->values(),
             ]);
@@ -449,7 +489,10 @@ class ChatStaffController extends Controller
     public function send(Request $request, Conversation $conversation): JsonResponse
     {
         $failed = $this->validateContext($request, [
-            'message' => 'required|string|max:' . (int) config('chat.message_max_length', 5000),
+            // required_WITHOUT: an attachment on its own is a complete message. This used to
+            // be a plain `required`, which made "here is the scan" impossible to send.
+            'message' => 'required_without:attachment|nullable|string|max:' . (int) config('chat.message_max_length', 5000),
+            'attachment' => 'nullable|string|max:2048',
             'override' => 'nullable|boolean',
         ]);
 
@@ -1119,6 +1162,10 @@ class ChatStaffController extends Controller
             'message' => $message->message,
             'message_type' => $message->message_type,
             'attachment' => $message->attachment,
+            'attachment_url' => app(ChatAttachmentService::class)->url($message->attachment),
+            'attachment_name' => $message->attachment
+                ? app(ChatAttachmentService::class)->displayName($message->attachment)
+                : null,
             // Who actually typed a staff reply. Null on patient messages.
             'sent_by' => $this->presentStaff($message->sentBy),
             'created_at' => $message->created_at?->toIso8601String(),

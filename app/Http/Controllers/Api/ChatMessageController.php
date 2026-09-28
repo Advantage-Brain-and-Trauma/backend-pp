@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Events\ChatMessageSent;
+use App\Services\ChatAttachmentService;
 use App\Http\Controllers\Controller;
 use App\Models\ChatMessage;
 use App\Models\Conversation;
@@ -13,6 +14,53 @@ use Illuminate\Support\Facades\Validator;
 
 class ChatMessageController extends Controller
 {
+    /**
+     * POST /api/chat/attachments
+     *
+     * Upload a file, get back the reference to put in `attachment` when sending. Deliberately
+     * SEPARATE from sending: a 100 MB upload that fails should not also lose the message, and a
+     * patient who picks the wrong file finds out before they have written anything.
+     *
+     * `mimes` checks the type guessed from the CONTENTS, not the client's filename, so a
+     * renamed executable does not get through. The size ceiling here is only one of three -
+     * nginx's client_max_body_size and PHP's upload_max_filesize / post_max_size cap it again,
+     * and a request over THEIR limit never reaches this method: nginx answers 413 and PHP
+     * discards the body, which surfaces as an empty request rather than a validation error.
+     *
+     * PHI: never log the filename or the contents.
+     */
+    public function storeAttachment(Request $request, ChatAttachmentService $attachments): JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'file' => 'required|file|mimes:' . config('chat.attachments.mimes')
+                . '|max:' . (int) config('chat.attachments.max_kb', 102400),
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => $validator->errors()->first(),
+            ], 422);
+        }
+
+        try {
+            return response()->json([
+                'success' => true,
+                'attachment' => $attachments->store($request->file('file')),
+            ]);
+        } catch (\Throwable $e) {
+            Log::channel('chat')->error('Chat attachment upload error', [
+                // Deliberately no filename here - it is patient data.
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Unable to upload that file.',
+            ], 500);
+        }
+    }
+
     /**
      * GET /api/chat/conversations/{conversation}/messages
      */
@@ -161,6 +209,11 @@ class ChatMessageController extends Controller
             'message' => $message->message,
             'message_type' => $message->message_type,
             'attachment' => $message->attachment,
+            // Resolved for the client so neither app has to know where files live.
+            'attachment_url' => app(ChatAttachmentService::class)->url($message->attachment),
+            'attachment_name' => $message->attachment
+                ? app(ChatAttachmentService::class)->displayName($message->attachment)
+                : null,
             'read_at' => $message->read_at?->toIso8601String(),
             'created_at' => $message->created_at->toIso8601String(),
         ];
