@@ -215,6 +215,8 @@ class ChatStaffController extends Controller
         $failed = $this->validateContext($request, [
             'file' => 'required|file|mimes:' . implode(',', ChatAttachmentService::ALLOWED_EXTENSIONS)
                 . '|max:' . (int) config('chat.attachments.max_kb', 102400),
+        ], [
+            'file.mimes' => ChatAttachmentService::TYPE_MESSAGE,
         ]);
 
         if ($failed) {
@@ -741,7 +743,7 @@ class ChatStaffController extends Controller
      * Validates the caller context every staff route carries, plus any route-specific rules.
      * Returns a 422 response when it fails, or null when it passes.
      */
-    private function validateContext(Request $request, array $extra = []): ?JsonResponse
+    private function validateContext(Request $request, array $extra = [], array $messages = []): ?JsonResponse
     {
         $validator = Validator::make($request->all(), array_merge([
             'staff_external_id' => 'required|integer|min:1',
@@ -753,7 +755,7 @@ class ChatStaffController extends Controller
             'may_patient_chat' => 'nullable|boolean',
             'may_staff_chat' => 'nullable|boolean',
             'may_view_others_assigned' => 'nullable|boolean',
-        ], $extra));
+        ], $extra), $messages);
 
         if ($validator->fails()) {
             return response()->json([

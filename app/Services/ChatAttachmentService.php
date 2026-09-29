@@ -57,6 +57,14 @@ class ChatAttachmentService
     ];
 
     /**
+     * The `mimes` failure message for both upload endpoints. Because the type comes from the CONTENTS,
+     * a renamed or blank file fails with its own extension sitting in Laravel's default "must be a file
+     * of type: ..." list, which reads as a bug. Same wording as Medhiwa's PortalChatClient::ATTACHMENT_TYPE_MESSAGE.
+     */
+    public const TYPE_MESSAGE = 'This file\'s contents are not a recognised image, PDF, Word or Excel '
+        . 'document - it may have been renamed from another type, or be empty or damaged. Allowed: :values.';
+
+    /**
      * Store an uploaded file and describe it for the client.
      *
      * @return array{attachment:string, url:string, name:string, size:int, extension:string}

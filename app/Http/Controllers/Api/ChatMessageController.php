@@ -34,6 +34,8 @@ class ChatMessageController extends Controller
         $validator = Validator::make($request->all(), [
             'file' => 'required|file|mimes:' . implode(',', ChatAttachmentService::ALLOWED_EXTENSIONS)
                 . '|max:' . (int) config('chat.attachments.max_kb', 102400),
+        ], [
+            'file.mimes' => ChatAttachmentService::TYPE_MESSAGE,
         ]);
 
         if ($validator->fails()) {
