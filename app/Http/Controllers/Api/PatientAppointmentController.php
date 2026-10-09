@@ -980,6 +980,22 @@ class PatientAppointmentController extends Controller
 
         $data = json_decode($body, true);
 
+        // Replace visit_type short code with its full name; unmatched values are left as is
+        if ($httpCode >= 200 && $httpCode < 300 && isset($data['data']) && is_array($data['data'])) {
+            $attendTypes = MedhiwaCareNewOrderType::pluck('name', 'code')
+                ->mapWithKeys(function ($value, $key) {
+                    return [strtolower($key) => $value];
+                });
+
+            foreach ($data['data'] as &$preauth) {
+                if (is_array($preauth) && !empty($preauth['visit_type']) && is_string($preauth['visit_type'])) {
+                    $code = strtolower(trim($preauth['visit_type']));
+                    $preauth['visit_type'] = $attendTypes[$code] ?? $preauth['visit_type'];
+                }
+            }
+            unset($preauth);
+        }
+
         return response()->json($data ?? [], $httpCode ?: 500);
     }
 
