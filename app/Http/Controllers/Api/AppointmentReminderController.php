@@ -535,6 +535,9 @@ class AppointmentReminderController extends Controller
                 'service'     => $appointment->service,
                 'visit_type'  => $appointment->attend_type,
                 'date'        => $appointment->attend_date,
+                // Reminder flow only: no 24-hour notice, so a later time the same day can be
+                // offered. The logged-in portal does not send this and keeps the 24-hour rule.
+                'min_lead_hours' => 0,
             ], fn ($value) => $value !== null)
         );
 

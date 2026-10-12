@@ -215,6 +215,10 @@ class AppointmentReminderTest extends TestCase
                     'message'      => null,
                 ],
             ]);
+
+        // Reminder flow asks the scheduling service to drop its 24-hour notice.
+        Http::assertSent(fn ($request) => str_contains($request->url(), '/patient-portal/available-time-slots')
+            && str_contains($request->url(), 'min_lead_hours=0'));
     }
 
     public function test_time_slots_explains_why_a_day_has_no_slots(): void
