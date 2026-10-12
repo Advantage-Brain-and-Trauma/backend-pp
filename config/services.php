@@ -65,6 +65,12 @@ return [
         'webdav_url'  => env('APP_SERVER_BASE_URL', 'http://10.0.0.23') . '/webdav/mh',
     ],
 
+    'appointment_reminder' => [
+        // patient_apt_msg_status written when a patient asks for help from the reminder link.
+        // Medhiwa reads 1 = Approved, 0 = Denied (with a reason).
+        'help_status' => env('APPT_REMINDER_HELP_STATUS', 0),
+    ],
+
     'clinical_notes' => [
         'base_url' => env('CLINICAL_NOTES_API_BASE_URL', env('APP_SERVER_BASE_URL', 'http://10.0.0.23') . '/api'),
     ],
