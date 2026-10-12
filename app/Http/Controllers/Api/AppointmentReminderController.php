@@ -37,6 +37,9 @@ class AppointmentReminderController extends Controller
     // patient_apt_msg_status as Medhiwa reads it: 1 = Approved, 0 = Denied (with a reason).
     private const STATUS_CONFIRMED = 1;
 
+    // The reschedule screen offers a short list, not the provider's whole day.
+    private const MAX_SLOTS_SHOWN = 3;
+
     private ?string $noSlotsReason = null;
 
     private const HELP_CATEGORIES = [
@@ -180,7 +183,7 @@ class AppointmentReminderController extends Controller
     /**
      * GET /api/appointment-reminder/{token}/time-slots
      *
-     * Open times later the same day, with the same provider and location.
+     * The first three open times later the same day, with the same provider and location.
      *
      * Response:
      * - 200: { success: true, data: { attend_date, current_time, slots: [{ time: 'H:i', label: 'g:i A' }],
@@ -205,7 +208,7 @@ class AppointmentReminderController extends Controller
                 'data'    => [
                     'attend_date'  => $reminder['appointment']->attend_date,
                     'current_time' => $reminder['appointment']->time,
-                    'slots'        => $slots,
+                    'slots'        => array_slice($slots, 0, self::MAX_SLOTS_SHOWN),
                     // Why there is nothing to pick, in the scheduling service's own words.
                     'message'      => empty($slots)
                         ? ($this->noSlotsReason ?: 'No other times are available that day.')

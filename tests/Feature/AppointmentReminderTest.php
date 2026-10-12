@@ -212,6 +212,7 @@ class AppointmentReminderTest extends TestCase
                     'slots'        => [
                         ['time' => '13:00', 'label' => '1:00 PM'],
                         ['time' => '15:30', 'label' => '3:30 PM'],
+                        ['time' => '16:00', 'label' => '4:00 PM'],
                     ],
                     'message'      => null,
                 ],
@@ -316,6 +317,8 @@ class AppointmentReminderTest extends TestCase
                 ['value' => '13:00', 'label' => '01:00 pm', 'disabled' => false],
                 ['value' => '14:00', 'label' => '02:00 pm (Booked)', 'disabled' => true],
                 ['value' => '15:30', 'label' => '03:30 pm', 'disabled' => false],
+                ['value' => '16:00', 'label' => '04:00 pm', 'disabled' => false],
+                ['value' => '16:30', 'label' => '04:30 pm', 'disabled' => false],
             ]]),
             '*/modify-appointment-schedule/*' => function ($request) use ($modifyFailure) {
                 if ($modifyFailure) {
