@@ -11,6 +11,7 @@ use App\Models\AhcsPatient;
 use App\Models\AhcsShortUrl;
 use App\Models\MedhiwaCareNewOrderType;
 use App\Models\MedhiwaSpecialityLocation;
+use App\Services\AppointmentReminderChatService;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -108,6 +109,8 @@ class AppointmentReminderController extends Controller
 
             if (!$latest || (int) $latest->patient_apt_msg_status !== self::STATUS_CONFIRMED) {
                 $this->saveResponse($reminder, self::STATUS_CONFIRMED, '');
+                $this->copyToChat($reminder, AppointmentReminderChatService::CONFIRMED,
+                    'Confirmed appointment on ' . $this->describeAppointment($reminder['appointment']) . '.');
             }
 
             return response()->json([
@@ -170,6 +173,8 @@ class AppointmentReminderController extends Controller
 
             if (!$isRepeat) {
                 $this->saveResponse($reminder, $helpStatus, $reason);
+                $this->copyToChat($reminder, AppointmentReminderChatService::HELP_REQUESTED,
+                    'Needs help attending appointment on ' . $this->describeAppointment($reminder['appointment']) . '. ' . $reason);
             }
 
             return response()->json([
@@ -350,6 +355,11 @@ class AppointmentReminderController extends Controller
 
             $updated = AhcsAttendance::where('id', $appointment->id)->first(['attend_date', 'time', 'end_time']);
 
+            $this->copyToChat($reminder, AppointmentReminderChatService::TIME_CHANGED,
+                'Changed appointment time from ' . Carbon::parse($appointment->time)->format('g:i A')
+                . ' to ' . Carbon::parse($updated->time)->format('g:i A')
+                . '. Appointment was on ' . $this->describeAppointment($appointment) . '.');
+
             return response()->json([
                 'success' => true,
                 'message' => 'Appointment time updated successfully.',
@@ -513,6 +523,32 @@ class AppointmentReminderController extends Controller
             'patient_apt_msg_status' => $status,
             'patient_apt_msg_reason' => $reason,
         ]);
+    }
+
+    /**
+     * Copy the reply into the support chat as a flagged, staff-only reminder thread.
+     */
+    private function copyToChat(array $reminder, string $kind, string $text): void
+    {
+        $name = $this->patientName($reminder['patient_id']);
+
+        app(AppointmentReminderChatService::class)->record(
+            $reminder['patient_id'],
+            $reminder['case_id'],
+            $reminder['appointment']->department,
+            $kind,
+            $text,
+            $name !== 'Patient' ? $name : null
+        );
+    }
+
+    private function describeAppointment($appointment): string
+    {
+        $when = Carbon::parse($appointment->attend_date . ' ' . $appointment->time);
+
+        return $when->format('D, M j, Y') . ' at ' . $when->format('g:i A')
+            . ($appointment->provider_name ? ' with ' . $appointment->provider_name : '')
+            . ($appointment->department ? ' (' . $appointment->department . ')' : '');
     }
 
     private function patientName(int $patientId): string

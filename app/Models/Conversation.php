@@ -27,6 +27,14 @@ class Conversation extends Model
         'closed_at' => 'datetime',
     ];
 
+    /**
+     * A thread holding a patient's replies on the appointment reminder SMS link
+     * (AppointmentReminderChatService). Staff-only and read-only: the department is its only
+     * participant, it is never assigned, replied to or ended, and it is listed separately
+     * from the support queue.
+     */
+    public const TYPE_APPOINTMENT_REMINDER = 'appointment_reminder';
+
     protected static function booted(): void
     {
         static::creating(function (Conversation $conversation) {
@@ -112,6 +120,52 @@ class Conversation extends Model
          * "-s2", "-s3", and so on.
          */
         return $session > 1 ? $key . '-s' . $session : $key;
+    }
+
+    /**
+     * Key of the appointment-reminder thread for one patient + department + case. The
+     * "-reminder" suffix keeps it apart from the support thread for the same case.
+     */
+    public static function reminderKeyFor(int $patientChatUserId, int $departmentChatUserId, int $caseId): string
+    {
+        return static::directKeyFor($patientChatUserId, $departmentChatUserId, $caseId) . '-reminder';
+    }
+
+    public function isAppointmentReminder(): bool
+    {
+        return $this->type === self::TYPE_APPOINTMENT_REMINDER;
+    }
+
+    /**
+     * The patient's chat_users.id on a reminder thread. The patient is not a participant
+     * there, so it is read back from the key ("<id>-<id>-c<case>-reminder").
+     */
+    public function reminderPatientChatUserId(): ?int
+    {
+        if (!$this->isAppointmentReminder()) {
+            return null;
+        }
+
+        foreach (array_slice(explode('-', (string) $this->conversation_key), 0, 2) as $id) {
+            if ((int) $id !== (int) $this->department_chat_user_id) {
+                return (int) $id;
+            }
+        }
+
+        return null;
+    }
+
+    /** Ordinary support conversations — everything except appointment-reminder threads. */
+    public function scopeSupportChat($query)
+    {
+        return $query->where(function ($q) {
+            $q->whereNull('type')->orWhere('type', '!=', self::TYPE_APPOINTMENT_REMINDER);
+        });
+    }
+
+    public function scopeAppointmentReminder($query)
+    {
+        return $query->where('type', self::TYPE_APPOINTMENT_REMINDER);
     }
 
     /**

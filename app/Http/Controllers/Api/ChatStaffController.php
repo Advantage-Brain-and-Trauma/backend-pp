@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Events\ChatMessageSent;
 use App\Exceptions\PatientHasOpenConversation;
+use App\Services\AppointmentReminderChatService;
 use App\Services\ChatAttachmentService;
 use App\Http\Controllers\Controller;
 use App\Models\ChatMessage;
@@ -90,8 +91,14 @@ class ChatStaffController extends Controller
 
             $limit = min(max((int) $request->input('limit', 200), 1), 500);
 
+            // `appointment_reminder` lists ONLY the threads holding patients' replies on the
+            // appointment reminder SMS link, for their own tab. The default queue never
+            // includes them, so it is exactly what it was before those threads existed.
+            $remindersOnly = $request->input('scope') === Conversation::TYPE_APPOINTMENT_REMINDER;
+
             $conversations = Conversation::query()
                 ->whereIn('department_chat_user_id', array_keys($allowed))
+                ->when($remindersOnly, fn ($q) => $q->appointmentReminder(), fn ($q) => $q->supportChat())
                 // The queue is a WORKLIST: an ended conversation is not work. Its history is
                 // still readable by uuid, it just stops occupying the list.
                 ->whereNull('closed_at')
@@ -106,6 +113,10 @@ class ChatStaffController extends Controller
             $unread = $this->unreadCounts($ids);
             $latest = $this->latestMessages($ids);
             $staffId = (int) $this->staffIdentity($request)->id;
+
+            if ($remindersOnly) {
+                $this->loadReminderPatients($conversations);
+            }
 
             return response()->json([
                 'success' => true,
@@ -518,6 +529,10 @@ class ChatStaffController extends Controller
                 return $refusal;
             }
 
+            if ($refusal = $this->refuseOnReminderThread($conversation)) {
+                return $refusal;
+            }
+
             // Closed is final for staff too - they can read the episode, never extend it.
             if ($conversation->isClosed()) {
                 return response()->json([
@@ -629,6 +644,10 @@ class ChatStaffController extends Controller
                 ], 422);
             }
 
+            if ($refusal = $this->refuseOnReminderThread($conversation)) {
+                return $refusal;
+            }
+
             $assigneeId = $request->input('assign_to_staff_external_id');
 
             $assignee = $assigneeId !== null
@@ -689,6 +708,10 @@ class ChatStaffController extends Controller
                     'success' => false,
                     'message' => 'Staff conversations are not ended.',
                 ], 422);
+            }
+
+            if ($refusal = $this->refuseOnReminderThread($conversation)) {
+                return $refusal;
             }
 
             $refusal = $this->refuseUnlessInQueue($request, $conversation);
@@ -922,6 +945,41 @@ class ChatStaffController extends Controller
         return null;
     }
 
+    /**
+     * An appointment-reminder thread is a read-only record of what the patient answered on the
+     * SMS link. The patient is not in it, so a reply would reach nobody, and there is nothing
+     * to claim or end. Reading it and marking it read stay allowed.
+     */
+    private function refuseOnReminderThread(Conversation $conversation): ?JsonResponse
+    {
+        if (!$conversation->isAppointmentReminder()) {
+            return null;
+        }
+
+        return response()->json([
+            'success' => false,
+            'message' => 'Appointment reminder responses are read-only.',
+        ], 422);
+    }
+
+    /**
+     * Attach the patient to each reminder thread in ONE query. The patient is not a
+     * participant there, so the participants relation cannot supply them.
+     *
+     * @param  \Illuminate\Support\Collection<int, Conversation>  $conversations
+     */
+    private function loadReminderPatients($conversations): void
+    {
+        $patients = ChatUser::whereIn(
+            'id',
+            $conversations->map(fn (Conversation $c) => $c->reminderPatientChatUserId())->filter()->unique()->all()
+        )->get()->keyBy('id');
+
+        foreach ($conversations as $conversation) {
+            $conversation->setRelation('reminderPatient', $patients->get($conversation->reminderPatientChatUserId()));
+        }
+    }
+
     private function staffIdentity(Request $request): ChatUser
     {
         return $this->departments->staffChatUser(
@@ -1038,8 +1096,16 @@ class ChatStaffController extends Controller
 
         $last = $latest[$conversation->id] ?? null;
 
+        $isReminder = $conversation->isAppointmentReminder();
+        $patientUser = $isReminder
+            ? ($conversation->relationLoaded('reminderPatient') ? $conversation->getRelation('reminderPatient') : null)
+            : $patientParticipant?->chatUser;
+
         return [
             'uuid' => $conversation->uuid,
+            // TRUE on a thread of appointment reminder SMS replies. These are read-only and are
+            // only ever returned for scope "appointment_reminder".
+            'is_appointment_reminder' => $isReminder,
             'department' => $allowed[$departmentId] ?? $this->departments->displayCity(
                 (int) ($conversation->department?->external_id ?? 0)
             ),
@@ -1053,11 +1119,11 @@ class ChatStaffController extends Controller
             // conversation fetched directly by uuid.
             'closed_at' => $conversation->closed_at?->toIso8601String(),
             'closed_by' => $this->presentStaff($conversation->closedBy),
-            'patient' => $patientParticipant && $patientParticipant->chatUser ? [
-                'uuid' => $patientParticipant->chatUser->uuid,
-                'name' => $patientParticipant->chatUser->name,
+            'patient' => $patientUser ? [
+                'uuid' => $patientUser->uuid,
+                'name' => $patientUser->name,
                 // The AHCS patient id, so Medhiwa can link the thread to Patient Details.
-                'patient_id' => (int) $patientParticipant->chatUser->external_id,
+                'patient_id' => (int) $patientUser->external_id,
             ] : null,
             'assigned_to' => $this->presentStaff($conversation->assignee),
             // Derived, never stored: a conversation is "active" while a message has passed
@@ -1065,13 +1131,15 @@ class ChatStaffController extends Controller
             'is_active' => $conversation->isWithinLockWindow(),
             // Whether THIS caller may reply. The staff UI reads only this — it must never
             // re-derive the rule, or the two sides can disagree about who owns a thread.
-            'can_reply' => $staffChatUserId === null
-                || $conversation->isReplyableBy($staffChatUserId),
+            'can_reply' => !$isReminder && ($staffChatUserId === null
+                || $conversation->isReplyableBy($staffChatUserId)),
             'unread_count' => (int) ($unread[$conversation->id] ?? 0),
             'last_message_at' => $conversation->last_message_at?->toIso8601String(),
             'last_message' => $last ? [
                 // A short preview only — the full body is fetched when a thread is opened.
                 'preview' => app(ChatAttachmentService::class)->preview($last->message, $last->attachment),
+                // reminder_confirmed | reminder_help_requested | reminder_time_changed, else null.
+                'reminder_response' => $this->reminderResponseKind($last),
                 'from' => (int) $last->sender_chat_user_id === $departmentId ? 'staff' : 'patient',
                 // WHICH staff member wrote it. `from` is 'staff' for every reply on a queue
                 // thread, so without this the UI cannot tell the caller's own last message
@@ -1176,6 +1244,10 @@ class ChatStaffController extends Controller
             'sender_name' => $message->sender?->name,
             'message' => $message->message,
             'message_type' => $message->message_type,
+            // Which reply the patient gave on the appointment reminder SMS link:
+            // reminder_confirmed | reminder_help_requested | reminder_time_changed. Null on
+            // every ordinary chat message.
+            'reminder_response' => $this->reminderResponseKind($message),
             'attachment' => $message->attachment,
             'attachment_url' => app(ChatAttachmentService::class)->url($message->attachment),
             'attachment_name' => $message->attachment
@@ -1185,6 +1257,13 @@ class ChatStaffController extends Controller
             'sent_by' => $this->presentStaff($message->sentBy),
             'created_at' => $message->created_at?->toIso8601String(),
         ];
+    }
+
+    private function reminderResponseKind(ChatMessage $message): ?string
+    {
+        return in_array($message->message_type, AppointmentReminderChatService::KINDS, true)
+            ? $message->message_type
+            : null;
     }
 
     private function presentStaff(?ChatUser $staff): ?array

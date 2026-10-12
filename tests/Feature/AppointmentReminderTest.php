@@ -8,6 +8,9 @@ use App\Models\AhcsCase;
 use App\Models\AhcsMedAuth;
 use App\Models\AhcsPatient;
 use App\Models\AhcsShortUrl;
+use App\Models\ChatMessage;
+use App\Models\ChatUser;
+use App\Models\Conversation;
 use App\Models\MedhiwaCareNewOrderType;
 use App\Models\MedhiwaSpecialityLocation;
 use Illuminate\Database\Schema\Blueprint;
@@ -85,6 +88,7 @@ class AppointmentReminderTest extends TestCase
             $table->id();
             $table->string('city');
             $table->string('location_phone_no')->nullable();
+            $table->softDeletes();
             $table->timestamps();
         });
         $medhiwa->create((new MedhiwaCareNewOrderType)->getTable(), function (Blueprint $table) {
@@ -93,6 +97,51 @@ class AppointmentReminderTest extends TestCase
             $table->string('name');
             $table->timestamps();
         });
+
+        // Support chat tables (default connection). Only the columns the chat code reads.
+        Schema::create('chat_users', function (Blueprint $table) {
+            $table->id();
+            $table->uuid('uuid');
+            $table->string('external_type');
+            $table->unsignedBigInteger('external_id');
+            $table->string('name')->nullable();
+            $table->string('status')->default('active');
+            $table->timestamps();
+        });
+        Schema::create('conversations', function (Blueprint $table) {
+            $table->id();
+            $table->uuid('uuid');
+            $table->string('conversation_key')->unique();
+            $table->string('type')->default('direct');
+            $table->unsignedBigInteger('assigned_chat_user_id')->nullable();
+            $table->unsignedBigInteger('department_chat_user_id')->nullable();
+            $table->unsignedBigInteger('case_id')->nullable();
+            $table->integer('session')->default(1);
+            $table->timestamp('closed_at')->nullable();
+            $table->unsignedBigInteger('closed_by_chat_user_id')->nullable();
+            $table->timestamp('last_message_at')->nullable();
+            $table->timestamps();
+        });
+        Schema::create('conversation_participants', function (Blueprint $table) {
+            $table->id();
+            $table->unsignedBigInteger('conversation_id');
+            $table->unsignedBigInteger('chat_user_id');
+            $table->timestamp('last_read_at')->nullable();
+            $table->timestamps();
+        });
+        Schema::create('chat_messages', function (Blueprint $table) {
+            $table->id();
+            $table->uuid('uuid');
+            $table->unsignedBigInteger('conversation_id');
+            $table->unsignedBigInteger('sender_chat_user_id');
+            $table->unsignedBigInteger('sent_by_chat_user_id')->nullable();
+            $table->text('message')->nullable();
+            $table->string('message_type')->default('text');
+            $table->string('attachment')->nullable();
+            $table->timestamp('read_at')->nullable();
+            $table->timestamps();
+        });
+        config(['chat.shared_secret' => 'test-secret', 'chat.staff_ip_allowlist' => []]);
 
         $this->attendDate = now('America/Chicago')->addDays(3)->format('Y-m-d');
 
@@ -306,6 +355,83 @@ class AppointmentReminderTest extends TestCase
         $this->postJson('/api/appointment-reminder/' . self::TOKEN . '/reschedule', ['time' => '13:00'])
             ->assertStatus(422)
             ->assertJsonPath('message', 'This appointment cannot be changed online. Please call us to reschedule.');
+    }
+
+    public function test_replies_are_copied_to_a_flagged_staff_only_chat_thread(): void
+    {
+        $this->postJson('/api/appointment-reminder/' . self::TOKEN . '/confirm')->assertOk();
+        $this->postJson('/api/appointment-reminder/' . self::TOKEN . '/confirm')->assertOk();
+        $this->postJson('/api/appointment-reminder/' . self::TOKEN . '/help-request', [
+            'category' => 'transportation', 'option' => 'ride',
+        ])->assertOk();
+
+        $thread = Conversation::sole();
+        $this->assertSame(Conversation::TYPE_APPOINTMENT_REMINDER, $thread->type);
+        $this->assertSame(20, (int) $thread->case_id);
+
+        $department = ChatUser::where('external_type', 'department')->sole();
+        $patient = ChatUser::where('external_type', 'patient')->sole();
+        $this->assertSame(7, (int) $patient->external_id);
+        $this->assertSame((int) $department->id, (int) $thread->department_chat_user_id);
+
+        // Staff only: the patient wrote the messages but is NOT a participant.
+        $this->assertSame(
+            [(int) $department->id],
+            $thread->participants->pluck('chat_user_id')->map(fn ($id) => (int) $id)->all()
+        );
+
+        $messages = $thread->messages()->orderBy('id')->get();
+        $this->assertSame(['reminder_confirmed', 'reminder_help_requested'], $messages->pluck('message_type')->all());
+        $this->assertSame((int) $patient->id, (int) $messages[0]->sender_chat_user_id);
+        $this->assertStringContainsString('Confirmed appointment on', $messages[0]->message);
+        $this->assertStringContainsString('Transportation help: I need help finding a ride', $messages[1]->message);
+    }
+
+    public function test_time_change_is_copied_to_chat(): void
+    {
+        $this->fakeSlots();
+
+        $this->postJson('/api/appointment-reminder/' . self::TOKEN . '/reschedule', ['time' => '13:00'])->assertOk();
+
+        $message = ChatMessage::sole();
+        $this->assertSame('reminder_time_changed', $message->message_type);
+        $this->assertStringContainsString('from 10:30 AM to 1:00 PM', $message->message);
+    }
+
+    public function test_reminder_threads_have_their_own_staff_list_and_stay_out_of_the_queue(): void
+    {
+        $this->postJson('/api/appointment-reminder/' . self::TOKEN . '/confirm')->assertOk();
+
+        $staff = ['staff_external_id' => 5, 'staff_name' => 'Staff One', 'departments' => ['Dallas']];
+        $headers = ['X-CHAT-SECRET' => 'test-secret'];
+
+        $this->postJson('/api/chat/staff/conversations', $staff, $headers)
+            ->assertOk()
+            ->assertJsonCount(0, 'conversations');
+
+        $uuid = $this->postJson('/api/chat/staff/conversations', $staff + ['scope' => 'appointment_reminder'], $headers)
+            ->assertOk()
+            ->assertJsonCount(1, 'conversations')
+            ->assertJsonPath('conversations.0.is_appointment_reminder', true)
+            ->assertJsonPath('conversations.0.case_id', 20)
+            ->assertJsonPath('conversations.0.patient.patient_id', 7)
+            ->assertJsonPath('conversations.0.patient.name', 'Jamie Doe')
+            ->assertJsonPath('conversations.0.can_reply', false)
+            ->assertJsonPath('conversations.0.unread_count', 1)
+            ->assertJsonPath('conversations.0.last_message.reminder_response', 'reminder_confirmed')
+            ->json('conversations.0.uuid');
+
+        $this->postJson("/api/chat/staff/conversations/$uuid/messages", $staff, $headers)
+            ->assertOk()
+            ->assertJsonPath('messages.data.0.reminder_response', 'reminder_confirmed')
+            ->assertJsonPath('messages.data.0.from', 'patient');
+
+        // Read-only: no reply, no claim, no ending.
+        $this->postJson("/api/chat/staff/conversations/$uuid/send", $staff + ['message' => 'Hello'], $headers)->assertStatus(422);
+        $this->postJson("/api/chat/staff/conversations/$uuid/assign", $staff, $headers)->assertStatus(422);
+        $this->postJson("/api/chat/staff/conversations/$uuid/close", $staff, $headers)->assertStatus(422);
+
+        $this->assertSame(1, ChatMessage::count());
     }
 
     private function fakeSlots(?array $modifyFailure = null): void
