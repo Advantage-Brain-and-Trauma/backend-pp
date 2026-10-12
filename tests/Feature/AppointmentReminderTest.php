@@ -61,6 +61,7 @@ class AppointmentReminderTest extends TestCase
             $table->string('end_time');
             $table->string('attend_status');
             $table->integer('is_virtual')->default(0);
+            $table->text('attend_notes')->nullable();
         });
         $ahcs->create((new AhcsCase)->getTable(), function (Blueprint $table) {
             $table->id();
@@ -263,6 +264,17 @@ class AppointmentReminderTest extends TestCase
             ->assertJsonPath('data.time', '13:00:00')
             ->assertJsonPath('data.can_respond', true)
             ->assertJsonPath('data.response.status', 'confirmed');
+    }
+
+    public function test_reschedule_sends_existing_staff_notes_back_so_they_are_kept(): void
+    {
+        $this->fakeSlots();
+        AhcsAttendance::where('id', 100)->update(['attend_notes' => 'Needs interpreter']);
+
+        $this->postJson('/api/appointment-reminder/' . self::TOKEN . '/reschedule', ['time' => '13:00'])->assertOk();
+
+        Http::assertSent(fn ($request) => $request->method() === 'POST'
+            && $request['attend_notes'] === 'Needs interpreter');
     }
 
     public function test_reschedule_rejects_a_time_that_is_not_open(): void

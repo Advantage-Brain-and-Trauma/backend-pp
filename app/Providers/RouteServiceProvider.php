@@ -62,6 +62,14 @@ class RouteServiceProvider extends ServiceProvider
             );
         });
 
+        // Appointment reminder SMS link — its own bucket. A bare `throttle:30,1` is keyed on the
+        // IP alone, so it would share ONE counter with the password-reset and user-lookup
+        // routes and a patient using the link could lock themselves out of a password reset.
+        // Kept on the IP (not the token) so guessing tokens is still limited.
+        RateLimiter::for('appointment-reminder', function (Request $request) {
+            return Limit::perMinute(30)->by('appointment-reminder:' . $request->ip());
+        });
+
         $this->routes(function () {
             Route::middleware('api')
                 ->prefix('api')

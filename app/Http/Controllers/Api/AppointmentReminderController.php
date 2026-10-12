@@ -304,6 +304,9 @@ class AppointmentReminderController extends Controller
                 'provider_id'   => $appointment->provider_id,
                 'attend_status' => 'S',
                 'reason'        => 'Time changed by patient from appointment reminder link',
+                // The scheduling service overwrites the appointment's notes with attend_notes, or
+                // with `reason` when none is sent. Send the existing notes back so staff notes survive.
+                'attend_notes'  => $appointment->attend_notes ?: null,
             ], fn ($value) => $value !== null) + [
                 'attend_type'   => (string) $appointment->attend_type,
                 'provider_name' => (string) $appointment->provider_name,
@@ -412,7 +415,7 @@ class AppointmentReminderController extends Controller
 
         $appointment = AhcsAttendance::where('id', $appointmentId)->first([
             'id', 'ma_id', 'department', 'service', 'attend_type', 'provider_id', 'provider_name',
-            'attend_date', 'time', 'end_time', 'attend_status', 'is_virtual',
+            'attend_date', 'time', 'end_time', 'attend_status', 'is_virtual', 'attend_notes',
         ]);
 
         // The payload must describe one consistent patient -> case -> appointment chain.
