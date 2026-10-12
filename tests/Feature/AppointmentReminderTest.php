@@ -212,8 +212,21 @@ class AppointmentReminderTest extends TestCase
                         ['time' => '13:00', 'label' => '1:00 PM'],
                         ['time' => '15:30', 'label' => '3:30 PM'],
                     ],
+                    'message'      => null,
                 ],
             ]);
+    }
+
+    public function test_time_slots_explains_why_a_day_has_no_slots(): void
+    {
+        Http::fake([
+            '*/available-time-slots*' => Http::response(['status' => false, 'message' => 'Not Available', 'start_times' => []]),
+        ]);
+
+        $this->getJson('/api/appointment-reminder/' . self::TOKEN . '/time-slots')
+            ->assertOk()
+            ->assertJsonPath('data.slots', [])
+            ->assertJsonPath('data.message', 'Not Available');
     }
 
     public function test_reschedule_moves_the_appointment_and_confirms_the_new_one(): void
@@ -233,6 +246,9 @@ class AppointmentReminderTest extends TestCase
         Http::assertSent(fn ($request) => $request->method() === 'POST'
             && str_ends_with($request->url(), '/patient-portal/physician-update-appt-schedule/Jamie%20Doe/20/100')
             && $request['time'] === '13:00'
+            && $request['end_time'] === '13:30'
+            && $request['provider_id'] === 9
+            && $request['provider_name'] === 'Dr. Maya Patel'
             && $request['attend_date'] === $this->attendDate
             && $request['attend_status'] === 'RS');
 

@@ -37,6 +37,8 @@ class AppointmentReminderController extends Controller
     // patient_apt_msg_status as Medhiwa reads it: 1 = Approved, 0 = Denied (with a reason).
     private const STATUS_CONFIRMED = 1;
 
+    private ?string $noSlotsReason = null;
+
     private const HELP_CATEGORIES = [
         'transportation' => [
             'label'   => 'Transportation help',
@@ -181,7 +183,8 @@ class AppointmentReminderController extends Controller
      * Open times later the same day, with the same provider and location.
      *
      * Response:
-     * - 200: { success: true, data: { attend_date, current_time, slots: [{ time: 'H:i', label: 'g:i A' }] } }
+     * - 200: { success: true, data: { attend_date, current_time, slots: [{ time: 'H:i', label: 'g:i A' }],
+     *          message: string|null } }  message says why slots is empty
      * - 502: { success: false, message: string }
      */
     public function timeSlots(string $token): JsonResponse
@@ -203,6 +206,10 @@ class AppointmentReminderController extends Controller
                     'attend_date'  => $reminder['appointment']->attend_date,
                     'current_time' => $reminder['appointment']->time,
                     'slots'        => $slots,
+                    // Why there is nothing to pick, in the scheduling service's own words.
+                    'message'      => empty($slots)
+                        ? ($this->noSlotsReason ?: 'No other times are available that day.')
+                        : null,
                 ],
             ], 200);
         });
@@ -273,12 +280,28 @@ class AppointmentReminderController extends Controller
                 . '/patient-portal/physician-update-appt-schedule/'
                 . rawurlencode($this->patientName($reminder['patient_id'])) . '/' . $reminder['case_id'] . '/' . $appointment->id;
 
-            $response = Http::acceptJson()->timeout(90)->post($url, [
+            // Keep the visit the same length. Without an end_time the scheduling service can fall
+            // back to the OLD end time, which would send a wrong duration on to AdvancedMD.
+            $endTime = !empty($appointment->end_time)
+                ? Carbon::createFromFormat('H:i', $time)
+                    ->addMinutes(Carbon::parse($appointment->time)->diffInMinutes(Carbon::parse($appointment->end_time)))
+                    ->format('H:i')
+                : null;
+
+            // Only the time changes. The provider fields are sent because the scheduling service
+            // reads them to decide whether the change must also be pushed to AdvancedMD.
+            $response = Http::acceptJson()->timeout(90)->post($url, array_filter([
                 'attend_date'   => $appointment->attend_date,
                 'time'          => $time,
+                'end_time'      => $endTime,
+                'department'    => $appointment->department,
+                'service'       => $appointment->service,
+                'attend_type'   => $appointment->attend_type,
+                'provider_id'   => $appointment->provider_id,
+                'provider_name' => $appointment->provider_name,
                 'attend_status' => 'RS',
                 'reason'        => 'Rescheduled by patient from appointment reminder link',
-            ]);
+            ], fn ($value) => $value !== null));
 
             $data = $response->json() ?? [];
 
@@ -510,6 +533,10 @@ class AppointmentReminderController extends Controller
                 'message' => $response->json('message') ?? 'Failed to reach availability service.',
             ], 502);
         }
+
+        // A day with nothing bookable (same-day, holiday, provider leave...) still answers 200,
+        // with status false and the reason in message.
+        $this->noSlotsReason = $response->json('status') === false ? $response->json('message') : null;
 
         $currentTime = Carbon::parse($appointment->time)->format('H:i');
         $slots       = [];
