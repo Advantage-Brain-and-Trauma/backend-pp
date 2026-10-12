@@ -218,7 +218,8 @@ class AppointmentReminderController extends Controller
     /**
      * POST /api/appointment-reminder/{token}/reschedule
      *
-     * Moves the appointment to another open time on the same day.
+     * Moves the appointment to another open time on the same day. The appointment is modified
+     * in place (same appointment id) and AdvancedMD is updated by the scheduling service.
      *
      * Request Payload:
      * - time (required, 'H:i' — must be one of the slots returned by time-slots)
@@ -276,35 +277,41 @@ class AppointmentReminderController extends Controller
                 ], 422);
             }
 
+            // In-place modify: the SAME appointment row gets the new time (and AdvancedMD is updated),
+            // so this link keeps pointing at the live appointment. The logged-in portal's reschedule
+            // (PatientAppointmentController::appointmentReschedule) is a different call and is not
+            // affected by this.
             $url = config('services.app_server.api_url')
-                . '/patient-portal/physician-update-appt-schedule/'
+                . '/modify-appointment-schedule/'
                 . rawurlencode($this->patientName($reminder['patient_id'])) . '/' . $reminder['case_id'] . '/' . $appointment->id;
 
-            // Keep the visit the same length. Without an end_time the scheduling service can fall
-            // back to the OLD end time, which would send a wrong duration on to AdvancedMD.
+            // Keep the visit the same length. Without an end_time the scheduling service keeps the
+            // OLD end time, which would send a wrong duration on to AdvancedMD.
             $endTime = !empty($appointment->end_time)
                 ? Carbon::createFromFormat('H:i', $time)
                     ->addMinutes(Carbon::parse($appointment->time)->diffInMinutes(Carbon::parse($appointment->end_time)))
                     ->format('H:i')
                 : null;
 
-            // Only the time changes. The provider fields are sent because the scheduling service
-            // reads them to decide whether the change must also be pushed to AdvancedMD.
+            // Only the time changes. provider_name and attend_type are read unconditionally by the
+            // scheduling service, so they are always sent; 'S' keeps its slot and capacity checks on.
             $response = Http::acceptJson()->timeout(90)->post($url, array_filter([
                 'attend_date'   => $appointment->attend_date,
                 'time'          => $time,
                 'end_time'      => $endTime,
                 'department'    => $appointment->department,
                 'service'       => $appointment->service,
-                'attend_type'   => $appointment->attend_type,
                 'provider_id'   => $appointment->provider_id,
-                'provider_name' => $appointment->provider_name,
-                'attend_status' => 'RS',
-                'reason'        => 'Rescheduled by patient from appointment reminder link',
-            ], fn ($value) => $value !== null));
+                'attend_status' => 'S',
+                'reason'        => 'Time changed by patient from appointment reminder link',
+            ], fn ($value) => $value !== null) + [
+                'attend_type'   => (string) $appointment->attend_type,
+                'provider_name' => (string) $appointment->provider_name,
+            ]);
 
             $data = $response->json() ?? [];
 
+            // This service reports most refusals as HTTP 200 with status false and the reason in "error".
             if (!$response->successful() || ($data['status'] ?? null) !== 'success') {
                 Log::channel('appointment')->warning('Appointment reminder reschedule rejected', [
                     'appt_id'   => $appointment->id,
@@ -312,29 +319,38 @@ class AppointmentReminderController extends Controller
                     'response'  => $data,
                 ]);
 
+                $reason = collect([$data['message'] ?? null, $data['error'] ?? null])
+                    ->first(fn ($value) => is_string($value) && $value !== '');
+
+                // With no AdvancedMD appointment linked the service answers with a staff-facing
+                // "Checked In ... provider changes" line, which means nothing to a patient.
+                if (!$reason || str_contains($reason, 'does not allow provider changes')) {
+                    $reason = 'This appointment cannot be changed online. Please call us to reschedule.';
+                }
+
                 return response()->json([
                     'success' => false,
-                    'message' => $data['message'] ?? $data['error'] ?? 'Failed to reschedule the appointment.',
+                    'message' => $reason,
                 ], $response->successful() ? 422 : $response->status());
             }
 
-            // The reschedule replaces the appointment row. The patient picked this time themselves,
-            // so the new appointment is recorded as confirmed and is not chased for a reply again.
-            $newAppointment = !empty($data['new_attend_id'])
-                ? AhcsAttendance::where('id', $data['new_attend_id'])->first(['id', 'attend_date', 'time', 'end_time'])
-                : null;
+            // The patient picked this time themselves, so the appointment is recorded as confirmed
+            // and is not chased for a reply again.
+            $latest = $this->latestResponse($reminder);
 
-            if ($newAppointment) {
-                $this->saveResponse(array_merge($reminder, ['appointment' => $newAppointment]), self::STATUS_CONFIRMED, '');
+            if (!$latest || (int) $latest->patient_apt_msg_status !== self::STATUS_CONFIRMED) {
+                $this->saveResponse($reminder, self::STATUS_CONFIRMED, '');
             }
+
+            $updated = AhcsAttendance::where('id', $appointment->id)->first(['attend_date', 'time', 'end_time']);
 
             return response()->json([
                 'success' => true,
-                'message' => 'Appointment rescheduled successfully.',
+                'message' => 'Appointment time updated successfully.',
                 'data'    => [
-                    'attend_date' => $newAppointment->attend_date ?? $appointment->attend_date,
-                    'time'        => $newAppointment->time ?? Carbon::createFromFormat('H:i', $time)->format('H:i:s'),
-                    'end_time'    => $newAppointment->end_time ?? null,
+                    'attend_date' => $updated->attend_date,
+                    'time'        => $updated->time,
+                    'end_time'    => $updated->end_time,
                 ],
             ], 200);
         });

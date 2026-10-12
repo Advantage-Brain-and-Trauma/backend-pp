@@ -229,14 +229,9 @@ class AppointmentReminderTest extends TestCase
             ->assertJsonPath('data.message', 'Not Available');
     }
 
-    public function test_reschedule_moves_the_appointment_and_confirms_the_new_one(): void
+    public function test_reschedule_modifies_the_same_appointment_and_confirms_it(): void
     {
         $this->fakeSlots();
-        AhcsAttendance::create([
-            'id' => 101, 'ma_id' => 30, 'department' => 'Dallas', 'service' => 'PT', 'attend_type' => 'FU',
-            'provider_id' => 9, 'provider_name' => 'Dr. Maya Patel', 'attend_date' => $this->attendDate,
-            'time' => '13:00:00', 'end_time' => '13:30:00', 'attend_status' => 'S',
-        ]);
 
         $this->postJson('/api/appointment-reminder/' . self::TOKEN . '/reschedule', ['time' => '13:00'])
             ->assertOk()
@@ -244,17 +239,26 @@ class AppointmentReminderTest extends TestCase
             ->assertJsonPath('data.end_time', '13:30:00');
 
         Http::assertSent(fn ($request) => $request->method() === 'POST'
-            && str_ends_with($request->url(), '/patient-portal/physician-update-appt-schedule/Jamie%20Doe/20/100')
+            && str_ends_with($request->url(), '/api/modify-appointment-schedule/Jamie%20Doe/20/100')
             && $request['time'] === '13:00'
             && $request['end_time'] === '13:30'
             && $request['provider_id'] === 9
             && $request['provider_name'] === 'Dr. Maya Patel'
+            && $request['attend_type'] === 'FU'
             && $request['attend_date'] === $this->attendDate
-            && $request['attend_status'] === 'RS');
+            && $request['attend_status'] === 'S');
 
-        $row = AhcsAppointmentSchedulerResponse::first();
-        $this->assertSame(101, (int) $row->appointment_id);
-        $this->assertSame(1, (int) $row->patient_apt_msg_status);
+        $rows = AhcsAppointmentSchedulerResponse::all();
+        $this->assertCount(1, $rows);
+        $this->assertSame(100, (int) $rows[0]->appointment_id);
+        $this->assertSame(1, (int) $rows[0]->patient_apt_msg_status);
+
+        // Same appointment, so the link still works afterwards.
+        $this->getJson('/api/appointment-reminder/' . self::TOKEN)
+            ->assertOk()
+            ->assertJsonPath('data.time', '13:00:00')
+            ->assertJsonPath('data.can_respond', true)
+            ->assertJsonPath('data.response.status', 'confirmed');
     }
 
     public function test_reschedule_rejects_a_time_that_is_not_open(): void
@@ -267,21 +271,27 @@ class AppointmentReminderTest extends TestCase
         Http::assertNotSent(fn ($request) => $request->method() === 'POST');
     }
 
-    public function test_reschedule_surfaces_the_scheduling_service_message(): void
+    public function test_reschedule_surfaces_the_scheduling_service_reason(): void
     {
-        Http::fake([
-            '*/available-time-slots*' => Http::response(['status' => true, 'start_times' => [
-                ['value' => '13:00', 'label' => '01:00 pm', 'disabled' => false],
-            ]]),
-            '*/physician-update-appt-schedule/*' => Http::response(['success' => false, 'message' => 'Provider is already booked.'], 409),
-        ]);
+        $this->fakeSlots(['status' => false, 'action' => 'modified', 'attend_id' => 100, 'error' => 'AMD: slot is blocked']);
 
         $this->postJson('/api/appointment-reminder/' . self::TOKEN . '/reschedule', ['time' => '13:00'])
-            ->assertStatus(409)
-            ->assertJsonPath('message', 'Provider is already booked.');
+            ->assertStatus(422)
+            ->assertJsonPath('message', 'AMD: slot is blocked');
+
+        $this->assertSame(0, AhcsAppointmentSchedulerResponse::count());
     }
 
-    private function fakeSlots(): void
+    public function test_reschedule_replaces_the_staff_only_missing_amd_message(): void
+    {
+        $this->fakeSlots(['status' => false, 'error' => 'Appointment status is "Checked In", which does not allow provider changes.']);
+
+        $this->postJson('/api/appointment-reminder/' . self::TOKEN . '/reschedule', ['time' => '13:00'])
+            ->assertStatus(422)
+            ->assertJsonPath('message', 'This appointment cannot be changed online. Please call us to reschedule.');
+    }
+
+    private function fakeSlots(?array $modifyFailure = null): void
     {
         Http::fake([
             '*/available-time-slots*' => Http::response(['status' => true, 'start_times' => [
@@ -291,9 +301,19 @@ class AppointmentReminderTest extends TestCase
                 ['value' => '14:00', 'label' => '02:00 pm (Booked)', 'disabled' => true],
                 ['value' => '15:30', 'label' => '03:30 pm', 'disabled' => false],
             ]]),
-            '*/physician-update-appt-schedule/*' => Http::response([
-                'status' => 'success', 'action' => 'rescheduled', 'attend_id' => 100, 'new_attend_id' => 101,
-            ]),
+            '*/modify-appointment-schedule/*' => function ($request) use ($modifyFailure) {
+                if ($modifyFailure) {
+                    return Http::response($modifyFailure);
+                }
+
+                // Stand in for the scheduling service editing the row in place.
+                AhcsAttendance::where('id', 100)->update([
+                    'time'     => $request['time'] . ':00',
+                    'end_time' => $request['end_time'] . ':00',
+                ]);
+
+                return Http::response(['status' => 'success', 'action' => 'modified', 'attend_id' => 100]);
+            },
         ]);
     }
 }
