@@ -50,6 +50,7 @@ class AppointmentReminderTest extends TestCase
             $table->integer('appointment_id');
             $table->integer('patient_apt_msg_status');
             $table->text('patient_apt_msg_reason')->nullable();
+            $table->text('patient_apt_help_reason')->nullable();
         });
         $ahcs->create((new AhcsAttendance)->getTable(), function (Blueprint $table) {
             $table->id();
@@ -232,6 +233,48 @@ class AppointmentReminderTest extends TestCase
         $this->assertCount(1, $rows);
         $this->assertSame(0, (int) $rows[0]->patient_apt_msg_status);
         $this->assertSame('Transportation help: I need help finding a ride - Wheelchair van', $rows[0]->patient_apt_msg_reason);
+    }
+
+    public function test_help_request_after_confirm_updates_the_confirmed_row(): void
+    {
+        $this->postJson('/api/appointment-reminder/' . self::TOKEN . '/confirm')->assertOk();
+
+        $ride = ['category' => 'transportation', 'option' => 'ride'];
+
+        $this->postJson('/api/appointment-reminder/' . self::TOKEN . '/help-request', $ride)
+            ->assertOk()
+            ->assertJsonPath('data.response.status', 'confirmed')
+            ->assertJsonPath('data.response.help_reason', 'Transportation help: I need help finding a ride');
+
+        // A repeat is a no-op; a different help request replaces the earlier one on the same row.
+        $this->postJson('/api/appointment-reminder/' . self::TOKEN . '/help-request', $ride)->assertOk();
+        $this->postJson('/api/appointment-reminder/' . self::TOKEN . '/help-request', ['category' => 'other', 'option' => 'other', 'note' => 'Running late'])
+            ->assertOk()
+            ->assertJsonPath('data.response.status', 'confirmed');
+
+        $rows = AhcsAppointmentSchedulerResponse::all();
+        $this->assertCount(1, $rows);
+        $this->assertSame(1, (int) $rows[0]->patient_apt_msg_status);
+        $this->assertSame('', (string) $rows[0]->patient_apt_msg_reason);
+        $this->assertSame('Another concern: Something else - Running late', $rows[0]->patient_apt_help_reason);
+
+        // Each distinct help request still reaches staff.
+        $this->assertSame(3, DB::table('chat_messages')->count());
+    }
+
+    public function test_help_request_after_reschedule_keeps_the_appointment_confirmed(): void
+    {
+        $this->fakeSlots();
+
+        $this->postJson('/api/appointment-reminder/' . self::TOKEN . '/reschedule', ['time' => '13:00'])->assertOk();
+
+        $this->postJson('/api/appointment-reminder/' . self::TOKEN . '/help-request', ['category' => 'transportation', 'option' => 'ride'])
+            ->assertOk()
+            ->assertJsonPath('data.response.status', 'confirmed');
+
+        $rows = AhcsAppointmentSchedulerResponse::all();
+        $this->assertCount(1, $rows);
+        $this->assertSame(1, (int) $rows[0]->patient_apt_msg_status);
     }
 
     public function test_help_request_validates_option_and_required_note(): void

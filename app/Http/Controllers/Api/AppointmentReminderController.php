@@ -77,7 +77,7 @@ class AppointmentReminderController extends Controller
      * Response:
      * - 200: { success: true, data: { patient_first_name, attend_date, time, end_time, provider_name,
      *          service, visit_type, visit_type_name, location, address, facility_phone_no, is_virtual,
-     *          attend_status, can_respond, response: { status, reason } } }
+     *          attend_status, can_respond, response: { status, reason, help_reason } } }
      * - 404: { success: false, message: string }  unknown token
      * - 410: { success: false, message: string }  appointment already passed
      */
@@ -124,7 +124,9 @@ class AppointmentReminderController extends Controller
     /**
      * POST /api/appointment-reminder/{token}/help-request
      *
-     * The appointment stays as it is; staff follow up with the patient.
+     * The appointment stays as it is; staff follow up with the patient. Before a confirmation this
+     * saves a Denied row with the reason; after one, the confirmed row keeps its status and the
+     * reason goes in patient_apt_help_reason (replacing any earlier help request on that row).
      *
      * Request Payload:
      * - category (required: transportation | location | other)
@@ -166,13 +168,24 @@ class AppointmentReminderController extends Controller
             $helpStatus = (int) config('services.appointment_reminder.help_status');
             $latest     = $this->latestResponse($reminder);
 
+            // Once confirmed, a help request must not turn the reply into a denial: it is kept on the
+            // confirmed row in patient_apt_help_reason and patient_apt_msg_status stays Approved.
+            $isConfirmed = $latest && (int) $latest->patient_apt_msg_status === self::STATUS_CONFIRMED;
+
             // A double tap or a page refresh must not stack identical rows for staff.
-            $isRepeat = $latest
-                && (int) $latest->patient_apt_msg_status === $helpStatus
-                && (string) $latest->patient_apt_msg_reason === $reason;
+            $isRepeat = $isConfirmed
+                ? (string) $latest->patient_apt_help_reason === $reason
+                : $latest
+                    && (int) $latest->patient_apt_msg_status === $helpStatus
+                    && (string) $latest->patient_apt_msg_reason === $reason;
 
             if (!$isRepeat) {
-                $this->saveResponse($reminder, $helpStatus, $reason);
+                if ($isConfirmed) {
+                    $latest->update(['patient_apt_help_reason' => $reason]);
+                } else {
+                    $this->saveResponse($reminder, $helpStatus, $reason);
+                }
+
                 $this->copyToChat($reminder, AppointmentReminderChatService::HELP_REQUESTED,
                     'Needs help attending appointment on ' . $this->describeAppointment($reminder['appointment']) . '. ' . $reason);
             }
@@ -487,8 +500,10 @@ class AppointmentReminderController extends Controller
             'attend_status'      => $appointment->attend_status,
             'can_respond'        => $appointment->attend_status === 'S',
             'response'           => [
-                'status' => $status,
-                'reason' => $latest->patient_apt_msg_reason ?? null,
+                'status'      => $status,
+                'reason'      => $latest->patient_apt_msg_reason ?? null,
+                // Help requested after the appointment was confirmed; status stays 'confirmed'.
+                'help_reason' => $latest->patient_apt_help_reason ?? null,
             ],
         ];
     }
