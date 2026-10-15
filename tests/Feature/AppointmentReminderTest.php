@@ -370,6 +370,46 @@ class AppointmentReminderTest extends TestCase
             && $request['attend_notes'] === 'Needs interpreter');
     }
 
+    public function test_reschedule_is_refused_once_the_appointment_is_confirmed(): void
+    {
+        $this->fakeSlots();
+
+        $this->postJson('/api/appointment-reminder/' . self::TOKEN . '/confirm')->assertOk();
+
+        $this->postJson('/api/appointment-reminder/' . self::TOKEN . '/reschedule', ['time' => '13:00'])
+            ->assertStatus(422)
+            ->assertJsonPath('message', 'This appointment is already confirmed. Please call us to change the time.');
+
+        // A second online reschedule is refused the same way.
+        AhcsAppointmentSchedulerResponse::query()->delete();
+        $this->postJson('/api/appointment-reminder/' . self::TOKEN . '/reschedule', ['time' => '13:00'])->assertOk();
+        $this->postJson('/api/appointment-reminder/' . self::TOKEN . '/reschedule', ['time' => '15:30'])->assertStatus(422);
+
+        Http::assertSentCount(2); // one slots lookup + one modify, nothing for the refused calls
+        $this->assertSame('13:00:00', AhcsAttendance::find(100)->time);
+    }
+
+    public function test_reschedule_is_allowed_after_a_help_request_without_confirmation(): void
+    {
+        $this->fakeSlots();
+
+        $this->postJson('/api/appointment-reminder/' . self::TOKEN . '/help-request', ['category' => 'transportation', 'option' => 'ride'])->assertOk();
+
+        $this->postJson('/api/appointment-reminder/' . self::TOKEN . '/reschedule', ['time' => '13:00'])->assertOk();
+    }
+
+    public function test_empty_reasons_are_returned_as_null(): void
+    {
+        $this->getJson('/api/appointment-reminder/' . self::TOKEN)
+            ->assertJsonPath('data.response.reason', null)
+            ->assertJsonPath('data.response.help_reason', null);
+
+        $this->postJson('/api/appointment-reminder/' . self::TOKEN . '/confirm')
+            ->assertJsonPath('data.response.status', 'confirmed')
+            ->assertJsonPath('data.response.reason', null)
+            ->assertJsonPath('data.response.help_reason', null);
+    }
+
     public function test_reschedule_rejects_a_time_that_is_not_open(): void
     {
         $this->fakeSlots();

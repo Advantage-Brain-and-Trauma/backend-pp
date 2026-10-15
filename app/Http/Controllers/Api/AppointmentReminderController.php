@@ -78,6 +78,7 @@ class AppointmentReminderController extends Controller
      * - 200: { success: true, data: { patient_first_name, attend_date, time, end_time, provider_name,
      *          service, visit_type, visit_type_name, location, address, facility_phone_no, is_virtual,
      *          attend_status, can_respond, response: { status, reason, help_reason } } }
+     *   reason and help_reason are null when empty, never "".
      * - 404: { success: false, message: string }  unknown token
      * - 410: { success: false, message: string }  appointment already passed
      */
@@ -247,7 +248,7 @@ class AppointmentReminderController extends Controller
      *
      * Response:
      * - 200: { success: true, message: string, data: { attend_date, time, end_time } }
-     * - 422: { success: false, message: string }
+     * - 422: { success: false, message: string }  includes an appointment that is already confirmed
      * - 4xx/5xx: { success: false, message: string }  message from the scheduling service
      */
     public function reschedule(Request $request, string $token): JsonResponse
@@ -255,6 +256,17 @@ class AppointmentReminderController extends Controller
         return $this->handle($token, 'reschedule', function (array $reminder) use ($request) {
             if ($notScheduled = $this->rejectIfNotScheduled($reminder)) {
                 return $notScheduled;
+            }
+
+            // A confirmed appointment (confirmed, or already rescheduled here) is not moved online
+            // again; the reminder page hides "I need a different time" for it too.
+            $latest = $this->latestResponse($reminder);
+
+            if ($latest && (int) $latest->patient_apt_msg_status === self::STATUS_CONFIRMED) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'This appointment is already confirmed. Please call us to change the time.',
+                ], 422);
             }
 
             $validator = Validator::make($request->all(), [
@@ -501,9 +513,10 @@ class AppointmentReminderController extends Controller
             'can_respond'        => $appointment->attend_status === 'S',
             'response'           => [
                 'status'      => $status,
-                'reason'      => $latest->patient_apt_msg_reason ?? null,
+                // null when there is no text (confirmed rows are saved with an empty reason).
+                'reason'      => ($latest->patient_apt_msg_reason ?? '') !== '' ? $latest->patient_apt_msg_reason : null,
                 // Help requested after the appointment was confirmed; status stays 'confirmed'.
-                'help_reason' => $latest->patient_apt_help_reason ?? null,
+                'help_reason' => ($latest->patient_apt_help_reason ?? '') !== '' ? $latest->patient_apt_help_reason : null,
             ],
         ];
     }
