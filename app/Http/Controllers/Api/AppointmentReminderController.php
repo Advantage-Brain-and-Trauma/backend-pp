@@ -43,6 +43,10 @@ class AppointmentReminderController extends Controller
 
     private ?string $noSlotsReason = null;
 
+    // These visits may only start on the hour (8:00, 9:00 ...), never at :15, :30 or :45.
+    private const ON_THE_HOUR_VISIT_TYPES = ['IC'];
+    private const ON_THE_HOUR_SERVICES    = ['OT', 'OTA'];
+
     private const HELP_CATEGORIES = [
         'transportation' => [
             'label'   => 'Transportation help',
@@ -202,7 +206,9 @@ class AppointmentReminderController extends Controller
     /**
      * GET /api/appointment-reminder/{token}/time-slots
      *
-     * The first three open times later the same day, with the same provider and location.
+     * The first three open times later the same day, with the same provider and location. A time is
+     * left out when the visit would run into lunch or another booking, and IC / OT / OTA visits are
+     * only offered on the hour.
      *
      * Response:
      * - 200: { success: true, data: { attend_date, current_time, slots: [{ time: 'H:i', label: 'g:i A' }],
@@ -628,12 +634,36 @@ class AppointmentReminderController extends Controller
         $this->noSlotsReason = $response->json('status') === false ? $response->json('message') : null;
 
         $currentTime = Carbon::parse($appointment->time)->format('H:i');
+        $startTimes  = $response->json('start_times') ?? [];
         $slots       = [];
 
-        foreach ($response->json('start_times') ?? [] as $slot) {
-            $value = Carbon::parse($slot['value'] ?? '')->format('H:i');
+        // The service marks only lunch / booked START times as disabled, so a start just
+        // before lunch is offered and then refused by modify-appointment-schedule. Drop any start
+        // whose visit (same length as now) would run into a disabled (lunch / booked) time.
+        $duration = !empty($appointment->end_time)
+            ? Carbon::parse($appointment->time)->diffInMinutes(Carbon::parse($appointment->end_time))
+            : 0;
 
-            if (empty($slot['value']) || !empty($slot['disabled']) || $value <= $currentTime) {
+        $blockedTimes = collect($startTimes)
+            ->filter(fn ($slot) => !empty($slot['value']) && !empty($slot['disabled']))
+            ->map(fn ($slot) => Carbon::parse($slot['value'])->format('H:i'))
+            ->values();
+
+        $onTheHourOnly = in_array(strtoupper((string) $appointment->attend_type), self::ON_THE_HOUR_VISIT_TYPES, true)
+            || in_array(strtoupper((string) $appointment->service), self::ON_THE_HOUR_SERVICES, true);
+
+        foreach ($startTimes as $slot) {
+            if (empty($slot['value']) || !empty($slot['disabled'])) {
+                continue;
+            }
+
+            $start = Carbon::parse($slot['value']);
+            $value = $start->format('H:i');
+            $end   = $start->copy()->addMinutes($duration)->format('H:i');
+
+            if ($value <= $currentTime
+                || ($onTheHourOnly && $start->minute !== 0)
+                || $blockedTimes->contains(fn ($blocked) => $blocked > $value && $blocked < $end)) {
                 continue;
             }
 

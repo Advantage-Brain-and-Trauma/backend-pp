@@ -315,6 +315,49 @@ class AppointmentReminderTest extends TestCase
             && str_contains($request->url(), 'min_lead_hours=0'));
     }
 
+    public function test_time_slots_leave_out_times_that_would_run_into_lunch(): void
+    {
+        // A 60-minute visit: 11:30 would run into the 12:00 lunch, 12:30 is lunch itself.
+        AhcsAttendance::where('id', 100)->update(['time' => '09:00:00', 'end_time' => '10:00:00']);
+
+        Http::fake([
+            '*/available-time-slots*' => Http::response(['status' => true, 'start_times' => [
+                ['value' => '11:00', 'label' => '11:00 am', 'disabled' => false],
+                ['value' => '11:30', 'label' => '11:30 am', 'disabled' => false],
+                ['value' => '12:00', 'label' => '12:00 pm (Lunch)', 'disabled' => true],
+                ['value' => '12:30', 'label' => '12:30 pm (Lunch)', 'disabled' => true],
+                ['value' => '13:00', 'label' => '01:00 pm', 'disabled' => false],
+            ]]),
+        ]);
+
+        $this->getJson('/api/appointment-reminder/' . self::TOKEN . '/time-slots')
+            ->assertOk()
+            ->assertJsonPath('data.slots', [
+                ['time' => '11:00', 'label' => '11:00 AM'],
+                ['time' => '13:00', 'label' => '1:00 PM'],
+            ]);
+
+        $this->postJson('/api/appointment-reminder/' . self::TOKEN . '/reschedule', ['time' => '11:30'])
+            ->assertStatus(422);
+
+        Http::assertNotSent(fn ($request) => $request->method() === 'POST');
+    }
+
+    public function test_ic_and_ot_visits_are_only_offered_on_the_hour(): void
+    {
+        foreach ([['service' => 'PT', 'attend_type' => 'IC'], ['service' => 'OT', 'attend_type' => 'FU'],
+                  ['service' => 'OTA', 'attend_type' => 'FU']] as $visit) {
+            AhcsAttendance::where('id', 100)->update($visit);
+            $this->fakeSlots();
+
+            $this->getJson('/api/appointment-reminder/' . self::TOKEN . '/time-slots')
+                ->assertOk()
+                ->assertJsonPath('data.slots', [
+                    ['time' => '13:00', 'label' => '1:00 PM'],
+                    ['time' => '16:00', 'label' => '4:00 PM'],
+                ]);
+        }
+    }
     public function test_time_slots_explains_why_a_day_has_no_slots(): void
     {
         Http::fake([
