@@ -76,6 +76,94 @@ class FunnelApiController extends Controller
     }
 
     /**
+     * Funnel assignments a registering login may take over (addPatientToFunnel).
+     *
+     * Candidates are the registering patient's own rows plus rows sent to the same
+     * email / phone (household links), soft-deleted rows included. Of the household
+     * rows, only those NOBODY owns are taken: no user_id, the owner login is deleted, or
+     * it is already this login. A row another live login owns stays with it.
+     *
+     * WHY (fix 2026-10-27): every matching row used to be moved, so when two family
+     * members shared one phone, the second to register took the first one's assignment
+     * while the first one's submitted forms stayed on their own login — the forms then
+     * vanished from the clinic's NPPW view (patient 10007620, assignment 1012).
+     *
+     * @return \Illuminate\Support\Collection<int, UserFunnel> rows with id, patient_id, user_id
+     */
+    private function linkableAssignments(int $patientId, string $column, ?string $value, ?User $user)
+    {
+        $candidates = UserFunnel::withTrashed()
+            ->where(function ($q) use ($patientId, $column, $value) {
+                $q->where('patient_id', $patientId);
+                if ($value !== null && $value !== '') {
+                    $q->orWhere($column, $value);
+                }
+            })
+            ->get(['id', 'patient_id', 'user_id']);
+
+        // Owners that are live logins (the default scope leaves out deleted ones).
+        $liveOwnerIds = User::whereIn('id', $candidates->pluck('user_id')->filter()->unique()->values())
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+
+        $linkable = $candidates->filter(function ($row) use ($patientId, $user, $liveOwnerIds) {
+            $owner = $row->user_id !== null ? (int) $row->user_id : null;
+
+            return (int) $row->patient_id === $patientId
+                || $owner === null
+                || ($user && $owner === (int) $user->id)
+                || !in_array($owner, $liveOwnerIds, true);
+        })->values();
+
+        $kept = $candidates->diff($linkable);
+        if ($kept->isNotEmpty()) {
+            Log::channel('patient_funnel')->info('Funnel rows left with the login that already owns them', [
+                'registering_patient_id' => $patientId,
+                'kept_user_funnel_ids'   => $kept->pluck('id')->all(),
+                'kept_owner_user_ids'    => $kept->pluck('user_id')->unique()->values()->all(),
+            ]);
+        }
+
+        return $linkable;
+    }
+
+    /**
+     * Give the assignments to $userId and move their submitted forms with them, so a
+     * form never sits on a different login from its assignment (every reader — clinic
+     * NPPW view, PDFs, notes, completion counts — matches on both). Soft-deleted rows
+     * included, as the assignment relink always did.
+     *
+     * @return int assignments updated
+     */
+    private function linkAssignmentsToUser($assignments, int $userId): int
+    {
+        $ids = $assignments->pluck('id')->all();
+        if (!$ids) {
+            return 0;
+        }
+
+        $updated = UserFunnel::withTrashed()->whereIn('id', $ids)->update(['user_id' => $userId]);
+
+        $movedForms = FormSubmission::withTrashed()
+            ->whereIn('user_funnel_id', $ids)
+            ->where(function ($q) use ($userId) {
+                $q->where('user_id', '!=', $userId)->orWhereNull('user_id');
+            })
+            ->update(['user_id' => $userId]);
+
+        if ($movedForms > 0) {
+            Log::channel('patient_funnel')->info('Form submissions moved with their relinked assignments', [
+                'user_id'         => $userId,
+                'user_funnel_ids' => $ids,
+                'moved_forms'     => $movedForms,
+            ]);
+        }
+
+        return $updated;
+    }
+
+    /**
      * Canonical form-label => ahcs_patients column map for the patient
      * demographic forms (Patient Intro Form and friends).
      *
@@ -2881,17 +2969,6 @@ class FunnelApiController extends Controller
                     'email' => $request->email,
                 ]);
 
-                // Collect every patient_id from user_funnels rows whose email matches
-                // the registering patient so all previous assignments consolidate into
-                // one user account.
-                $funnelPatientIds = UserFunnel::withTrashed()
-                    ->where('email', $request->email)
-                    ->pluck('patient_id')
-                    ->map(fn ($id) => (int) $id)
-                    ->unique()
-                    ->values()
-                    ->toArray();
-
                 // Find existing user by email OR patient_id membership.
                 $user = User::withTrashed()
                     ->where('email', $request->email)
@@ -2900,6 +2977,16 @@ class FunnelApiController extends Controller
                           ->orWhere('patient_id', $requestPatientId);
                     })
                     ->first();
+
+                // The assignments this login takes: the patient's own plus household rows
+                // sent to this email that no other live login owns (2026-10-27). Only their
+                // patients join the account — not every patient ever emailed here.
+                $linkableAssignments = $this->linkableAssignments($requestPatientId, 'email', $request->email, $user);
+                $funnelPatientIds = $linkableAssignments->pluck('patient_id')
+                    ->map(fn ($id) => (int) $id)
+                    ->unique()
+                    ->values()
+                    ->toArray();
 
                 $existingIds = $user ? $user->getAllPatientIds() : [];
                 $mergedIds   = array_values(array_unique(array_merge(
@@ -2935,13 +3022,8 @@ class FunnelApiController extends Controller
                     ]);
                 }
 
-                // Link ALL funnel rows for this patient or email to the user.
-                $updatedUserFunnelRows = UserFunnel::withTrashed()
-                    ->where(function ($q) use ($requestPatientId, $request) {
-                        $q->where('patient_id', $requestPatientId)
-                          ->orWhere('email', $request->email);
-                    })
-                    ->update(['user_id' => $user->id]);
+                // Link those assignments to the user, moving their submitted forms too.
+                $updatedUserFunnelRows = $this->linkAssignmentsToUser($linkableAssignments, (int) $user->id);
 
                 // AMD sync — keep email up to date
                 $amdSyncPayload = ['email' => $request->email];
@@ -2954,17 +3036,6 @@ class FunnelApiController extends Controller
                     'email' => $request->email,
                 ]);
 
-                // Collect every patient_id from user_funnels rows whose phone_no
-                // matches the registering patient's normalised phone number, so all
-                // previous SMS assignments consolidate into one user account.
-                $funnelPatientIds = UserFunnel::withTrashed()
-                    ->where('phone_no', $normalizedPhone)
-                    ->pluck('patient_id')
-                    ->map(fn ($id) => (int) $id)
-                    ->unique()
-                    ->values()
-                    ->toArray();
-
                 // Find existing user by email (if provided) OR patient_id membership.
                 $user = User::withTrashed()
                     ->when($request->filled('email'), fn ($q) => $q->where('email', $request->email))
@@ -2973,6 +3044,16 @@ class FunnelApiController extends Controller
                           ->orWhere('patient_id', $requestPatientId);
                     })
                     ->first();
+
+                // The assignments this login takes: the patient's own plus household rows
+                // texted to this phone that no other live login owns (2026-10-27). Only their
+                // patients join the account — not every patient ever texted here.
+                $linkableAssignments = $this->linkableAssignments($requestPatientId, 'phone_no', $normalizedPhone, $user);
+                $funnelPatientIds = $linkableAssignments->pluck('patient_id')
+                    ->map(fn ($id) => (int) $id)
+                    ->unique()
+                    ->values()
+                    ->toArray();
 
                 $existingIds = $user ? $user->getAllPatientIds() : [];
                 $mergedIds   = array_values(array_unique(array_merge(
@@ -3008,13 +3089,8 @@ class FunnelApiController extends Controller
                     ]);
                 }
 
-                // Link ALL funnel rows for this patient or phone_no to the user.
-                $updatedUserFunnelRows = UserFunnel::withTrashed()
-                    ->where(function ($q) use ($requestPatientId, $normalizedPhone) {
-                        $q->where('patient_id', $requestPatientId)
-                          ->orWhere('phone_no', $normalizedPhone);
-                    })
-                    ->update(['user_id' => $user->id]);
+                // Link those assignments to the user, moving their submitted forms too.
+                $updatedUserFunnelRows = $this->linkAssignmentsToUser($linkableAssignments, (int) $user->id);
 
                 // AMD sync — keep phone and email up to date
                 $amdSyncPayload = ['cell_no' => $request->phone];

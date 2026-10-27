@@ -106,6 +106,18 @@ Default policy:
 - Test command:
   - `php artisan test`
 
+## Funnel ownership rule
+- A form submission must stay on the same login as its assignment: `form_submissions.user_id` = the owning
+  `user_funnels.user_id`. Every patient-facing reader (clinic NPPW view `get-patient-form-data`, PDFs, notes,
+  completion counts, the "already submitted" check) matches on both.
+- `FunnelApiController::addPatientToFunnel` (registration from a funnel link) takes over only the registering
+  patient's own assignments plus household ones (same email / phone) that NO live login owns, moves the forms of
+  every assignment it takes, and adds only those patients to the login (`linkableAssignments` /
+  `linkAssignmentsToUser`, 2026-10-27). Before that it took every matching row and left the forms behind, so a
+  second family member registering on a shared phone hid the first one's NPPW (patient 10007620, assignment 1012).
+- Known, not yet fixed: the registration's user lookup (`email OR login holds this patient`, `first()`) can pick a
+  household login and overwrite its name / email / password with the registering member's details.
+
 ## Environment
 Use `.env.example` as the source of truth for required environment variables.
 
